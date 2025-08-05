@@ -1,0 +1,74 @@
+.header-fac {
+  background: linear-gradient(90deg, #f8fafc 0%, #e9f1fb 100%);
+  border-bottom: 2px solid #d0e0f7;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 1rem;
+  min-height: 56px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+.header-fac .nav-link {
+  color: #222;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 2px;
+}
+.header-fac .nav-link:hover, .header-fac .nav-link.active {
+  background: #e3eefd;
+  color: #1976d2;
+  text-decoration: none;
+}
+.header-fac .dropdown-toggle, .header-fac .dropdown-item {
+  font-size: 1rem;
+}
+.header-fac .description {
+  margin: 0;
+  font-size: 1rem;
+}
+.header-fac .dropdown-menu {
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+.header-fac .btn-link, .header-fac .btn {
+  box-shadow: none !important;
+}
+.header-fac .dropdown-toggle {
+  background: none;
+  border: none;
+  color: #222;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+.header-fac .dropdown-toggle:hover {
+  background: #e3eefd;
+  color: #1976d2;
+}
+.header-fac .dropdown-menu .dropdown-item:hover {
+  background: #f0f4ff;
+  color: #1976d2;
+}
+.header-fac .dropdown-center .dropdown-toggle {
+  color: #1976d2;
+}
+.header-fac .dropdown-center .dropdown-toggle:hover {
+  color: #125ea7;
+}
+.header-fac .text-danger {
+  color: #e74c3c !important;
+}
+.header-fac .bi {
+  font-size: 1.1em;
+  margin-right: 4px;
+}
+.header-fac .d-flex.justify-content-between {
+  border-bottom: 1px solid #d0e0f7;
+}
+.header-fac .dropdown-center {
+  margin-left: 2rem;
+}
