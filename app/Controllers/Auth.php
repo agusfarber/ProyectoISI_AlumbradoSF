@@ -25,9 +25,9 @@ class Auth extends Controller
             ]);
         }
 
-        $user = $userModel->where('email', $usuario->email)->first();
+        $user = $userModel->validateLoginByEmail($usuario->email, $usuario->contrasena);
             
-        if ($user && $usuario->contrasena === $user['contrasena']) {
+        if ($user) {
            $this->session->set([
                 'user_id' => $user['id'],
                 'user_name' => $user['nombre'],
@@ -57,9 +57,9 @@ class Auth extends Controller
             ]);
         }
 
-        $user = $userModel->where('legajo', $usuario->legajo)->first();
+        $user = $userModel->validateLoginByLegajo($usuario->legajo, $usuario->contrasena);
             
-        if ($user && $usuario->contrasena === $user['contrasena']) {
+        if ($user) {
            $this->session->set([
                 'user_id' => $user['id'],
                 'user_name' => $user['nombre'],

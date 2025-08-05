@@ -57,6 +57,19 @@ const app = Vue.createApp({
 
       loginLegajo(){
         this.errorMessageLegajo = ""; // Resetear el mensaje de error
+        
+        // Validar formato del legajo (debe ser un string de 5 dígitos)
+        if (!this.usuarioLegajo.legajo || this.usuarioLegajo.legajo.toString().length < 5) {
+          this.errorMessageLegajo = "El legajo debe tener al menos 5 dígitos.";
+          return;
+        }
+
+        // Validar formato del legajo (debe ser un string de 5 dígitos)
+        if (!this.usuarioLegajo.legajo || this.usuarioLegajo.legajo.toString().length > 5) {
+          this.errorMessageLegajo = "El legajo debe tener máximo 5 dígitos.";
+          return;
+        }
+        
         this.loadingLegajo = true;
               
         axios.post(BASE_URL + "auth/loginLegajo", this.usuarioLegajo)
