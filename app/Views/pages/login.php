@@ -5,7 +5,14 @@
 			<div v-if="!rolSeleccionado" class="col-md-6 mx-auto">
 				<div class="card">
 					<div class="card-body">
-						<h1 class="h3 mb-4 fw-normal">Seleccione su tipo de usuario</h1>
+						<div class="text-center mb-4">
+							<div class="login-logo mb-3">
+								<i class="fas fa-lightbulb"></i>
+							</div>
+							<h1 class="h1 mb-2">Sistema de Alumbrado Público</h1>
+							<p class="text-muted">Seleccione su tipo de usuario para continuar</p>
+						</div>
+						<h2 class="h3 mb-4 fw-normal">Seleccione su tipo de usuario</h2>
 						
 						<div class="d-grid gap-3">
 							<button class="btn btn-primary btn-lg" @click="seleccionarRol('admin')">
@@ -63,7 +70,7 @@
 				<div class="card">
 					<div class="card-body">
 						<div class="d-flex justify-content-between align-items-center mb-3">
-							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Supervisor/Operario</h1>
+							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Supervisor / Operario</h1>
 							<button class="btn btn-outline-secondary btn-sm" @click="volverSeleccion">
 								<i class="fas fa-arrow-left me-1"></i>Volver
 							</button>

@@ -1,0 +1,698 @@
+/* ========================================
+   GLOBAL STYLES - SISTEMA DE ALUMBRADO PÚBLICO
+   Paleta de colores personalizada (coincide con login)
+   ======================================== */
+
+:root {
+  /* Paleta de colores personalizada */
+  --color-white: #FFFFFF;
+  --color-light-gray: #E0E0E9;
+  --color-medium-gray: #A8A8C5;
+  --color-purple-light: #6E6D99;
+  --color-purple-medium: #3A3972;
+  --color-purple-dark: #06044B;
+  --color-dark-gray: #1E1E29;
+  --color-black: #000000;
+  
+  /* Gradientes personalizados */
+  --gradient-primary: linear-gradient(135deg, var(--color-purple-medium) 0%, var(--color-purple-dark) 100%);
+  --gradient-secondary: linear-gradient(135deg, var(--color-purple-light) 0%, var(--color-purple-medium) 100%);
+  --gradient-light: linear-gradient(135deg, var(--color-white) 0%, var(--color-light-gray) 100%);
+  
+  /* Sombras personalizadas */
+  --shadow-light: 0 2px 8px rgba(6, 4, 75, 0.1);
+  --shadow-medium: 0 4px 16px rgba(6, 4, 75, 0.15);
+  --shadow-heavy: 0 8px 32px rgba(6, 4, 75, 0.2);
+}
+
+/* ========================================
+   ESTILOS GLOBALES PARA EL CONTENIDO PRINCIPAL
+   ======================================== */
+
+.content-wrapper {
+  padding: 2rem;
+  min-height: calc(100vh - 0px);
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* ========================================
+   MEJORAS PARA EL CONTENIDO DE LAS PÁGINAS
+   ======================================== */
+
+.container-fluid {
+  padding: 0;
+}
+
+/* ========================================
+   ESTILOS PARA LAS TARJETAS Y CONTENIDO
+   ======================================== */
+
+.card {
+  border: none;
+  border-radius: 16px;
+  box-shadow: var(--shadow-medium);
+  background: var(--color-white);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-heavy);
+  transform: translateY(-2px);
+}
+
+.card-header {
+  background: var(--gradient-primary);
+  color: var(--color-white);
+  border-radius: 16px 16px 0 0 !important;
+  border: none;
+  padding: 1.5rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.card-body {
+  padding: 2rem;
+}
+
+/* ========================================
+   ESTILOS PARA BOTONES
+   ======================================== */
+
+.btn-primary {
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-light);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-primary:hover::before {
+  left: 100%;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+  color: var(--color-white);
+}
+
+.btn-success {
+  background: var(--gradient-secondary);
+  border: none;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: var(--shadow-light);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-success::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-success:hover::before {
+  left: 100%;
+}
+
+.btn-success:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+  color: var(--color-white);
+}
+
+/* ========================================
+   ESTILOS PARA TABLAS
+   ======================================== */
+
+.table {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-medium);
+  background: var(--color-white);
+}
+
+.table thead th {
+  background: var(--gradient-primary);
+  border: none;
+  font-weight: 600;
+  color: var(--color-white);
+  padding: 1.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.9rem;
+}
+
+.table tbody td {
+  padding: 1.25rem;
+  border: none;
+  border-bottom: 1px solid var(--color-light-gray);
+  color: var(--color-purple-dark);
+  font-weight: 500;
+}
+
+.table tbody tr:hover {
+  background: rgba(110, 109, 153, 0.05);
+}
+
+/* ========================================
+   ESTILOS PARA FORMULARIOS
+   ======================================== */
+
+.form-control, .form-select {
+  border-radius: 12px;
+  border: 2px solid var(--color-light-gray);
+  padding: 1rem;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  color: var(--color-purple-dark);
+  background: var(--color-white);
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--color-purple-medium);
+  box-shadow: 0 0 0 0.2rem rgba(58, 57, 114, 0.25);
+  background: var(--color-white);
+  color: var(--color-purple-dark);
+  transform: scale(1.02);
+}
+
+.form-control::placeholder {
+  color: var(--color-medium-gray);
+}
+
+.form-floating > label {
+  color: var(--color-purple-medium);
+  font-weight: 500;
+  padding: 1rem;
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+  color: var(--color-purple-dark);
+  font-weight: 600;
+}
+
+/* ========================================
+   ESTILOS PARA ALERTAS
+   ======================================== */
+
+.alert {
+  border-radius: 12px;
+  border: none;
+  padding: 1.25rem;
+  font-weight: 500;
+  box-shadow: var(--shadow-light);
+}
+
+.alert-success {
+  background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  color: var(--color-purple-dark);
+}
+
+.alert-danger {
+  background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+  color: #721c24;
+}
+
+.alert-warning {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+  color: #856404;
+}
+
+.alert-info {
+  background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+  color: var(--color-purple-dark);
+}
+
+/* ========================================
+   ESTILOS PARA BADGES
+   ======================================== */
+
+.badge {
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.75rem;
+}
+
+.badge-primary {
+  background: var(--gradient-primary);
+  color: var(--color-white);
+}
+
+.badge-success {
+  background: var(--gradient-secondary);
+  color: var(--color-white);
+}
+
+/* ========================================
+   ESTILOS PARA PAGINACIÓN
+   ======================================== */
+
+.pagination .page-link {
+  border-radius: 8px;
+  margin: 0 0.125rem;
+  border: 1px solid var(--color-light-gray);
+  color: var(--color-purple-medium);
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.pagination .page-link:hover {
+  background: var(--gradient-primary);
+  border-color: var(--color-purple-medium);
+  color: var(--color-white);
+  transform: translateY(-1px);
+}
+
+.pagination .page-item.active .page-link {
+  background: var(--gradient-primary);
+  border-color: var(--color-purple-medium);
+  color: var(--color-white);
+}
+
+/* ========================================
+   ESTILOS PARA MODALES
+   ======================================== */
+
+.modal-content {
+  border-radius: 16px;
+  border: none;
+  box-shadow: var(--shadow-heavy);
+  background: var(--color-white);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--color-light-gray);
+  border-radius: 16px 16px 0 0;
+  background: var(--gradient-light);
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--color-light-gray);
+  border-radius: 0 0 16px 16px;
+  background: var(--gradient-light);
+  padding: 1.5rem;
+}
+
+.modal-title {
+  color: var(--color-purple-dark);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* ========================================
+   ESTILOS PARA TOOLTIPS
+   ======================================== */
+
+.tooltip {
+  font-size: 0.875rem;
+}
+
+.tooltip-inner {
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: var(--color-purple-dark);
+  color: var(--color-white);
+  font-weight: 500;
+}
+
+/* ========================================
+   ESTILOS PARA DROPDOWNS
+   ======================================== */
+
+.dropdown-menu {
+  border-radius: 12px;
+  border: none;
+  box-shadow: var(--shadow-medium);
+  padding: 0.5rem;
+  background: var(--color-white);
+}
+
+.dropdown-item {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  color: var(--color-purple-dark);
+  font-weight: 500;
+}
+
+.dropdown-item:hover {
+  background: var(--gradient-light);
+  color: var(--color-purple-dark);
+  transform: translateX(4px);
+}
+
+/* ========================================
+   ESTILOS PARA NAVEGACIÓN POR PESTAÑAS
+   ======================================== */
+
+.nav-tabs {
+  border-bottom: 1px solid var(--color-light-gray);
+}
+
+.nav-tabs .nav-link {
+  border: none;
+  border-radius: 12px 12px 0 0;
+  color: var(--color-medium-gray);
+  font-weight: 600;
+  padding: 1rem 1.5rem;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.9rem;
+}
+
+.nav-tabs .nav-link:hover {
+  color: var(--color-purple-dark);
+  background: var(--gradient-light);
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--color-white);
+  background: var(--gradient-primary);
+  border-bottom: 3px solid var(--color-white);
+}
+
+/* ========================================
+   ESTILOS PARA PROGRESS BARS
+   ======================================== */
+
+.progress {
+  border-radius: 12px;
+  height: 1rem;
+  background: var(--color-light-gray);
+  box-shadow: var(--shadow-light);
+}
+
+.progress-bar {
+  border-radius: 12px;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-light);
+}
+
+/* ========================================
+   ESTILOS PARA SPINNERS
+   ======================================== */
+
+.spinner-border {
+  color: var(--color-purple-medium);
+}
+
+/* ========================================
+   ESTILOS PARA LISTAS
+   ======================================== */
+
+.list-group-item {
+  border: 1px solid var(--color-light-gray);
+  border-radius: 12px;
+  margin-bottom: 0.5rem;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  background: var(--color-white);
+  color: var(--color-purple-dark);
+  font-weight: 500;
+}
+
+.list-group-item:hover {
+  background: var(--gradient-light);
+  transform: translateX(4px);
+  box-shadow: var(--shadow-light);
+}
+
+/* ========================================
+   ESTILOS PARA BREADCRUMBS
+   ======================================== */
+
+.breadcrumb {
+  background: transparent;
+  padding: 0;
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  content: ">";
+  color: var(--color-medium-gray);
+  font-weight: 600;
+}
+
+.breadcrumb-item.active {
+  color: var(--color-purple-medium);
+  font-weight: 700;
+}
+
+.breadcrumb-item a {
+  color: var(--color-purple-light);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.breadcrumb-item a:hover {
+  color: var(--color-purple-dark);
+}
+
+/* ========================================
+   ESTILOS PARA ICONOS
+   ======================================== */
+
+.bi, .fas {
+  vertical-align: middle;
+  color: var(--color-purple-medium);
+}
+
+/* ========================================
+   ESTILOS PARA TEXTO
+   ======================================== */
+
+.text-muted {
+  color: var(--color-medium-gray) !important;
+}
+
+.text-primary {
+  color: var(--color-purple-medium) !important;
+}
+
+.text-success {
+  color: var(--color-purple-light) !important;
+}
+
+/* ========================================
+   ESTILOS PARA FONDOS
+   ======================================== */
+
+.bg-light {
+  background: var(--gradient-light) !important;
+}
+
+.bg-primary {
+  background: var(--gradient-primary) !important;
+}
+
+.bg-success {
+  background: var(--gradient-secondary) !important;
+}
+
+/* ========================================
+   ESTILOS PARA SOMBRAS
+   ======================================== */
+
+.shadow-sm {
+  box-shadow: var(--shadow-light) !important;
+}
+
+.shadow {
+  box-shadow: var(--shadow-medium) !important;
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-heavy) !important;
+}
+
+/* ========================================
+   ESTILOS PARA BORDES
+   ======================================== */
+
+.border-radius {
+  border-radius: 12px;
+}
+
+.border-radius-lg {
+  border-radius: 16px;
+}
+
+/* ========================================
+   ESTILOS PARA ESPACIADO
+   ======================================== */
+
+.p-4 {
+  padding: 2rem !important;
+}
+
+.m-4 {
+  margin: 2rem !important;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+  .content-wrapper {
+    padding: 1rem;
+  }
+  
+  .card-body {
+    padding: 1.5rem;
+  }
+  
+  .table-responsive {
+    border-radius: 12px;
+  }
+  
+  .btn-primary, .btn-success {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+  }
+  
+  .table thead th {
+    padding: 1rem;
+    font-size: 0.8rem;
+  }
+  
+  .table tbody td {
+    padding: 1rem;
+  }
+}
+
+/* ========================================
+   ANIMACIONES ADICIONALES
+   ======================================== */
+
+/* Animación de entrada para las tarjetas */
+.card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Efecto de pulso para elementos importantes */
+.btn-primary:hover,
+.btn-success:hover {
+  animation: pulse 0.3s ease-in-out;
+}
+
+@keyframes pulse {
+  0% {
+    transform: translateY(-2px) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.05);
+  }
+  100% {
+    transform: translateY(-2px) scale(1);
+  }
+}
+
+/* ========================================
+   PERSONALIZACIÓN DE SCROLLBAR
+   ======================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-light-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-purple-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-purple-medium);
+}
+
+/* ========================================
+   MEJORAS DE LEGIBILIDAD
+   ======================================== */
+
+* {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   ESTILOS PARA ESTADOS DE CARGA
+   ======================================== */
+
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ========================================
+   ESTILOS PARA MENSAJES DE ERROR
+   ======================================== */
+
+.text-danger {
+  color: #dc3545 !important;
+  font-weight: 500;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(220, 53, 69, 0.1);
+  border-radius: 8px;
+  border-left: 4px solid #dc3545;
+}

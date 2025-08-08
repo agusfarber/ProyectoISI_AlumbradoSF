@@ -8,6 +8,7 @@ const app = Vue.createApp({
                 contrasena: '',
                 idRol: '',
             },
+            usuarioSeleccionado: {},
             roles: [],
             tabla: null
         };
@@ -63,7 +64,12 @@ const app = Vue.createApp({
                 },
                 columns: [
                     { data: 'nombre' },
-                    { data: 'email' },
+                    { 
+                        data: null,
+                        render: function(data, type, row) {
+                            return data.email || data.legajo || 'No especificado';
+                        }
+                    },
                     { data: 'idRol' },
                     'acciones'
                 ]
@@ -87,6 +93,13 @@ const app = Vue.createApp({
         {
             this.usuario = { ...user };
             new bootstrap.Modal(document.getElementById('modalUsuario')).show();
+        },
+
+        // Ver detalles del usuario
+        verUsuario(user) 
+        {
+            this.usuarioSeleccionado = { ...user };
+            new bootstrap.Modal(document.getElementById('modalVerUsuario')).show();
         },
 
         // Crear o actualizar usuario
