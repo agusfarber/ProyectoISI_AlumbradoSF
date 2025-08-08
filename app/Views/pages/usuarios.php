@@ -9,7 +9,7 @@
         <thead>
             <tr>
                 <th>Nombre</th>
-                <th>Email</th>
+                <th>Email / Legajo</th>
                 <th>Rol</th>
                 <th>Acciones</th>
             </tr>
@@ -17,11 +17,18 @@
         <tbody>
             <tr v-for="user in usuarios" :key="user.id">
                 <td>{{ user.nombre }}</td>
-                <td>{{ user.email }}</td>
+                <td>{{ user.email || user.legajo || 'No especificado' }}</td>
                 <td>{{ getNombreRol(user.idRol) }}</td>
                 <td>
-                    <button class="btn btn-sm btn-warning me-1" @click="editarUsuario(user)">Editar</button>
-                    <button class="btn btn-sm btn-danger" @click="eliminarUsuario(user)">Eliminar</button>
+                    <button class="btn btn-sm btn-info me-1" @click="verUsuario(user)" title="Ver detalles">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning me-1" @click="editarUsuario(user)" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" @click="eliminarUsuario(user)" title="Eliminar">
+                        <i class="bi bi-trash"></i>
+                    </button>
                 </td>
             </tr>
         </tbody>
@@ -62,6 +69,43 @@
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     </div>    
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ver Detalles Usuario -->
+    <div class="modal fade" id="modalVerUsuario" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalles del Usuario</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="fw-bold">ID:</label>
+                        <p>{{ usuarioSeleccionado.id }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Nombre:</label>
+                        <p>{{ usuarioSeleccionado.nombre }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Email:</label>
+                        <p>{{ usuarioSeleccionado.email || 'No especificado' }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Legajo:</label>
+                        <p>{{ usuarioSeleccionado.legajo || 'No especificado' }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Rol:</label>
+                        <p>{{ getNombreRol(usuarioSeleccionado.idRol) }}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>

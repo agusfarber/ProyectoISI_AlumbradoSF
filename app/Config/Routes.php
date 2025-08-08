@@ -31,6 +31,8 @@ $routes->get('/', 'Pages::view');
 $routes->resource('api/usuarios');
 // Endpoint Roles
 $routes->resource('api/roles');
+// Endpoint Reclamos (sistema interno)
+$routes->resource('api/reclamos');
 
 
 

@@ -1,4 +1,4 @@
-const app = Vue.createApp({
+const loginApp = Vue.createApp({
     data() {
       return {
         idioma: "es",
@@ -94,5 +94,8 @@ const app = Vue.createApp({
   
     },
   });
+
+// Montar la aplicación en el ID original
+loginApp.mount('#app');
   
   

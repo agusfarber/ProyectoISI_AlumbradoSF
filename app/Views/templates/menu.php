@@ -1,139 +1,138 @@
 <?php if($required) { ?>
 
-<!-- Menu Superior -->
-<div class="header-fac d-flex justify-content-between align-items-center px-3">
-  <div class="d-flex align-items-center">
+<!-- Botón toggle para móvil -->
+<button class="mobile-toggle" id="sidebarToggle">
+  <i class="bi bi-list"></i>
+</button>
 
-    <div class="me-4">
+<!-- Overlay para móvil -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- Sidebar lateral izquierdo -->
+<div class="sidebar" id="sidebar">
+  <!-- Header del sidebar -->
+  <div class="sidebar-header">
+    <h3><i class="bi bi-lightning-charge"></i> Alumbrado SF</h3>
+  </div>
+
+  <!-- Navegación del sidebar -->
+  <nav class="sidebar-nav">
+    <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/dashboard"); ?>" title="Dashboard">
-        <p class="description m-0">Dashboard</p>
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
       </a>
     </div>
 
     <?php if ($userRole == '1'): ?>
-    <div class="me-4">
+    <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/usuarios"); ?>" title="Usuarios">
-        <p class="description m-0">Usuarios</p>
+        <i class="bi bi-people"></i>
+        <span>Usuarios</span>
       </a>
     </div>
     <?php endif; ?>
 
-    <!--
-    <div class="me-4">
+    <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/reclamos"); ?>" title="Reclamos">
-        <p class="description m-0">Reclamos</p>
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Reclamos</span>
       </a>
     </div>
 
-    <div class="me-4">
-      <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
-        <p class="description m-0">Materiales</p>
-      </a>
-    </div>
-    
-    <div class="me-4">
-      <a class="nav-link" href="<?= base_url("/mapa"); ?>" title="Mapa">
-        <p class="description m-0">Mapa</p>
-      </a>
-    </div-->
-    
-
+    <!-- Menús comentados para futuras funcionalidades -->
     <!--
-    <?php if ($userRole == '1'): ?>
-    <div class="me-4 text-danger">
-      <a class="nav-link" href="<?= base_url("/pasajero"); ?>" title="Pasajeros">
-        <p class="description m-0">Pasajeros</p>
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
+        <i class="bi bi-box-seam"></i>
+        <span>Materiales</span>
       </a>
     </div>
-    <?php endif; ?>
-
-    <div class="dropdown me-4 text-danger">
-      <button class="btn dropdown-toggle text-danger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        Conductores
-      </button>
-      <ul class="dropdown-menu">
-        <li>
-          <a class="dropdown-item" href="<?= base_url("/conductor"); ?>" title="Listado de conductores">
-            Listado de conductores
-          </a>
-        </li>
-        <li>
-          <a class="dropdown-item" href="<?= base_url("/solicitudesConductores"); ?>" title="">
-            Solicitudes de conductores
-          </a>
-        </li>
-      </ul>
-    </div>
-
-    <?php if ($userRole == '1'): ?>
-    <div class="dropdown me-4 text-danger">
-      <button class="btn dropdown-toggle text-danger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        Organizaciones
-      </button>
-      <ul class="dropdown-menu">
-        <li>
-          <a class="dropdown-item" href="<?= base_url("/organizacion"); ?>" title="Listado de organizaciones">
-            Listado de organizaciones
-          </a>
-        </li>
-        <li>
-          <a class="dropdown-item" href="<?= base_url("/supervisor"); ?>" title="">
-            Listado de supervisores
-          </a>
-        </li>
-      </ul>
-    </div>
-    <?php endif; ?>
-
-    <div class="dropdown me-4 text-danger">
-      <button class="btn dropdown-toggle text-danger" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        Certificaciones
-      </button>
-      <ul class="dropdown-menu">
-        <li>
-          <a class="dropdown-item" href="<?= base_url("/listadoCertificacionesConductores"); ?>" title="Listado de vehículos">
-            Certificaciones de conductores
-          </a>
-        </li>
-      </ul>
-    </div>
-
-    <div class="me-4 text-danger">
-      <a class="nav-link" href="<?= base_url("/"); ?>" title="Informe de ganancias">
-        <p class="description m-0">Informe de ganancias</p>
-      </a>
-    </div>
-
-    <div class="me-4 text-danger">
-      <a class="nav-link" href="<?= base_url("/"); ?>" title="Reseñas y valoraciones">
-        <p class="description m-0">Reseñas y valoraciones</p>
+    
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/mapa"); ?>" title="Mapa">
+        <i class="bi bi-geo-alt"></i>
+        <span>Mapa</span>
       </a>
     </div>
     -->
 
-    
-
-    
-  </div>
-
-  <div class="d-flex align-items-center">
-    <div class="dropdown-center">
+    <!-- Dropdowns comentados para futuras funcionalidades -->
+    <!--
+    <?php if ($userRole == '1'): ?>
+    <div class="sidebar-dropdown">
       <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        <svg class="mx-1" width="24" height="24" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2ZM6.023 15.416C7.491 17.606 9.695 19 12.16 19c2.464 0 4.669-1.393 6.136-3.584A8.968 8.968 0 0 0 12.16 13a8.968 8.968 0 0 0-6.137 2.416ZM12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z">
-          </path>
-        </svg><?php echo $username; ?>
+        <span><i class="bi bi-people-fill"></i> Usuarios</span>
+        <i class="bi bi-chevron-down"></i>
       </button>
       <ul class="dropdown-menu">
-        <li>
-          <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
-            <button type="submit" class="dropdown-item">Cerrar sesión</button>
-          </form>
-        </li>
+        <li><a class="dropdown-item" href="<?= base_url("/pasajero"); ?>">Pasajeros</a></li>
+        <li><a class="dropdown-item" href="<?= base_url("/conductor"); ?>">Conductores</a></li>
+        <li><a class="dropdown-item" href="<?= base_url("/supervisor"); ?>">Supervisores</a></li>
       </ul>
     </div>
+    <?php endif; ?>
+
+    <div class="sidebar-dropdown">
+      <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <span><i class="bi bi-award"></i> Certificaciones</span>
+        <i class="bi bi-chevron-down"></i>
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="<?= base_url("/listadoCertificacionesConductores"); ?>">Certificaciones de conductores</a></li>
+      </ul>
+    </div>
+
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/"); ?>" title="Informe de ganancias">
+        <i class="bi bi-graph-up"></i>
+        <span>Informe de ganancias</span>
+      </a>
+    </div>
+
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/"); ?>" title="Reseñas y valoraciones">
+        <i class="bi bi-star"></i>
+        <span>Reseñas y valoraciones</span>
+      </a>
+    </div>
+    -->
+  </nav>
+
+  <!-- Footer del sidebar con información del usuario -->
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="user-avatar">
+        <i class="bi bi-person"></i>
+      </div>
+      <div class="user-details">
+        <p class="username"><?php echo $username; ?></p>
+        <p class="user-role">
+          <?php 
+          switch($userRole) {
+            case '1': echo 'Administrador'; break;
+            case '2': echo 'Supervisor'; break;
+            case '3': echo 'Operador'; break;
+            default: echo 'Usuario'; break;
+          }
+          ?>
+        </p>
+      </div>
+    </div>
+    <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
+      <button type="submit" class="logout-btn">
+        <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+      </button>
+    </form>
   </div>
 </div>
 
+<!-- Contenedor principal del contenido -->
+<div class="main-content">
+  <div class="content-wrapper">
+    <!-- El contenido de las páginas se insertará aquí -->
 
+<?php } else { ?>
+<!-- Para páginas sin menú (como login), solo el contenedor principal -->
+<div class="content-wrapper">
 <?php } ?>
