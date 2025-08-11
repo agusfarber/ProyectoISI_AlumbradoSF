@@ -9,10 +9,10 @@
 							<div class="login-logo mb-3">
 								<i class="fas fa-lightbulb"></i>
 							</div>
-							<h1 class="h1 mb-2">Sistema de Alumbrado Público</h1>
-							<p class="text-muted">Seleccione su tipo de usuario para continuar</p>
+							<h1 class="h1 mb-2">Gestión de Alumbrado Público</h1>
+							<p class="text-muted">Seleccione su tipo de usuario</p>
 						</div>
-						<h2 class="h3 mb-4 fw-normal">Seleccione su tipo de usuario</h2>
+						
 						
 						<div class="d-grid gap-3">
 							<button class="btn btn-primary btn-lg" @click="seleccionarRol('admin')">
