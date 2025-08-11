@@ -33,6 +33,9 @@ $routes->resource('api/usuarios');
 $routes->resource('api/roles');
 // Endpoint Reclamos (sistema interno)
 $routes->resource('api/reclamos');
+// Endpoint Materiales
+$routes->post('api/materiales/import', 'Api\\Materiales::import');
+$routes->resource('api/materiales');
 
 
 

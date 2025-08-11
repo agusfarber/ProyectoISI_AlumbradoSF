@@ -40,8 +40,6 @@
       </a>
     </div>
 
-    <!-- Menús comentados para futuras funcionalidades -->
-    <!--
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
         <i class="bi bi-box-seam"></i>
@@ -49,6 +47,8 @@
       </a>
     </div>
     
+    <!-- Menús comentados para futuras funcionalidades -->
+    <!--
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/mapa"); ?>" title="Mapa">
         <i class="bi bi-geo-alt"></i>

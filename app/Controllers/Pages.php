@@ -22,6 +22,7 @@ class Pages extends BaseController
             'dashboard' => ['1', '2', '3'],
             'usuarios' => ['1', '2', '3'],
             'reclamos' => ['1', '2', '3'],
+            'materiales' => ['1', '2'],
         ];
       
         // Obtener el rol del usuario
