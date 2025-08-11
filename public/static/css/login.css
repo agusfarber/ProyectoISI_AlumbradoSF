@@ -37,6 +37,13 @@
   padding: 20px;
   width: 100%;
   height: 100%;
+
+  /* PROPIEDADES PARA EL FONDO */
+  background-image: url('../img/login.png');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 /* Asegurar que el login ocupe toda la pantalla */
