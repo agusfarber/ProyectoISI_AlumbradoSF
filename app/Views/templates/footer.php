@@ -30,7 +30,7 @@
 <script src="<?php echo base_url("/static/js/menu.js"); ?>"></script>
 <script src="<?php echo base_url("/static/js/funcionesMaps.js"); ?>"></script>
 <script
-    src="https://maps.googleapis.com/maps/api/js?key=(PONER API KEY DE GOOGLE MAPS ACÁ)&loading=async&libraries=maps&v=beta" defer>
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAfMK5sCP34GT1jFPSSTVORThl1Y6pHVow&loading=async&libraries=maps&v=beta" defer>
 </script>
 
 <?php if (isset($jsPageFile)) { ?>

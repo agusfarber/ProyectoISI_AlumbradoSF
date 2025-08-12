@@ -39,9 +39,7 @@
    MEJORAS PARA EL CONTENIDO DE LAS PÁGINAS
    ======================================== */
 
-.container-fluid {
-  padding: 0;
-}
+
 
 /* ========================================
    ESTILOS PARA LAS TARJETAS Y CONTENIDO
@@ -181,6 +179,156 @@
 
 .table tbody tr:hover {
   background: rgba(110, 109, 153, 0.05);
+}
+
+/* ========================================
+   CONTENEDOR DE TABLAS RESPONSIVO
+   ======================================== */
+
+.table-responsive {
+  border-radius: 12px;
+  box-shadow: var(--shadow-medium);
+  background: var(--color-white);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-purple-light) var(--color-light-gray);
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: var(--color-light-gray);
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: var(--color-purple-light);
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: var(--color-purple-medium);
+}
+
+/* ========================================
+   CONTENEDOR PRINCIPAL
+   ======================================== */
+
+.container-fluid {
+  padding: 0;
+  margin: 0.5cm 1.5cm 0.5cm 1.5cm;
+  max-width: calc(100% - 4cm);
+}
+
+/* ========================================
+   TÍTULOS DE PÁGINA
+   ======================================== */
+
+.container-fluid > div:first-child {
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--color-purple-dark);
+  margin: 0.5rem 0 1.5rem 0;
+  padding: 1rem 0;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+  .content-wrapper {
+    padding: 1rem;
+  }
+  
+  .card-body {
+    padding: 1.5rem;
+  }
+  
+  .table-responsive {
+    border-radius: 8px;
+    /* Mejorar el scroll táctil */
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+  
+  .table {
+    font-size: 0.9rem;
+    /* Asegurar que la tabla mantenga su ancho mínimo */
+    min-width: 600px;
+  }
+  
+  .table thead th {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+    /* Evitar que el texto se corte */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .table tbody td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
+    /* Evitar que el texto se corte */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .btn-primary, .btn-success {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.9rem;
+  }
+  
+  /* Ajustar márgenes en pantallas medianas */
+  .container-fluid {
+    margin: 2cm;
+    max-width: calc(100% - 4cm);
+  }
+}
+
+@media (max-width: 576px) {
+  .table-responsive {
+    /* Mejorar el scroll en pantallas muy pequeñas */
+    scroll-snap-type: x mandatory;
+  }
+  
+  .table {
+    min-width: 500px;
+  }
+  
+  .table thead th {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.7rem;
+  }
+  
+  .table tbody td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.8rem;
+  }
+  
+  /* Botones más pequeños en móviles */
+  .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  
+  /* Espaciado entre botones más compacto */
+  .btn-sm.me-1 {
+    margin-right: 0.25rem !important;
+  }
+  
+  /* Ajustar márgenes en pantallas pequeñas */
+  .container-fluid {
+    margin: 1cm;
+    max-width: calc(100% - 2cm);
+  }
 }
 
 /* ========================================
@@ -569,38 +717,6 @@
    RESPONSIVE DESIGN
    ======================================== */
 
-@media (max-width: 768px) {
-  .content-wrapper {
-    padding: 1rem;
-  }
-  
-  .card-body {
-    padding: 1.5rem;
-  }
-  
-  .table-responsive {
-    border-radius: 12px;
-  }
-  
-  .btn-primary, .btn-success {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.9rem;
-  }
-  
-  .table thead th {
-    padding: 1rem;
-    font-size: 0.8rem;
-  }
-  
-  .table tbody td {
-    padding: 1rem;
-  }
-}
-
-/* ========================================
-   ANIMACIONES ADICIONALES
-   ======================================== */
-
 /* Animación de entrada para las tarjetas */
 .card {
   animation: fadeInUp 0.6s ease-out;
@@ -634,6 +750,8 @@
     transform: translateY(-2px) scale(1);
   }
 }
+
+
 
 /* ========================================
    PERSONALIZACIÓN DE SCROLLBAR

@@ -5,44 +5,46 @@
     <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
 
     <!-- Tabla de reclamos -->
-    <table id="tabla_reclamos" class="table table-bordered table-hover w-100">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Motivo</th>
-                <th>Fecha de Inicio</th>
-                <th>Fecha de Modificación</th>
-                <th>Recepción</th>
-                <th>Estado</th>
-                <th>Domicilio</th>
-                <th>Número Domicilio</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="reclamo in reclamos" :key="reclamo.id">
-                <td>{{ reclamo.municipalidad_id }}</td>
-                <td>{{ reclamo.municipalidad_motivo }}</td>
-                <td>{{ formatearFecha(reclamo.municipalidad_fechaInicio) }}</td>
-                <td>{{ formatearFecha(reclamo.municipalidad_fechaModificacion) }}</td>
-                <td>{{ reclamo.municipalidad_recepcion }}</td>
-                <td>{{ reclamo.municipalidad_estado }}</td>
-                <td>{{ reclamo.municipalidad_domicilio }}</td>
-                <td>{{ reclamo.municipalidad_numeroDomicilio }}</td>
-                <td>
-                    <button class="btn btn-sm btn-info me-1" @click="verReclamo(reclamo)" title="Ver detalles">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-warning me-1" @click="editarReclamo(reclamo)" title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" @click="eliminarReclamo(reclamo)" title="Eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table id="tabla_reclamos" class="table table-bordered table-hover w-100">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Motivo</th>
+                    <th>Fecha de Inicio</th>
+                    <th>Fecha de Modificación</th>
+                    <th>Recepción</th>
+                    <th>Estado</th>
+                    <th>Domicilio</th>
+                    <th>Número Domicilio</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="reclamo in reclamos" :key="reclamo.id">
+                    <td>{{ reclamo.municipalidad_id }}</td>
+                    <td>{{ reclamo.municipalidad_motivo }}</td>
+                    <td>{{ formatearFecha(reclamo.municipalidad_fechaInicio) }}</td>
+                    <td>{{ formatearFecha(reclamo.municipalidad_fechaModificacion) }}</td>
+                    <td>{{ reclamo.municipalidad_recepcion }}</td>
+                    <td>{{ reclamo.municipalidad_estado }}</td>
+                    <td>{{ reclamo.municipalidad_domicilio }}</td>
+                    <td>{{ reclamo.municipalidad_numeroDomicilio }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-1" @click="verReclamo(reclamo)" title="Ver detalles">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning me-1" @click="editarReclamo(reclamo)" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="eliminarReclamo(reclamo)" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     <!-- Modal Reclamo -->
     <div class="modal fade" id="modalReclamo" tabindex="-1">

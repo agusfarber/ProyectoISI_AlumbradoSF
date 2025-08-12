@@ -559,4 +559,62 @@ app.component('table-tool', {
 
 const MyApp = app.mount('#app');
 
+/**
+ * Función para mejorar la experiencia táctil en móviles
+ */
+function setupMobileTableTouch() {
+    const tableResponsives = document.querySelectorAll('.table-responsive');
+    
+    tableResponsives.forEach(container => {
+        let startX = 0;
+        let startY = 0;
+        let isScrolling = false;
+        
+        container.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isScrolling = false;
+        });
+        
+        container.addEventListener('touchmove', function(e) {
+            if (!isScrolling) {
+                const deltaX = Math.abs(e.touches[0].clientX - startX);
+                const deltaY = Math.abs(e.touches[0].clientY - startY);
+                
+                if (deltaX > deltaY && deltaX > 10) {
+                    isScrolling = true;
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false });
+        
+        container.addEventListener('touchend', function(e) {
+            isScrolling = false;
+        });
+    });
+}
+
+/**
+ * Función para inicializar todas las mejoras de tablas
+ */
+function initializeTableEnhancements() {
+    // Esperar a que el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setupMobileTableTouch();
+        });
+    } else {
+        setupMobileTableTouch();
+    }
+}
+
+// Inicializar mejoras cuando se carga la página
+initializeTableEnhancements();
+
+// Exportar funciones para uso en otros archivos
+window.tableEnhancements = {
+    setupMobileTableTouch,
+    initializeTableEnhancements
+};
+
 

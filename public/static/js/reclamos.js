@@ -69,6 +69,13 @@ const app = Vue.createApp({
                     'acciones'
                 ]
             });
+            
+            // Inicializar mejoras de tabla después de que DataTable esté listo
+            this.$nextTick(() => {
+                if (window.tableEnhancements) {
+                    window.tableEnhancements.setupMobileTableTouch();
+                }
+            });
         },
 
         // Abrir modal vacío
