@@ -49,7 +49,7 @@
 /* Asegurar que el login ocupe toda la pantalla */
 body {
   background: var(--gradient-light);
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
   margin: 0;
   padding: 0;

@@ -33,11 +33,8 @@
 			<div v-if="rolSeleccionado === 'admin'" class="col-md-6 mx-auto">
 				<div class="card">
 					<div class="card-body">
-						<div class="d-flex justify-content-between align-items-center mb-3">
+						<div class="text-center mb-3">
 							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Administrador</h1>
-							<button class="btn btn-outline-secondary btn-sm" @click="volverSeleccion">
-								<i class="fas fa-arrow-left me-1"></i>Volver
-							</button>
 						</div>
 
 						<form @submit.prevent="login" class="col-12">
@@ -54,10 +51,13 @@
 							<!-- Mensaje de error -->
 							<p v-if="errorMessage" class="text-danger">{{ errorMessage }}</p>
 
-							<div class="d-grid">
+							<div class="d-grid gap-2">
 								<button class="btn btn-primary btn-lg" type="submit" :disabled="loading">
 									<span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
 									{{ loading ? 'Ingresando...' : 'Ingresar' }}
+								</button>
+								<button type="button" class="btn btn-outline-secondary" @click="volverSeleccion">
+									<i class="fas fa-arrow-left me-1"></i>Volver
 								</button>
 							</div>
 						</form>
@@ -69,11 +69,8 @@
 			<div v-if="rolSeleccionado === 'supervisor'" class="col-md-6 mx-auto">
 				<div class="card">
 					<div class="card-body">
-						<div class="d-flex justify-content-between align-items-center mb-3">
+						<div class="text-center mb-3">
 							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Supervisor / Operario</h1>
-							<button class="btn btn-outline-secondary btn-sm" @click="volverSeleccion">
-								<i class="fas fa-arrow-left me-1"></i>Volver
-							</button>
 						</div>
 
 						<form @submit.prevent="loginLegajo" class="col-12">
@@ -90,10 +87,13 @@
 							<!-- Mensaje de error para legajo -->
 							<p v-if="errorMessageLegajo" class="text-danger">{{ errorMessageLegajo }}</p>
 
-							<div class="d-grid">
+							<div class="d-grid gap-2">
 								<button class="btn btn-success btn-lg" type="submit" :disabled="loadingLegajo">
 									<span v-if="loadingLegajo" class="spinner-border spinner-border-sm me-2"></span>
 									{{ loadingLegajo ? 'Ingresando...' : 'Ingresar' }}
+								</button>
+								<button type="button" class="btn btn-outline-secondary" @click="volverSeleccion">
+									<i class="fas fa-arrow-left me-1"></i>Volver
 								</button>
 							</div>
 						</form>

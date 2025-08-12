@@ -10,29 +10,31 @@
         </div>
     </div>
 
-    <table id="tabla_materiales" class="table table-bordered table-hover w-100">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Cantidad</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="material in materiales" :key="material.id">
-                <td>{{ material.nombre }}</td>
-                <td>{{ material.cantidad }}</td>
-                <td>
-                    <button class="btn btn-sm btn-warning me-1" @click="editarMaterial(material)" title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" @click="eliminarMaterial(material)" title="Eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table id="tabla_materiales" class="table table-bordered table-hover w-100">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Cantidad</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="material in materiales" :key="material.id">
+                    <td>{{ material.nombre }}</td>
+                    <td>{{ material.cantidad }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" @click="editarMaterial(material)" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="eliminarMaterial(material)" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     <!-- Modal Material -->
     <div class="modal fade" id="modalMaterial" tabindex="-1">

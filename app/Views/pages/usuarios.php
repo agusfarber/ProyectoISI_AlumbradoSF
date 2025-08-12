@@ -5,34 +5,36 @@
     <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Usuario</button>
 
     <!-- Tabla de usuarios -->
-    <table id="tabla_usuarios" class="table table-bordered table-hover w-100">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Email / Legajo</th>
-                <th>Rol</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr v-for="user in usuarios" :key="user.id">
-                <td>{{ user.nombre }}</td>
-                <td>{{ user.email || user.legajo || 'No especificado' }}</td>
-                <td>{{ getNombreRol(user.idRol) }}</td>
-                <td>
-                    <button class="btn btn-sm btn-info me-1" @click="verUsuario(user)" title="Ver detalles">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-warning me-1" @click="editarUsuario(user)" title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-danger" @click="eliminarUsuario(user)" title="Eliminar">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table id="tabla_usuarios" class="table table-bordered table-hover w-100">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Email / Legajo</th>
+                    <th>Rol</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="user in usuarios" :key="user.id">
+                    <td>{{ user.nombre }}</td>
+                    <td>{{ user.email || user.legajo || 'No especificado' }}</td>
+                    <td>{{ getNombreRol(user.idRol) }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info me-1" @click="verUsuario(user)" title="Ver detalles">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-warning me-1" @click="editarUsuario(user)" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="eliminarUsuario(user)" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 
     <!-- Modal Usuario -->
     <div class="modal fade" id="modalUsuario" tabindex="-1">
