@@ -60,13 +60,13 @@ const loginApp = Vue.createApp({
         
         // Validar formato del legajo (debe ser un string de 5 dígitos)
         if (!this.usuarioLegajo.legajo || this.usuarioLegajo.legajo.toString().length < 5) {
-          this.errorMessageLegajo = "El legajo debe tener al menos 5 dígitos.";
+          this.errorMessageLegajo = "El legajo debe tener 5 dígitos.";
           return;
         }
 
         // Validar formato del legajo (debe ser un string de 5 dígitos)
         if (!this.usuarioLegajo.legajo || this.usuarioLegajo.legajo.toString().length > 5) {
-          this.errorMessageLegajo = "El legajo debe tener máximo 5 dígitos.";
+          this.errorMessageLegajo = "El legajo debe tener 5 dígitos.";
           return;
         }
         

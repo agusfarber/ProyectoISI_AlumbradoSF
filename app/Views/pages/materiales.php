@@ -6,7 +6,7 @@
 
         <div class="d-flex align-items-center gap-2">
             <input type="file" id="inputArchivoMateriales" class="form-control" @change="onArchivoSeleccionado" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-            <button class="btn btn-success" :disabled="!archivoSeleccionado" @click="importarArchivo">Importar</button>
+            <button class="btn btn-success d-flex align-items-center justify-content-center" :disabled="!archivoSeleccionado" @click="importarArchivo">Importar</button>
         </div>
     </div>
 
