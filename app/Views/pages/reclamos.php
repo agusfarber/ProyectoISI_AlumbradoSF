@@ -4,6 +4,50 @@
     <!-- Botón para agregar reclamo -->
     <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
 
+    <!-- Panel de Filtros Unificado -->
+    <div class="row mb-3 align-items-end">
+        <div class="col-md-3 mb-2 mb-md-0">
+            <label for="busqueda" class="form-label">Búsqueda Global</label>
+            <input 
+                type="text" 
+                id="busqueda" 
+                class="form-control" 
+                v-model="filtroBusqueda"
+                placeholder="Buscar en toda la tabla..."
+                @keyup.enter="aplicarFiltros"> <!-- Permite aplicar filtro al presionar Enter -->
+        </div>
+        <div class="col-md-3 mb-2 mb-md-0">
+            <label for="filtroEstado" class="form-label">Filtrar por Estado</label>
+            <select id="filtroEstado" class="form-select" v-model="filtroEstado">
+                <option value="">Todos los estados</option>
+                <option value="Recibido">Recibido</option>
+                <option value="Asignado">Asignado</option>
+                <option value="En ejecución">En ejecución</option>
+                <option value="Completado">Completado</option>
+                <option value="En plan">En plan</option>
+                <option value="Error de datos">Error de datos</option>
+            </select>
+        </div>
+        <div class="col-md-2 mb-2 mb-md-0">
+            <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
+            <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde">
+        </div>
+        <div class="col-md-2 mb-2 mb-md-0">
+            <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
+            <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+            <div class="d-grid gap-2 w-100">
+                <button class="btn btn-primary" @click="aplicarFiltros">
+                    <i class="bi bi-search"></i> Aplicar
+                </button>
+                <button class="btn btn-outline-secondary" @click="limpiarFiltros">
+                    <i class="bi bi-x-circle"></i> Limpiar
+                </button>
+            </div>
+        </div>
+    </div>
+        
     <!-- Tabla de reclamos -->
     <div class="table-responsive">
         <table id="tabla_reclamos" class="table table-bordered table-hover w-100">
@@ -21,27 +65,8 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="reclamo in reclamos" :key="reclamo.id">
-                    <td>{{ reclamo.municipalidad_id }}</td>
-                    <td>{{ reclamo.municipalidad_motivo }}</td>
-                    <td>{{ formatearFecha(reclamo.municipalidad_fechaInicio) }}</td>
-                    <td>{{ formatearFecha(reclamo.municipalidad_fechaModificacion) }}</td>
-                    <td>{{ reclamo.municipalidad_recepcion }}</td>
-                    <td>{{ reclamo.municipalidad_estado }}</td>
-                    <td>{{ reclamo.municipalidad_domicilio }}</td>
-                    <td>{{ reclamo.municipalidad_numeroDomicilio }}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info me-1" @click="verReclamo(reclamo)" title="Ver detalles">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-warning me-1" @click="editarReclamo(reclamo)" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" @click="eliminarReclamo(reclamo)" title="Eliminar">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
+                <!-- Contenido de la tabla gestionado por DataTables -->
+                <!-- Eliminamos el v-for aquí ya que DataTables lo gestionará internamente -->
             </tbody>
         </table>
     </div>

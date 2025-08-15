@@ -1,4 +1,9 @@
 <div id="app" class="col-12">
+	<!-- Logo arriba a la izquierda -->
+	<div class="position-absolute top-0 start-0 m-3">
+		<img src="/static/img/logo_SanFrancisco.png" alt="Logo San Francisco" style="height: 60px;">
+	</div>
+
 	<div class="form-signin w-100 m-auto text-center d-flex justify-content-center">
 		<div class="row w-100">
 			<!-- Selección de Rol -->
@@ -34,18 +39,19 @@
 				<div class="card">
 					<div class="card-body">
 						<div class="text-center mb-3">
-							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Administrador</h1>
+							<h1 class="h3 mb-0 fw-normal">Administrador</h1>
 						</div>
 
+
 						<form @submit.prevent="login" class="col-12">
-							<div class="form-floating mb-3">
-								<input type="email" class="form-control" id="floatingInput" placeholder="name@example.com" v-model="usuario.email" required>
-								<label for="floatingInput">Correo electrónico</label>
+							<div class="form-group mb-3">
+								<label for="email" class="form-label">Correo electrónico</label>
+								<input type="email" class="form-control" id="email" v-model="usuario.email" required>
 							</div>
 
-							<div class="form-floating mb-3">
-								<input type="password" class="form-control" id="floatingPassword" placeholder="Password" v-model="usuario.contrasena" required>
-								<label for="floatingPassword">Contraseña</label>
+							<div class="form-group mb-3">
+								<label for="password" class="form-label">Contraseña</label>
+								<input type="password" class="form-control" id="password" v-model="usuario.contrasena" required>
 							</div>
 
 							<!-- Mensaje de error -->
@@ -54,7 +60,7 @@
 							<div class="d-grid gap-2">
 								<button class="btn btn-primary btn-lg" type="submit" :disabled="loading">
 									<span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-									{{ loading ? 'Ingresando...' : 'Ingresar' }}
+									{{ loading ? 'Ingresando...' : 'Iniciar sesión' }}
 								</button>
 								<button type="button" class="btn btn-outline-secondary" @click="volverSeleccion">
 									<i class="fas fa-arrow-left me-1"></i>Volver
@@ -70,18 +76,20 @@
 				<div class="card">
 					<div class="card-body">
 						<div class="text-center mb-3">
-							<h1 class="h3 mb-0 fw-normal">Iniciar sesión - Supervisor / Operario</h1>
+							<h1 class="h3 mb-0 fw-normal">Supervisor / Operario</h1>
 						</div>
 
+						
+
 						<form @submit.prevent="loginLegajo" class="col-12">
-							<div class="form-floating mb-3">
-								<input type="text" class="form-control" id="floatingLegajo" placeholder="12345" v-model="usuarioLegajo.legajo" required>
-								<label for="floatingLegajo">Legajo</label>
+							<div class="form-group mb-3">
+								<label for="legajo" class="form-label">Legajo</label>
+								<input type="text" class="form-control" id="legajo" v-model="usuarioLegajo.legajo" required>
 							</div>
 
-							<div class="form-floating mb-3">
-								<input type="password" class="form-control" id="floatingPasswordLegajo" placeholder="Password" v-model="usuarioLegajo.contrasena" required>
-								<label for="floatingPasswordLegajo">Contraseña</label>
+							<div class="form-group mb-3">
+								<label for="passwordLegajo" class="form-label">Contraseña</label>
+								<input type="password" class="form-control" id="passwordLegajo" v-model="usuarioLegajo.contrasena" required>
 							</div>
 
 							<!-- Mensaje de error para legajo -->
@@ -90,7 +98,7 @@
 							<div class="d-grid gap-2">
 								<button class="btn btn-success btn-lg" type="submit" :disabled="loadingLegajo">
 									<span v-if="loadingLegajo" class="spinner-border spinner-border-sm me-2"></span>
-									{{ loadingLegajo ? 'Ingresando...' : 'Ingresar' }}
+									{{ loadingLegajo ? 'Ingresando...' : 'Iniciar sesión' }}
 								</button>
 								<button type="button" class="btn btn-outline-secondary" @click="volverSeleccion">
 									<i class="fas fa-arrow-left me-1"></i>Volver

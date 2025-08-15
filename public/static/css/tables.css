@@ -1,0 +1,78 @@
+/* ========================================
+   ESTILOS ESPECÍFICOS PARA PÁGINAS CON TABLAS
+   Fondo personalizado sin afectar el login
+   ======================================== */
+
+/* Aplicar solo a las páginas que contienen tablas */
+body .contenido {
+  background-color: #E0E0E9;
+  min-height: 100vh;
+}
+
+/* Asegurar que el contenedor principal tenga el fondo correcto */
+body .container-fluid {
+  background-color: transparent;
+}
+
+/* Ajustar el espaciado para mejor visualización */
+body .content-wrapper {
+  background-color: #E0E0E9;
+}
+
+/* Mejorar la legibilidad de los títulos en el nuevo fondo */
+body .container-fluid > div:first-child {
+  color: var(--color-purple-dark);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+/* Asegurar que las tablas mantengan su apariencia */
+body .table-responsive {
+  background: var(--color-white);
+  border-radius: 12px;
+  box-shadow: var(--shadow-medium);
+}
+
+/* Mejorar el contraste de los botones */
+body .btn-primary {
+  box-shadow: 0 4px 12px rgba(6, 4, 75, 0.3);
+}
+
+body .btn-success {
+  box-shadow: 0 4px 12px rgba(110, 109, 153, 0.3);
+}
+
+/* Excepción para la página de login - mantener fondo original */
+body .contenido:has(.form-signin),
+body .contenido:has(.card .login-logo) {
+  background-color: transparent;
+}
+
+/* Alternativa para navegadores que no soportan :has() */
+body .contenido .form-signin {
+  background-color: transparent;
+}
+
+body .contenido .login-logo {
+  background-color: transparent;
+}
+
+/* Excepción específica para content-wrapper en login */
+body .contenido:has(.form-signin) .content-wrapper,
+body .contenido:has(.card .login-logo) .content-wrapper {
+  background-color: transparent !important;
+}
+
+/* Alternativa para navegadores que no soportan :has() */
+body .contenido .form-signin ~ .content-wrapper,
+body .contenido .login-logo ~ .content-wrapper {
+  background-color: transparent !important;
+}
+
+/* Regla más específica para login */
+body .contenido .form-signin {
+  background-color: transparent !important;
+}
+
+body .contenido .form-signin .content-wrapper {
+  background-color: transparent !important;
+}
