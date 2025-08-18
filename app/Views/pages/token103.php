@@ -5,7 +5,6 @@
         </div>
     </div>
 
-    <!-- Formulario de configuración -->
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card">
@@ -56,7 +55,6 @@
             </div>
         </div>
 
-        <!-- Información del token actual -->
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header">
@@ -78,6 +76,14 @@
                     
                     <div v-if="tokenActual.access_token" class="mt-3">
                         <div class="mb-2">
+                            <label class="form-label fw-bold">Client ID:</label>
+                            <p class="text-break">{{ tokenActual.client_id }}</p>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Client Secret:</label>
+                            <p class="text-break">{{ tokenActual.client_secret }}</p>
+                        </div>
+                        <div class="mb-2">
                             <label class="form-label fw-bold">Tipo de Token:</label>
                             <p class="mb-1">{{ tokenActual.token_type || 'Bearer' }}</p>
                         </div>
@@ -85,109 +91,37 @@
                             <label class="form-label fw-bold">Expira en:</label>
                             <p class="mb-1">{{ tokenActual.expires_in || 'N/A' }} segundos</p>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabla de tokens -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-table"></i> Historial de Tokens
-                    </h5>
-                </div>
-                <div class="mx-3">
-                    <div>
-                        <table id="tabla_tokens" class="table table-bordered table-hover w-100">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Client ID</th>
-                                    <th>Client Secret</th>
-                                    <th>Access Token</th>
-                                    <th>Tipo</th>
-                                    <th>Expira en</th>
-                                    <th>Fecha Generación</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Contenido de la tabla gestionado por DataTables -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal para ver token completo -->
-    <div class="modal fade" id="modalVerToken" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Detalles del Token</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="fw-bold">Client ID:</label>
-                                <p class="text-break">{{ tokenSeleccionado.client_id }}</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Access Token:</label>
+                            <div class="input-group">
+                                <input 
+                                    type="text" 
+                                    class="form-control" 
+                                    :value="tokenActual.access_token" 
+                                    readonly
+                                    id="tokenInput"
+                                >
+                                
+                                <span 
+                                    v-if="mensajeCopiadoVisible" 
+                                    class="text-success small-text" 
+                                    style="position: absolute; top: -25px; right: 5px;"
+                                >
+                                    Copiado
+                                </span>
+                                
+                                <button 
+                                    class="btn btn-outline-secondary" 
+                                    type="button"
+                                    @click="copiarToken"
+                                    title="Copiar token"
+                                >
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
                             </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Client Secret:</label>
-                                <p class="text-break">{{ tokenSeleccionado.client_secret }}</p>
-                            </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Tipo de Token:</label>
-                                <p>{{ tokenSeleccionado.token_type || 'Bearer' }}</p>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="fw-bold">Expira en:</label>
-                                <p>{{ tokenSeleccionado.expires_in || 'N/A' }} segundos</p>
-                            </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Fecha de Generación:</label>
-                                <p>{{ formatearFecha(tokenSeleccionado.fecha_generacion) }}</p>
-                            </div>
-                            <div class="mb-3">
-                                <label class="fw-bold">Fecha de Creación:</label>
-                                <p>{{ formatearFecha(tokenSeleccionado.created_at) }}</p>
-                            </div>
+                            <small class="text-muted">Haga clic en el botón para copiar el token</small>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="fw-bold">Access Token:</label>
-                        <div class="input-group">
-                            <input 
-                                type="text" 
-                                class="form-control" 
-                                :value="tokenSeleccionado.access_token" 
-                                readonly
-                                id="tokenInput"
-                            >
-                            <button 
-                                class="btn btn-outline-secondary" 
-                                type="button"
-                                @click="copiarToken"
-                                title="Copiar token"
-                            >
-                                <i class="bi bi-clipboard"></i>
-                            </button>
-                        </div>
-                        <small class="text-muted">Haga clic en el botón para copiar el token</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>

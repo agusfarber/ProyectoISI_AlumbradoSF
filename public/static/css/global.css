@@ -836,3 +836,20 @@ table.dataTable > tbody > tr > td {
     padding: .3rem .5rem;
     font-size: 0.7rem;
 }
+
+
+/*PARA ELIMINAR PALABRAS EN INGLES DE LAS TABLAS Y QUE SOLO QUEDE LA LOGICA DEL BUSCADOR, LA PAGINACION Y CANTIDAD DE REGISTROS POR PAGINA*/
+/* Oculta la etiqueta del menú de longitud de la tabla */
+.dt-length label {
+    display: none;
+}
+
+/* Oculta la etiqueta del campo de búsqueda */
+.dt-search label {
+    display: none;
+}
+
+/* Oculta el texto de información de la tabla */
+.dt-info {
+    display: none;
+}

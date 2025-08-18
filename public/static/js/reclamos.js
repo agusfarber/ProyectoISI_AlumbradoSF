@@ -74,9 +74,10 @@ const app = Vue.createApp({
             this.tabla = $('#tabla_reclamos').DataTable({
                 data: this.reclamos,
                 responsive: true,
+                
                 // 'dom: "rtp"' elimina los elementos por defecto de DataTables (barra de búsqueda, info)
                 // Usamos nuestros propios controles de filtro.
-                dom: 'rtp', 
+                
                 columns: [
                     { data: 'municipalidad_id' },
                     { data: 'municipalidad_motivo' },

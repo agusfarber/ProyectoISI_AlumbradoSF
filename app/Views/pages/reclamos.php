@@ -21,19 +21,11 @@
     <!-- Panel de Filtros colapsable -->
     <div class="collapse mb-3" id="filtrosPanel">
         <div class="row align-items-end">
-            <div class="col-md-3 mb-2 mb-md-0">
-                <label for="busqueda" class="form-label">Búsqueda Global</label>
-                <input 
-                    type="text" 
-                    id="busqueda" 
-                    class="form-control" 
-                    v-model="filtroBusqueda"
-                    placeholder="Buscar en toda la tabla..."
-                    @keyup.enter="aplicarFiltros">
-            </div>
+            
             <div class="col-md-3 mb-2 mb-md-0">
                 <label for="filtroEstado" class="form-label">Filtrar por Estado</label>
-                <select id="filtroEstado" class="form-select" v-model="filtroEstado">
+                <!-- Modificado: @change para aplicar filtros automáticamente -->
+                <select id="filtroEstado" class="form-select" v-model="filtroEstado" @change="aplicarFiltros">
                     <option value="">Todos los estados</option>
                     <option value="Recibido">Recibido</option>
                     <option value="Asignado">Asignado</option>
@@ -45,17 +37,17 @@
             </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
-                <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde">
+                <!-- Modificado: @change para aplicar filtros automáticamente -->
+                <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
-                <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta">
+                <!-- Modificado: @change para aplicar filtros automáticamente -->
+                <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 d-flex align-items-end">
                 <div class="d-grid gap-2 w-100">
-                    <button class="btn btn-primary" @click="aplicarFiltros">
-                        <i class="bi bi-search"></i> Aplicar
-                    </button>
+                    <!-- Eliminado: Botón "Aplicar" -->
                     <button class="btn btn-outline-secondary" @click="limpiarFiltros">
                         <i class="bi bi-x-circle"></i> Limpiar
                     </button>

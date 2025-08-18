@@ -1,5 +1,5 @@
 const app = Vue.createApp({
-  data() {
+   data() {
     return {
       materiales: [],
       material: {
@@ -24,26 +24,55 @@ const app = Vue.createApp({
     },
 
     inicializarTabla() {
-      if (this.tabla) {
+    if (this.tabla) {
         this.tabla.destroy();
-      }
-      this.tabla = $('#tabla_materiales').DataTable({
+    }
+    this.tabla = $('#tabla_materiales').DataTable({
         data: this.materiales,
         responsive: true,
-        language: { url: '//cdn.datatables.net/plug-ins/2.2.1/i18n/es-MX.json' },
+        
         columns: [
-          { data: 'nombre' },
-          { data: 'cantidad' },
-          'acciones'
+            { data: 'nombre' },
+            { data: 'cantidad' },
+            { 
+                data: null,
+                render: (data, type, row) => {
+                    return `
+                       
+                        <button class="btn btn-sm btn-warning me-1 editar-material" data-id="${row.id}" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger eliminar-material" data-id="${row.id}" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    `;
+                }
+            }
         ]
-      });
-      
-      // Inicializar mejoras de tabla después de que DataTable esté listo
-      this.$nextTick(() => {
-        if (window.tableEnhancements) {
-          window.tableEnhancements.setupMobileTableTouch();
-        }
-      });
+    });
+    
+        // --- Solución: Delegación de eventos ---
+        const tableInstance = this.tabla;
+        const vueApp = this; // Almacenamos la instancia de la app de Vue
+        
+        $('#tabla_materiales').on('click', '.editar-material', function() {
+            const data = tableInstance.row($(this).closest('tr')).data();
+            vueApp.editarMaterial(data);
+        });
+
+        $('#tabla_materiales').on('click', '.eliminar-material', function() {
+            const data = tableInstance.row($(this).closest('tr')).data();
+            vueApp.eliminarMaterial(data);
+        });
+
+        
+        
+        // Inicializar mejoras de tabla después de que DataTable esté listo
+        this.$nextTick(() => {
+            if (window.tableEnhancements) {
+                window.tableEnhancements.setupMobileTableTouch();
+            }
+        });
     },
 
     abrirFormulario() {
