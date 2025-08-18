@@ -24,7 +24,15 @@ const app = Vue.createApp({
             filtroEstado: '',
             filtroFechaDesde: '',
             filtroFechaHasta: '',
-            filtroBusqueda: ''
+            filtroBusqueda: '',
+            // Variables para sincronización
+            tokenDisponible: false,
+            tokenActual: null,
+            syncFechaDesde: '',
+            syncFechaHasta: '',
+            numeroReclamo: '',
+            // URL de la API externa
+            apiUrl: 'https://0d681142-41d3-4c17-a854-13e8da718ead.mock.pstmn.io'
         };
     },
 
@@ -396,15 +404,259 @@ const app = Vue.createApp({
 
                 // Formatear a YYYY-MM-DD HH:MM:SS
                 return fechaArgentina.toISOString().slice(0, 19).replace('T', ' ');
-            } catch (error) {
+            }
+            catch (error) {
                 console.error('Error al convertir fecha para BD:', error);
                 return fechaInput;
+            }
+        },
+
+        /**
+         * Obtiene el token actual para la sincronización
+         */
+        async obtenerTokenActual() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/token103');
+                if (response.data && response.data.length > 0) {
+                    const ultimoToken = response.data[response.data.length - 1];
+                    if (ultimoToken.access_token) {
+                        this.tokenActual = ultimoToken;
+                        this.tokenDisponible = true;
+                    } else {
+                        this.tokenDisponible = false;
+                    }
+                } else {
+                    this.tokenDisponible = false;
+                }
+            } catch (error) {
+                console.error('Error al obtener token:', error);
+                this.tokenDisponible = false;
+            }
+        },
+
+        /**
+         * Sincroniza reclamos por rango de fechas
+         */
+        async sincronizarReclamosPorFechas() {
+            if (!this.tokenDisponible || !this.tokenActual) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Token no disponible',
+                    text: 'Debe configurar un token válido para sincronizar'
+                });
+                return;
+            }
+
+            if (!this.syncFechaDesde || !this.syncFechaHasta) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Fechas requeridas',
+                    text: 'Debe seleccionar un rango de fechas'
+                });
+                return;
+            }
+
+            try {
+                // Mostrar indicador de carga
+                Swal.fire({
+                    title: 'Sincronizando reclamos...',
+                    text: 'Por favor espere',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // Llamar a la API externa
+                const response = await axios.get(this.apiUrl + '/recibirReclamos', {
+                    params: {
+                        fecha_desde: this.syncFechaDesde,
+                        fecha_hasta: this.syncFechaHasta
+                    },
+                    headers: {
+                        'Authorization': `Bearer ${this.tokenActual.access_token}`
+                    }
+                });
+
+                console.log('Respuesta de la API externa:', response.data);
+
+                // Procesar y guardar los reclamos
+                const reclamosRecibidos = response.data;
+                let reclamosGuardados = 0;
+                let reclamosActualizados = 0;
+
+                for (const reclamoExterno of reclamosRecibidos) {
+                    try {
+                        await this.procesarYGuardarReclamo(reclamoExterno);
+                        reclamosGuardados++;
+                    } catch (error) {
+                        console.error('Error al procesar reclamo:', error);
+                    }
+                }
+
+                // Cerrar indicador de carga
+                Swal.close();
+
+                // Mostrar resumen
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Sincronización completada',
+                    html: `
+                        <p>Se procesaron ${reclamosRecibidos.length} reclamos:</p>
+                        <ul>
+                            <li>Nuevos: ${reclamosGuardados}</li>
+                            <li>Actualizados: ${reclamosActualizados}</li>
+                        </ul>
+                    `
+                });
+
+                // Recargar la tabla
+                this.obtenerReclamos();
+
+            } catch (error) {
+                console.error('Error al sincronizar reclamos:', error);
+                Swal.close();
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error en sincronización',
+                    text: 'No se pudieron sincronizar los reclamos. Verifique el token y la conexión.'
+                });
+            }
+        },
+
+        /**
+         * Sincroniza un reclamo específico por número
+         */
+        async sincronizarReclamoEspecifico() {
+            if (!this.tokenDisponible || !this.tokenActual) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Token no disponible',
+                    text: 'Debe configurar un token válido para sincronizar'
+                });
+                return;
+            }
+
+            if (!this.numeroReclamo) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Número de reclamo requerido',
+                    text: 'Debe ingresar un número de reclamo'
+                });
+                return;
+            }
+
+            try {
+                // Mostrar indicador de carga
+                Swal.fire({
+                    title: 'Buscando reclamo...',
+                    text: 'Por favor espere',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // Llamar a la API externa
+                const response = await axios.get(this.apiUrl + `/recibirReclamo/${this.numeroReclamo}`, {
+                    headers: {
+                        'Authorization': `Bearer ${this.tokenActual.access_token}`
+                    }
+                });
+
+                console.log('Respuesta de la API externa:', response.data);
+
+                // Procesar y guardar el reclamo
+                await this.procesarYGuardarReclamo(response.data);
+
+                // Cerrar indicador de carga
+                Swal.close();
+
+                // Mostrar mensaje de éxito
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Reclamo sincronizado',
+                    text: `El reclamo ${this.numeroReclamo} se ha sincronizado correctamente`
+                });
+
+                // Limpiar campo y recargar tabla
+                this.numeroReclamo = '';
+                this.obtenerReclamos();
+
+            } catch (error) {
+                console.error('Error al sincronizar reclamo:', error);
+                Swal.close();
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error en sincronización',
+                    text: 'No se pudo sincronizar el reclamo. Verifique el número y la conexión.'
+                });
+            }
+        },
+
+        /**
+         * Procesa y guarda un reclamo del sistema externo
+         */
+        async procesarYGuardarReclamo(reclamoExterno) {
+            // Mapear campos del sistema externo a nuestra base de datos
+            const reclamoMapeado = {
+                municipalidad_id: reclamoExterno.nro_reclamo.toString(),
+                municipalidad_tipo: 'ALUMBRADO PÚBLICO',
+                municipalidad_motivo: reclamoExterno.motivo?.nombre || 'No especificado',
+                municipalidad_fechaInicio: this.convertirFechaExterna(reclamoExterno.fecha_inicio),
+                municipalidad_fechaModificacion: this.convertirFechaExterna(reclamoExterno.fecha_modificacion),
+                municipalidad_recepcion: reclamoExterno.recepcion || 'No especificado',
+                municipalidad_estado: reclamoExterno.estado || 'Recibido',
+                municipalidad_telefono: reclamoExterno.telefono || '',
+                municipalidad_domicilio: reclamoExterno.calle?.name || '',
+                municipalidad_numeroDomicilio: reclamoExterno.numero_domicilio || '',
+                municipalidad_entreCalleUno: reclamoExterno.entre_calle_uno || '',
+                municipalidad_entreCalleDos: reclamoExterno.entre_calle_dos || '',
+                municipalidad_ciudadano: reclamoExterno.ciudadano || '',
+                municipalidad_descripcion: reclamoExterno.descripcion || ''
+            };
+
+            // Verificar si el reclamo ya existe
+            const reclamoExistente = this.reclamos.find(r => r.municipalidad_id === reclamoMapeado.municipalidad_id);
+
+            if (reclamoExistente) {
+                // Actualizar reclamo existente
+                await axios.put(BASE_URL + 'api/reclamos/' + reclamoExistente.id, reclamoMapeado);
+                console.log(`Reclamo ${reclamoMapeado.municipalidad_id} actualizado`);
+            } else {
+                // Crear nuevo reclamo
+                await axios.post(BASE_URL + 'api/reclamos', reclamoMapeado);
+                console.log(`Reclamo ${reclamoMapeado.municipalidad_id} creado`);
+            }
+        },
+
+        /**
+         * Convierte fecha del formato externo al formato de nuestra base de datos
+         */
+        convertirFechaExterna(fechaExterna) {
+            if (!fechaExterna) return '';
+            
+            try {
+                const date = new Date(fechaExterna);
+                return date.toISOString().slice(0, 19).replace('T', ' ');
+            } catch (error) {
+                console.error('Error al convertir fecha externa:', error);
+                return '';
             }
         }
     },
 
     mounted() {
-        // Al montar la aplicación, obtener los reclamos y configurar la tabla.
+        // Al montar la aplicación, obtener los reclamos, configurar la tabla y verificar el token.
         this.obtenerReclamos();
+        this.obtenerTokenActual();
+        
+        // Establecer fechas por defecto para sincronización (último mes)
+        const hoy = new Date();
+        const haceUnMes = new Date(hoy.getFullYear(), hoy.getMonth() - 1, hoy.getDate());
+        this.syncFechaDesde = haceUnMes.toISOString().split('T')[0];
+        this.syncFechaHasta = hoy.toISOString().split('T')[0];
     },
 });

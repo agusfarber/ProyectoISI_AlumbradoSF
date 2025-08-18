@@ -12,7 +12,7 @@
 <div class="sidebar" id="sidebar">
   <!-- Header del sidebar -->
   <div class="sidebar-header">
-    <h3><i class="bi bi-lightning-charge"></i> Alumbrado SF</h3>
+    <h3><i class="bi bi-lightning-charge"></i>Menu</h3>
   </div>
 
   <!-- Navegación del sidebar -->
@@ -44,6 +44,13 @@
       <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
         <i class="bi bi-box-seam"></i>
         <span>Materiales</span>
+      </a>
+    </div>
+    
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/token103"); ?>" title="Tokens de Acceso">
+        <i class="bi bi-key"></i>
+        <span>Token 103</span>
       </a>
     </div>
     

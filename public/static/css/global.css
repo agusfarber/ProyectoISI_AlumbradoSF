@@ -81,7 +81,7 @@
   background: var(--gradient-primary);
   border: none;
   border-radius: 12px;
-  padding: 0.75rem 1.5rem;
+  padding: 0.3rem 1rem;
   font-weight: 600;
   transition: all 0.3s ease;
   text-transform: uppercase;
@@ -166,7 +166,7 @@
   padding: 0rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
 }
 
 .table tbody td {
@@ -187,7 +187,6 @@
 .table-responsive {
   border-radius: 12px;
   box-shadow: var(--shadow-medium);
-  background: var(--color-white);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -228,7 +227,7 @@
 
 .container-fluid > div:first-child {
   text-align: center;
-  font-size: 1.8rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--color-purple-dark);
  
@@ -257,14 +256,14 @@
   }
   
   .table {
-    font-size: 0.9rem;
+    font-size: 0.5rem;
     /* Asegurar que la tabla mantenga su ancho mínimo */
     min-width: 600px;
   }
   
   .table thead th {
-    padding: 0.75rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0rem 0rem;
+    font-size: 0.6rem;
     /* Evitar que el texto se corte */
     white-space: nowrap;
     overflow: hidden;
@@ -272,18 +271,15 @@
   }
   
   .table tbody td {
-    padding: 0.75rem 0.5rem;
-    font-size: 0.85rem;
+    padding: 0rem 0rem;
+    font-size: 0.6rem;
     /* Evitar que el texto se corte */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   
-  .btn-primary, .btn-success {
-    padding: 0.75rem 1.25rem;
-    font-size: 0.9rem;
-  }
+  
   
   /* Ajustar márgenes en pantallas medianas */
   .container-fluid {
@@ -303,25 +299,18 @@
   }
   
   .table thead th {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.7rem;
+    padding: 0rem 0rem;
+    font-size: 0.5rem;
   }
   
   .table tbody td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.8rem;
+    padding: 0rem 0rem;
+    font-size: 0.5rem;
   }
   
-  /* Botones más pequeños en móviles */
-  .btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
-  }
   
-  /* Espaciado entre botones más compacto */
-  .btn-sm.me-1 {
-    margin-right: 0.25rem !important;
-  }
+  
+ 
   
   /* Ajustar márgenes en pantallas pequeñas */
   .container-fluid {
@@ -812,4 +801,38 @@
   background: rgba(220, 53, 69, 0.1);
   border-radius: 8px;
   border-left: 4px solid #dc3545;
+}
+
+.btn {
+  --bs-btn-font-size: 0.7rem;
+}
+
+.form-label {
+    margin-bottom: 0.5rem;
+    font-size: 13px;
+}
+
+.td {
+  font-size: 13px;
+}
+
+
+
+table.dataTable > tbody > tr > td {
+    padding: 3px 3px;
+    font-size: 12px;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    padding: .3rem .5rem;
+    font-size: 0.7rem;
+}
+
+.form-select {
+  display: block;
+    width: 100%;
+    padding: .3rem .5rem;
+    font-size: 0.7rem;
 }

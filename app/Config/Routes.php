@@ -36,6 +36,9 @@ $routes->resource('api/reclamos');
 // Endpoint Materiales
 $routes->post('api/materiales/import', 'Api\\Materiales::import');
 $routes->resource('api/materiales');
+// Endpoint Token103
+$routes->resource('api/token103');
+$routes->post('api/token103/generar-externo', 'Api\\Token103::generarTokenExterno');
 
 
 
