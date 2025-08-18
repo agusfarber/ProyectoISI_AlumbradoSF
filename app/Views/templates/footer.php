@@ -33,11 +33,12 @@
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAfMK5sCP34GT1jFPSSTVORThl1Y6pHVow&loading=async&libraries=maps&v=beta" defer>
 </script>
 
+<!-- SweetAlert2 debe cargarse antes del archivo JavaScript específico de la página -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
+
 <?php if (isset($jsPageFile)) { ?>
   <script src="<?= base_url($jsPageFile); ?>"></script><?php } ?>
 <script src="<?php echo base_url("/static/js/tools.js"); ?>"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
 
 
 

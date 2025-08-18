@@ -1,8 +1,8 @@
 <div id="app" class="col-12">
-	<!-- Logo arriba a la izquierda -->
+	<!-- Logo arriba a la izquierda
 	<div class="position-absolute top-0 start-0 m-3">
 		<img src="/static/img/logo_SanFrancisco.png" alt="Logo San Francisco" style="height: 60px;">
-	</div>
+	</div-->
 
 	<div class="form-signin w-100 m-auto text-center d-flex justify-content-center">
 		<div class="row w-100">

@@ -1,14 +1,25 @@
 <div id="app" class="container-fluid">
     <div>Materiales</div>
 
-    <div class="d-flex gap-2 mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <!-- Botón a la izquierda -->
         <button class="btn btn-primary" @click="abrirFormulario()">+ Nuevo Material</button>
 
+        <!-- Bloque a la derecha -->
         <div class="d-flex align-items-center gap-2">
-            <input type="file" id="inputArchivoMateriales" class="form-control" @change="onArchivoSeleccionado" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-            <button class="btn btn-success d-flex align-items-center justify-content-center" :disabled="!archivoSeleccionado" @click="importarArchivo">Importar</button>
+            <input type="file" 
+                id="inputArchivoMateriales" 
+                class="form-control" 
+                @change="onArchivoSeleccionado" 
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+            <button class="btn btn-outline-secondary" 
+                    :disabled="!archivoSeleccionado" 
+                    @click="importarArchivo">
+                Importar
+            </button>
         </div>
     </div>
+
 
     <div class="table-responsive">
         <table id="tabla_materiales" class="table table-bordered table-hover w-100">

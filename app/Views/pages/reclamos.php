@@ -1,49 +1,116 @@
 <div id="app" class="container-fluid">
     <div>Reclamos</div>
 
-    <!-- Botón para agregar reclamo -->
-    <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
+    <!-- Botones principal, filtros y sincronización -->
+    <div class="d-flex justify-content-between mb-3">
+        <!-- Botón a la izquierda -->
+        <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
 
-    <!-- Panel de Filtros Unificado -->
-    <div class="row mb-3 align-items-end">
-        <div class="col-md-3 mb-2 mb-md-0">
-            <label for="busqueda" class="form-label">Búsqueda Global</label>
-            <input 
-                type="text" 
-                id="busqueda" 
-                class="form-control" 
-                v-model="filtroBusqueda"
-                placeholder="Buscar en toda la tabla..."
-                @keyup.enter="aplicarFiltros"> <!-- Permite aplicar filtro al presionar Enter -->
+        <!-- Botones a la derecha -->
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary mb-3" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
+                <i class="bi bi-funnel"></i> Filtros
+            </button>
+            <button class="btn btn-success mb-3" data-bs-toggle="collapse" data-bs-target="#sincronizacionPanel">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar con Sistema 103
+            </button>
         </div>
-        <div class="col-md-3 mb-2 mb-md-0">
-            <label for="filtroEstado" class="form-label">Filtrar por Estado</label>
-            <select id="filtroEstado" class="form-select" v-model="filtroEstado">
-                <option value="">Todos los estados</option>
-                <option value="Recibido">Recibido</option>
-                <option value="Asignado">Asignado</option>
-                <option value="En ejecución">En ejecución</option>
-                <option value="Completado">Completado</option>
-                <option value="En plan">En plan</option>
-                <option value="Error de datos">Error de datos</option>
-            </select>
+    </div>
+
+
+    <!-- Panel de Filtros colapsable -->
+    <div class="collapse mb-3" id="filtrosPanel">
+        <div class="row align-items-end">
+            <div class="col-md-3 mb-2 mb-md-0">
+                <label for="busqueda" class="form-label">Búsqueda Global</label>
+                <input 
+                    type="text" 
+                    id="busqueda" 
+                    class="form-control" 
+                    v-model="filtroBusqueda"
+                    placeholder="Buscar en toda la tabla..."
+                    @keyup.enter="aplicarFiltros">
+            </div>
+            <div class="col-md-3 mb-2 mb-md-0">
+                <label for="filtroEstado" class="form-label">Filtrar por Estado</label>
+                <select id="filtroEstado" class="form-select" v-model="filtroEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="Recibido">Recibido</option>
+                    <option value="Asignado">Asignado</option>
+                    <option value="En ejecución">En ejecución</option>
+                    <option value="Completado">Completado</option>
+                    <option value="En plan">En plan</option>
+                    <option value="Error de datos">Error de datos</option>
+                </select>
+            </div>
+            <div class="col-md-2 mb-2 mb-md-0">
+                <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
+                <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde">
+            </div>
+            <div class="col-md-2 mb-2 mb-md-0">
+                <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
+                <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="d-grid gap-2 w-100">
+                    <button class="btn btn-primary" @click="aplicarFiltros">
+                        <i class="bi bi-search"></i> Aplicar
+                    </button>
+                    <button class="btn btn-outline-secondary" @click="limpiarFiltros">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </button>
+                </div>
+            </div>
         </div>
-        <div class="col-md-2 mb-2 mb-md-0">
-            <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
-            <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde">
-        </div>
-        <div class="col-md-2 mb-2 mb-md-0">
-            <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
-            <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta">
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-            <div class="d-grid gap-2 w-100">
-                <button class="btn btn-primary" @click="aplicarFiltros">
-                    <i class="bi bi-search"></i> Aplicar
-                </button>
-                <button class="btn btn-outline-secondary" @click="limpiarFiltros">
-                    <i class="bi bi-x-circle"></i> Limpiar
-                </button>
+    </div>
+
+    <!-- Panel de Sincronización colapsable -->
+    <div class="collapse mb-3" id="sincronizacionPanel">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-arrow-repeat"></i> Sincronización con Sistema 103</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Sincronización masiva por fechas -->
+                    <div class="col-md-6">
+                        <h6>Sincronizar Reclamos por Rango de Fechas</h6>
+                        <div class="mb-3">
+                            <label for="syncFechaDesde" class="form-label">Fecha Desde</label>
+                            <input type="date" id="syncFechaDesde" class="form-control" v-model="syncFechaDesde">
+                        </div>
+                        <div class="mb-3">
+                            <label for="syncFechaHasta" class="form-label">Fecha Hasta</label>
+                            <input type="date" id="syncFechaHasta" class="form-control" v-model="syncFechaHasta">
+                        </div>
+                        <button class="btn btn-primary" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible">
+                            <i class="bi bi-download"></i> Sincronizar Reclamos
+                        </button>
+                    </div>
+                    
+                    <!-- Sincronización de reclamo específico -->
+                    <div class="col-md-6">
+                        <h6>Sincronizar Reclamo Específico</h6>
+                        <div class="mb-3">
+                            <label for="numeroReclamo" class="form-label">Número de Reclamo</label>
+                            <input type="number" id="numeroReclamo" class="form-control" v-model="numeroReclamo" placeholder="Ej: 12345">
+                        </div>
+                        <button class="btn btn-info" @click="sincronizarReclamoEspecifico" :disabled="!tokenDisponible || !numeroReclamo">
+                            <i class="bi bi-search"></i> Buscar y Sincronizar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Estado del token -->
+                <div class="mt-3">
+                    <div v-if="tokenDisponible" class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> Token disponible para sincronización
+                    </div>
+                    <div v-else class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> No hay token disponible. 
+                        <a href="/token103" class="alert-link">Configure un token en la página de Tokens</a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -60,13 +127,12 @@
                     <th>Recepción</th>
                     <th>Estado</th>
                     <th>Domicilio</th>
-                    <th>Número Domicilio</th>
+                    <th>Número</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 <!-- Contenido de la tabla gestionado por DataTables -->
-                <!-- Eliminamos el v-for aquí ya que DataTables lo gestionará internamente -->
             </tbody>
         </table>
     </div>
