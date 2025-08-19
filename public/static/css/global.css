@@ -853,3 +853,24 @@ table.dataTable > tbody > tr > td {
 .dt-info {
     display: none;
 }
+
+/* Márgenes para los elementos de control */
+.dt-length { /* "entries per page" (arriba a la izquierda) */
+    margin-left: 1rem !important; /* Ajusta este valor para el espaciado deseado */
+    margin-right: 1rem !important;
+}
+
+.dt-search { /* Buscador (arriba a la derecha) */
+    margin-right: 1rem !important; /* Ajusta este valor para el espaciado deseado */
+    margin-left: 1rem !important;
+}
+
+.dt-info { /* Información de paginación "Showing X to Y of Z entries" (abajo a la izquierda) */
+    margin-left: 1rem !important; /* Ajusta este valor para el espaciado deseado */
+    margin-right: 1rem !important;
+}
+
+.dt-paging { /* Botones de paginación (abajo a la derecha) */
+    margin-right: 1rem !important; /* Ajusta este valor para el espaciado deseado */
+    margin-left: 1rem !important;
+}

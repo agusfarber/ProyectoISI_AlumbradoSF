@@ -20,7 +20,7 @@ const app = Vue.createApp({
             try {
                 const urlTokens = BASE_URL + 'api/token103';
                 const response = await axios.get(urlTokens);
-                
+
                 // Si existe al menos un token, usa el último
                 if (response.data.length > 0) {
                     this.tokenActual = response.data[response.data.length - 1];
@@ -42,7 +42,7 @@ const app = Vue.createApp({
         async guardarCredenciales() {
             try {
                 const url = BASE_URL + 'api/token103';
-                
+
                 if (this.tokenActual.id) {
                     // Si ya existe un token, actualiza las credenciales
                     await axios.put(url + '/' + this.tokenActual.id, this.credenciales);
@@ -50,22 +50,16 @@ const app = Vue.createApp({
                     // Si no, crea un nuevo registro (solo con credenciales)
                     await axios.post(url, this.credenciales);
                 }
-                
+
                 this.credencialesGuardadas = true;
                 this.obtenerTokenUnico(); // Recargar el token para actualizar la vista
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Credenciales guardadas',
-                    text: 'Las credenciales se han guardado correctamente'
-                });
+
+                // Mensaje de éxito con alert()
+                alert('Credenciales guardadas: Las credenciales se han guardado correctamente.');
             } catch (error) {
                 console.error('Error al guardar credenciales:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: 'No se pudieron guardar las credenciales'
-                });
+                // Mensaje de error con alert()
+                alert('Error: No se pudieron guardar las credenciales.');
             }
         },
 
@@ -74,24 +68,15 @@ const app = Vue.createApp({
          */
         async generarToken() {
             if (!this.credencialesGuardadas) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Credenciales requeridas',
-                    text: 'Debe guardar las credenciales antes de generar un token'
-                });
+                // Mensaje de advertencia con alert()
+                alert('Credenciales requeridas: Debe guardar las credenciales antes de generar un token.');
                 return;
             }
 
-            try {
-                Swal.fire({
-                    title: 'Generando token...',
-                    text: 'Por favor espere',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+            // Un simple alert para indicar que se está generando el token
+            alert('Generando token... Por favor espere.');
 
+            try {
                 const response = await axios.post(this.apiUrl + '/generarToken', this.credenciales);
 
                 const tokenData = {
@@ -102,7 +87,7 @@ const app = Vue.createApp({
                     expires_in: response.data.expires_in || 3600,
                     fecha_generacion: new Date().toISOString().slice(0, 19).replace('T', ' ')
                 };
-                
+
                 if (this.tokenActual.id) {
                     // Actualiza el token existente con el nuevo access_token
                     await axios.put(BASE_URL + 'api/token103/' + this.tokenActual.id, tokenData);
@@ -111,46 +96,33 @@ const app = Vue.createApp({
                     await axios.post(BASE_URL + 'api/token103', tokenData);
                 }
 
-                Swal.close();
-
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Token generado',
-                    text: 'El token se ha generado y guardado correctamente'
-                });
+                // Mensaje de éxito con alert()
+                alert('Token generado: El token se ha generado y guardado correctamente.');
 
                 this.obtenerTokenUnico(); // Recargar los datos para mostrar el nuevo token
 
             } catch (error) {
                 console.error('Error al generar token:', error);
-                Swal.close();
-                
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error al generar token',
-                    text: 'No se pudo generar el token. Verifique las credenciales y la conexión.'
-                });
+                // Mensaje de error con alert()
+                alert('Error al generar token: No se pudo generar el token. Verifique las credenciales y la conexión.');
             }
         },
 
-        /**
-         * Copia el token al portapapeles
-         */
         /**
          * Copia el token al portapapeles y cambia el ícono del botón
          */
         copiarToken() {
             const tokenInput = document.getElementById('tokenInput');
-            
+
             tokenInput.select();
             tokenInput.setSelectionRange(0, 99999);
-            
+
             try {
                 document.execCommand('copy');
-                
+
                 // Mostrar el mensaje
                 this.mensajeCopiadoVisible = true;
-                
+
                 // Ocultar el mensaje después de 2 segundos
                 setTimeout(() => {
                     this.mensajeCopiadoVisible = false;
@@ -168,7 +140,7 @@ const app = Vue.createApp({
          */
         formatearFecha(fecha) {
             if (!fecha) return '';
-            
+
             try {
                 const date = new Date(fecha);
                 return date.toLocaleString('es-AR', {
@@ -191,3 +163,4 @@ const app = Vue.createApp({
         this.obtenerTokenUnico();
     }
 });
+

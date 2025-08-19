@@ -21,10 +21,9 @@
     <!-- Panel de Filtros colapsable -->
     <div class="collapse mb-3" id="filtrosPanel">
         <div class="row align-items-end">
-            
+
             <div class="col-md-3 mb-2 mb-md-0">
                 <label for="filtroEstado" class="form-label">Filtrar por Estado</label>
-                <!-- Modificado: @change para aplicar filtros automáticamente -->
                 <select id="filtroEstado" class="form-select" v-model="filtroEstado" @change="aplicarFiltros">
                     <option value="">Todos los estados</option>
                     <option value="Recibido">Recibido</option>
@@ -35,19 +34,26 @@
                     <option value="Error de datos">Error de datos</option>
                 </select>
             </div>
+            <!-- Nuevo filtro para prioridad -->
+            <div class="col-md-3 mb-2 mb-md-0">
+                <label for="filtroPrioridad" class="form-label">Filtrar por Prioridad</label>
+                <select id="filtroPrioridad" class="form-select" v-model="filtroPrioridad" @change="aplicarFiltros">
+                    <option value="">Todas las prioridades</option>
+                    <option value="Baja">Baja</option>
+                    <option value="Media">Media</option>
+                    <option value="Alta">Alta</option>
+                </select>
+            </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
-                <!-- Modificado: @change para aplicar filtros automáticamente -->
                 <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
-                <!-- Modificado: @change para aplicar filtros automáticamente -->
                 <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 d-flex align-items-end">
                 <div class="d-grid gap-2 w-100">
-                    <!-- Eliminado: Botón "Aplicar" -->
                     <button class="btn btn-outline-secondary" @click="limpiarFiltros">
                         <i class="bi bi-x-circle"></i> Limpiar
                     </button>
@@ -79,7 +85,7 @@
                             <i class="bi bi-download"></i> Sincronizar Reclamos
                         </button>
                     </div>
-                    
+
                     <!-- Sincronización de reclamo específico -->
                     <div class="col-md-6">
                         <h6>Sincronizar Reclamo Específico</h6>
@@ -92,21 +98,21 @@
                         </button>
                     </div>
                 </div>
-                
+
                 <!-- Estado del token -->
                 <div class="mt-3">
                     <div v-if="tokenDisponible" class="alert alert-success">
                         <i class="bi bi-check-circle"></i> Token disponible para sincronización
                     </div>
                     <div v-else class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> No hay token disponible. 
+                        <i class="bi bi-exclamation-triangle"></i> No hay token disponible.
                         <a href="/token103" class="alert-link">Configure un token en la página de Tokens</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-        
+
     <!-- Tabla de reclamos -->
     <div class="table-responsive">
         <table id="tabla_reclamos" class="table table-bordered table-hover w-100">
@@ -118,6 +124,7 @@
                     <th>Fecha de Modificación</th>
                     <th>Recepción</th>
                     <th>Estado</th>
+                    <th>Prioridad</th> <!-- ¡Columna 'Prioridad' en el encabezado! -->
                     <th>Domicilio</th>
                     <th>Número</th>
                     <th>Acciones</th>
@@ -193,6 +200,16 @@
                                         <option value="Error de datos">Error de datos</option>
                                     </select>
                                 </div>
+                                <!-- Nuevo campo para la prioridad, ahora 'prioridad' -->
+                                <div class="mb-2">
+                                    <label>Prioridad</label>
+                                    <select class="form-control" v-model="reclamo.prioridad" required>
+                                        <option value="" disabled>Seleccionar prioridad</option>
+                                        <option value="Baja">Baja</option>
+                                        <option value="Media">Media</option>
+                                        <option value="Alta">Alta</option>
+                                    </select>
+                                </div>
                                 <div class="mb-2">
                                     <label>Teléfono</label>
                                     <input type="text" class="form-control" v-model="reclamo.municipalidad_telefono">
@@ -233,7 +250,7 @@
                     <div class="modal-footer">
                         <button type="submit" class="btn btn-success">Guardar</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    </div>    
+                    </div>
                 </form>
             </div>
         </div>
@@ -279,6 +296,11 @@
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
                                 <p>{{ reclamoSeleccionado.municipalidad_estado }}</p>
+                            </div>
+                            <!-- Nuevo campo para visualizar la prioridad, ahora 'prioridad' -->
+                            <div class="mb-3">
+                                <label class="fw-bold">Prioridad:</label>
+                                <p>{{ reclamoSeleccionado.prioridad || 'No especificado' }}</p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Teléfono:</label>

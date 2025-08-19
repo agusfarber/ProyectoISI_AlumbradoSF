@@ -10,6 +10,6 @@ class ReclamoModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['municipalidad_id','municipalidad_tipo','municipalidad_motivo','municipalidad_fechaInicio','municipalidad_fechaModificacion','municipalidad_recepcion','municipalidad_estado','municipalidad_telefono','municipalidad_domicilio','municipalidad_numeroDomicilio','municipalidad_entreCalleUno','municipalidad_entreCalleDos','municipalidad_ciudadano','municipalidad_descripcion'];
+  protected $allowedFields = ['municipalidad_id','municipalidad_tipo','municipalidad_motivo','municipalidad_fechaInicio','municipalidad_fechaModificacion','municipalidad_recepcion','municipalidad_estado','municipalidad_telefono','municipalidad_domicilio','municipalidad_numeroDomicilio','municipalidad_entreCalleUno','municipalidad_entreCalleDos','municipalidad_ciudadano','municipalidad_descripcion','prioridad'];
 
 }
