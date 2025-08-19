@@ -46,6 +46,11 @@ class Reclamos extends ResourceController
             $data['municipalidad_fechaModificacion'] = date('Y-m-d H:i:s');
         }
 
+        // Si la prioridad no viene, asignar un valor por defecto
+        if (empty($data['prioridad'])) { // Cambiado a 'prioridad'
+            $data['prioridad'] = 'Baja'; // Puedes elegir el valor por defecto que prefieras
+        }
+
         // Insertar reclamo
         $reclamoId = $this->model->insert($data);
 
@@ -80,6 +85,9 @@ class Reclamos extends ResourceController
         if (!empty($data['municipalidad_fechaInicio'])) {
             $data['municipalidad_fechaInicio'] = $this->formatearFecha($data['municipalidad_fechaInicio']);
         }
+
+        // La prioridad se manejará si se envía en $data. No se necesita un valor por defecto explícito
+        // aquí porque el campo ya existe en la base de datos y se actualizará si se proporciona.
 
         $actualizado = $this->model->update($id, $data);
 
