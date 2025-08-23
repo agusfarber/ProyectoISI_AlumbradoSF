@@ -33,9 +33,13 @@ $routes->resource('api/usuarios');
 $routes->resource('api/roles');
 // Endpoint Reclamos (sistema interno)
 $routes->resource('api/reclamos');
+// Endpoints para Tipos de Materiales
+$routes->get('api/materiales/tipos', 'Api\\Materiales::getTipos');
+$routes->post('api/materiales/tipos', 'Api\\Materiales::createTipo');
+$routes->delete('api/materiales/tipos/(:num)', 'Api\\Materiales::deleteTipo/$1');
 // Endpoint Materiales
-$routes->post('api/materiales/import', 'Api\\Materiales::import');
 $routes->resource('api/materiales');
+$routes->post('api/materiales/import', 'Api\\Materiales::import');
 // Endpoint Token103
 $routes->resource('api/token103');
 $routes->post('api/token103/generar-externo', 'Api\\Token103::generarTokenExterno');
