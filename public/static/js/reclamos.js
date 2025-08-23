@@ -521,7 +521,7 @@ const app = Vue.createApp({
                 municipalidad_estado: reclamoExterno.estado || 'Recibido',
                 prioridad: reclamoExterno.prioridad || 'Baja', // Asignar prioridad, ahora simplemente 'prioridad'
                 municipalidad_telefono: reclamoExterno.telefono || '',
-                municipalidad_domicilio: reclamoExterno.calle?.name || '',
+                municipalidad_domicilio: reclamoExterno.domicilio || '',
                 municipalidad_numeroDomicilio: reclamoExterno.numero_domicilio || '',
                 municipalidad_entreCalleUno: reclamoExterno.entre_calle_uno || '',
                 municipalidad_entreCalleDos: reclamoExterno.entre_calle_dos || '',
