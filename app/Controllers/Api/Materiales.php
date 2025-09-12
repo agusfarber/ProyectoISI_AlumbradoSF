@@ -105,47 +105,96 @@ class Materiales extends ResourceController
 
     public function import()
     {
-        $payload = $this->request->getJSON(true);
-        if (!$payload || !isset($payload['items']) || !is_array($payload['items'])) {
-            return $this->failValidationErrors('Formato inválido. Se espera un objeto con el campo "items" (array).');
-        }
-
-        $items = $payload['items'];
-        $errores = [];
-        $validados = [];
-        
-        $tiposExistentes = $this->tipoMaterialModel->findAll();
-        $tiposMap = array_column($tiposExistentes, 'id', 'nombre');
-        
-        foreach ($items as $index => $item) {
-            $nombre = isset($item['nombre']) ? trim((string) $item['nombre']) : '';
-            $cantidad = isset($item['cantidad']) ? (int) $item['cantidad'] : null;
-            $tipoNombre = isset($item['tipo']) ? trim((string) $item['tipo']) : '';
-            $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
+        try {
+            $payload = $this->request->getJSON(true);
             
-            if ($nombre === '' || $cantidad === null || $cantidad < 0 || $idTipo === 0) {
-                $errores[] = "Fila " . ($index + 1) . ": datos inválidos (nombre, cantidad >= 0 y tipo requerido).";
-                continue;
+            // Log para debugging
+            log_message('debug', 'Import payload recibido: ' . json_encode($payload));
+            
+            if (!$payload || !isset($payload['items']) || !is_array($payload['items'])) {
+                log_message('error', 'Formato inválido en import: ' . json_encode($payload));
+                return $this->failValidationErrors('Formato inválido. Se espera un objeto con el campo "items" (array).');
             }
 
-            $validados[] = [
-                'nombre' => $nombre,
-                'cantidad' => $cantidad,
-                'idTipo' => $idTipo,
-            ];
+            $items = $payload['items'];
+            $errores = [];
+            $validados = [];
+            
+            // Obtener tipos existentes
+            $tiposExistentes = $this->tipoMaterialModel->findAll();
+            log_message('debug', 'Tipos existentes: ' . json_encode($tiposExistentes));
+            
+            // Crear mapa de tipos (case insensitive)
+            $tiposMap = [];
+            foreach ($tiposExistentes as $tipo) {
+                $tiposMap[strtolower(trim($tipo['nombre']))] = $tipo['id'];
+            }
+            log_message('debug', 'Mapa de tipos: ' . json_encode($tiposMap));
+            
+            foreach ($items as $index => $item) {
+                log_message('debug', "Procesando item {$index}: " . json_encode($item));
+                
+                $nombre = isset($item['nombre']) ? trim((string) $item['nombre']) : '';
+                $cantidad = isset($item['cantidad']) ? (int) $item['cantidad'] : null;
+                $tipoNombre = isset($item['tipo']) ? trim((string) $item['tipo']) : '';
+                $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
+                
+                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: {$idTipo}");
+                
+                // Validaciones más detalladas
+                if ($nombre === '') {
+                    $errores[] = "Fila " . ($index + 1) . ": El nombre no puede estar vacío.";
+                    continue;
+                }
+                
+                if ($cantidad === null || $cantidad < 0) {
+                    $errores[] = "Fila " . ($index + 1) . ": La cantidad debe ser un número >= 0.";
+                    continue;
+                }
+                
+                if ($idTipo === 0) {
+                    $errores[] = "Fila " . ($index + 1) . ": El tipo '{$tipoNombre}' no existe. Tipos disponibles: " . implode(', ', array_keys($tiposMap));
+                    continue;
+                }
+
+                $validados[] = [
+                    'nombre' => $nombre,
+                    'cantidad' => $cantidad,
+                    'idTipo' => $idTipo,
+                ];
+            }
+
+            log_message('debug', 'Items validados: ' . count($validados) . ', Errores: ' . count($errores));
+
+            if (empty($validados)) {
+                $mensajeError = 'No hay materiales válidos para importar.';
+                if (!empty($errores)) {
+                    $mensajeError .= ' Detalles: ' . implode(' | ', $errores);
+                }
+                log_message('error', $mensajeError);
+                return $this->failValidationErrors($mensajeError);
+            }
+
+            // Intentar insertar en lotes
+            $resultado = $this->model->insertBatch($validados);
+            
+            if ($resultado === false) {
+                log_message('error', 'Error al insertar materiales en lote');
+                return $this->failServerError('Error al guardar los materiales en la base de datos.');
+            }
+
+            log_message('info', 'Importación exitosa: ' . count($validados) . ' materiales insertados');
+
+            return $this->respond([
+                'mensaje' => 'Importación completada.',
+                'insertados' => count($validados),
+                'errores' => $errores,
+            ]);
+            
+        } catch (Exception $e) {
+            log_message('error', 'Error en import: ' . $e->getMessage());
+            return $this->failServerError('Error interno del servidor: ' . $e->getMessage());
         }
-
-        if (empty($validados)) {
-            return $this->failValidationErrors('No hay materiales válidos para importar.' . (!empty($errores) ? ' Detalles: ' . implode(' | ', $errores) : ''));
-        }
-
-        $this->model->insertBatch($validados);
-
-        return $this->respond([
-            'mensaje' => 'Importación completada.',
-            'insertados' => count($validados),
-            'errores' => $errores,
-        ]);
     }
 
     // Métodos para Tipos de Materiales

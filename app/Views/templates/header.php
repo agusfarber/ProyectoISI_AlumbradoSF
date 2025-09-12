@@ -30,6 +30,10 @@
     <link rel="stylesheet" href="<?= base_url('/static/css/menu.css'); ?>">
     <link rel="stylesheet" href="<?= base_url('/static/css/global.css'); ?>">
     <link rel="stylesheet" href="<?= base_url('/static/css/tables.css'); ?>">
+
+    <?php if (isset($cssPageFile)) { ?>
+    <link rel="stylesheet" href="<?= base_url($cssPageFile); ?>">
+    <?php } ?>
 </head>
 
 <body>

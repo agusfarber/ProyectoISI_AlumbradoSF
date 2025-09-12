@@ -79,13 +79,18 @@ const app = Vue.createApp({
             try {
                 const response = await axios.post(this.apiUrl + '/generarToken', this.credenciales);
 
+                // Crear fecha en zona horaria de Argentina
+                const fechaArgentina = new Date().toLocaleString('sv-SE', {
+                    timeZone: 'America/Argentina/Buenos_Aires'
+                });
+
                 const tokenData = {
                     client_id: this.credenciales.client_id,
                     client_secret: this.credenciales.client_secret,
                     access_token: response.data.access_token,
                     token_type: response.data.token_type || 'Bearer',
                     expires_in: response.data.expires_in || 3600,
-                    fecha_generacion: new Date().toISOString().slice(0, 19).replace('T', ' ')
+                    fecha_generacion: fechaArgentina
                 };
 
                 if (this.tokenActual.id) {
@@ -142,7 +147,15 @@ const app = Vue.createApp({
             if (!fecha) return '';
 
             try {
-                const date = new Date(fecha);
+                // Si la fecha viene en formato YYYY-MM-DD HH:MM:SS, crear el objeto Date correctamente
+                let date;
+                if (typeof fecha === 'string' && fecha.includes(' ')) {
+                    // Formato de base de datos: YYYY-MM-DD HH:MM:SS
+                    date = new Date(fecha.replace(' ', 'T'));
+                } else {
+                    date = new Date(fecha);
+                }
+                
                 return date.toLocaleString('es-AR', {
                     year: 'numeric',
                     month: '2-digit',

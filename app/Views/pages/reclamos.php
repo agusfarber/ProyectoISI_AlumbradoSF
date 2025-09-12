@@ -1,10 +1,10 @@
 <div id="app" class="container-fluid">
-    <div>Reclamos</div>
+    <div>Gestión de Reclamos</div>
 
     <!-- Botones principal, filtros y sincronización -->
     <div class="d-flex justify-content-between mb-3">
         <!-- Botón a la izquierda -->
-        <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
+        <!--button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button-->
 
         <!-- Botones a la derecha -->
         <div class="d-flex gap-2">
@@ -12,7 +12,7 @@
                 <i class="bi bi-funnel"></i> Filtros
             </button>
             <button class="btn btn-success mb-3" data-bs-toggle="collapse" data-bs-target="#sincronizacionPanel">
-                <i class="bi bi-arrow-repeat"></i> Sincronizar con Sistema 103
+                <i class="bi bi-arrow-repeat text-white"></i> Sincronizar con Sistema 103
             </button>
         </div>
     </div>
