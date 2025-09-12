@@ -21,7 +21,12 @@ const app = Vue.createApp({
             try {
                 const resp = await axios.get(BASE_URL + 'api/materiales');
                 this.materiales = resp.data;
-                this.$nextTick(() => this.inicializarTabla());
+                console.log('Materiales obtenidos:', this.materiales);
+                
+                // Usar $nextTick para asegurar que el DOM esté actualizado
+                this.$nextTick(() => {
+                    this.inicializarTabla();
+                });
             } catch (e) {
                 console.error('Error al obtener materiales', e);
                 alert('No se pudieron cargar los materiales');
@@ -67,9 +72,15 @@ const app = Vue.createApp({
         
 
         inicializarTabla() {
+            // Destruir tabla existente si existe
             if (this.tabla) {
                 this.tabla.destroy();
+                this.tabla = null;
             }
+
+            // Limpiar el tbody antes de inicializar
+            $('#tabla_materiales tbody').empty();
+
             this.tabla = $('#tabla_materiales').DataTable({
                 data: this.materiales,
                 responsive: true,
@@ -96,8 +107,18 @@ const app = Vue.createApp({
                 ]
             });
 
+            // Configurar eventos de la tabla
+            this.configurarEventosTabla();
+        },
+
+        configurarEventosTabla() {
             const tableInstance = this.tabla;
             const vueApp = this;
+            
+            // Remover eventos anteriores para evitar duplicados
+            $('#tabla_materiales').off('click', '.editar-material');
+            $('#tabla_materiales').off('click', '.eliminar-material');
+            
             $('#tabla_materiales').on('click', '.editar-material', function() {
                 const data = tableInstance.row($(this).closest('tr')).data();
                 vueApp.editarMaterial(data);
@@ -131,8 +152,11 @@ const app = Vue.createApp({
             const metodo = esNuevo ? 'post' : 'put';
             try {
                 await axios[metodo](url, this.material);
-                await this.obtenerMateriales();
                 bootstrap.Modal.getInstance(document.getElementById('modalMaterial')).hide();
+                
+                // Actualizar la tabla después de guardar
+                console.log('Actualizando tabla después de guardar material...');
+                await this.obtenerMateriales();
             } catch (e) {
                 console.error('Error al guardar material', e);
                 alert('No se pudo guardar el material');
@@ -154,6 +178,9 @@ const app = Vue.createApp({
             if (!confirm(`¿Seguro que deseas eliminar "${item.nombre}"?`)) return;
             try {
                 await axios.delete(BASE_URL + 'api/materiales/' + item.id);
+                
+                // Actualizar la tabla después de eliminar
+                console.log('Actualizando tabla después de eliminar material...');
                 await this.obtenerMateriales();
             } catch (e) {
                 console.error('Error al eliminar material', e);
@@ -173,6 +200,8 @@ const app = Vue.createApp({
             const nombre = (file.name || '').toLowerCase();
 
             try {
+                console.log('Iniciando importación de archivo:', file.name);
+                
                 if (nombre.endsWith('.csv')) {
                     await this.procesarCSV(file);
                 } else if (nombre.endsWith('.xlsx') || nombre.endsWith('.xls')) {
@@ -183,43 +212,99 @@ const app = Vue.createApp({
                     return;
                 }
 
+                console.log('Items procesados para importar:', this.itemsImport);
+
                 if (this.itemsImport.length === 0) {
-                    alert('No se encontraron filas válidas para importar.');
+                    alert('No se encontraron filas válidas para importar. Verifica que el archivo tenga la estructura correcta: nombre, cantidad, tipo');
                     return;
                 }
 
+                console.log('Enviando datos a la API...');
                 const resp = await axios.post(BASE_URL + 'api/materiales/import', { items: this.itemsImport });
-                console.log('Import result:', resp.data);
-                alert(`Importación completada. Insertados: ${resp.data.insertados}. ${resp.data.errores?.length ? 'Errores: ' + resp.data.errores.length : ''}`);
+                console.log('Respuesta de la API:', resp.data);
+                
+                let mensaje = `Importación completada.\nInsertados: ${resp.data.insertados}`;
+                if (resp.data.errores && resp.data.errores.length > 0) {
+                    mensaje += `\nErrores (${resp.data.errores.length}):\n${resp.data.errores.join('\n')}`;
+                }
+                
+                alert(mensaje);
                 this.archivoSeleccionado = null;
                 document.getElementById('inputArchivoMateriales').value = '';
+                
+                // Actualizar la tabla después de la importación
+                console.log('Actualizando tabla después de importación...');
                 await this.obtenerMateriales();
             } catch (e) {
                 console.error('Error al importar archivo', e);
-                alert('No se pudo importar el archivo. Verifica el formato.');
+                let mensajeError = 'No se pudo importar el archivo.';
+                
+                if (e.response && e.response.data) {
+                    console.error('Error del servidor:', e.response.data);
+                    if (e.response.data.messages) {
+                        mensajeError += '\nDetalles: ' + JSON.stringify(e.response.data.messages);
+                    } else if (e.response.data.message) {
+                        mensajeError += '\nDetalles: ' + e.response.data.message;
+                    }
+                }
+                
+                alert(mensajeError);
             }
         },
 
         async procesarCSV(file) {
-            const texto = await file.text();
-            const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
-            if (lineas.length === 0) return;
-
-            const primera = lineas[0].split(',').map(h => h.trim().toLowerCase());
-            const tieneHeader = primera.includes('nombre') && primera.includes('cantidad') && primera.includes('tipo');
-            const inicio = tieneHeader ? 1 : 0;
-            
-            for (let i = inicio; i < lineas.length; i++) {
-                const cols = lineas[i].split(',');
-                if (cols.length < 3) continue; // Ahora se esperan 3 columnas
+            try {
+                const texto = await file.text();
+                console.log('Contenido CSV:', texto.substring(0, 200) + '...');
                 
-                const nombre = String(cols[0] || '').trim();
-                const cantidad = parseInt(cols[1], 10);
-                const tipo = String(cols[2] || '').trim(); // Nuevo campo
+                const lineas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+                console.log('Líneas encontradas:', lineas.length);
                 
-                if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0 && tipo !== '') {
-                    this.itemsImport.push({ nombre, cantidad, tipo });
+                if (lineas.length === 0) {
+                    console.log('Archivo CSV vacío');
+                    return;
                 }
+
+                // Detectar separador (coma o punto y coma)
+                const primeraLinea = lineas[0];
+                const separador = primeraLinea.includes(';') ? ';' : ',';
+                console.log('Separador detectado:', separador);
+
+                const primera = primeraLinea.split(separador).map(h => h.trim().toLowerCase());
+                console.log('Primera línea:', primera);
+                
+                const tieneHeader = primera.includes('nombre') && primera.includes('cantidad') && primera.includes('tipo');
+                console.log('Tiene header:', tieneHeader);
+                
+                const inicio = tieneHeader ? 1 : 0;
+                
+                for (let i = inicio; i < lineas.length; i++) {
+                    const cols = lineas[i].split(separador);
+                    console.log(`Procesando línea ${i + 1}:`, cols);
+                    
+                    if (cols.length < 3) {
+                        console.log(`Línea ${i + 1} ignorada: menos de 3 columnas`);
+                        continue;
+                    }
+                    
+                    const nombre = String(cols[0] || '').trim();
+                    const cantidad = parseInt(cols[1], 10);
+                    const tipo = String(cols[2] || '').trim();
+                    
+                    console.log(`Línea ${i + 1} procesada:`, { nombre, cantidad, tipo });
+                    
+                    if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0 && tipo !== '') {
+                        this.itemsImport.push({ nombre, cantidad, tipo });
+                        console.log(`Línea ${i + 1} agregada a import`);
+                    } else {
+                        console.log(`Línea ${i + 1} rechazada: datos inválidos`);
+                    }
+                }
+                
+                console.log('Total items para importar:', this.itemsImport.length);
+            } catch (error) {
+                console.error('Error procesando CSV:', error);
+                throw error;
             }
         },
 

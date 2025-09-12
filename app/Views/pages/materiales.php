@@ -1,5 +1,5 @@
 <div id="app" class="container-fluid">
-    <h3>Materiales</h3>
+    <h3>Gestión de Materiales</h3>
     <div class="d-flex justify-content-between align-items-center mb-3">
         <button class="btn btn-primary" @click="abrirFormulario()">+ Nuevo Material</button>
         <div class="d-flex align-items-center gap-2">

@@ -33,6 +33,15 @@
     </div>
     <?php endif; ?>
 
+    <?php if ($userRole == '1'): ?>
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/cuadrillas"); ?>" title="Cuadrillas">
+        <i class="bi bi-people-fill"></i>
+        <span>Cuadrillas</span>
+      </a>
+    </div>
+    <?php endif; ?>
+
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/reclamos"); ?>" title="Reclamos">
         <i class="bi bi-exclamation-triangle"></i>
@@ -44,6 +53,13 @@
       <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
         <i class="bi bi-box-seam"></i>
         <span>Materiales</span>
+      </a>
+    </div>
+
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/mapa_google"); ?>" title="Mapa">
+        <i class="bi bi-geo-alt"></i>
+        <span>Mapa</span>
       </a>
     </div>
     

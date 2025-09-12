@@ -79,7 +79,12 @@ const app = Vue.createApp({
                 
 
                 columns: [
-                    { data: 'municipalidad_id' },
+                    {
+                        data: 'municipalidad_id',
+                        render: (data, type, row) => {
+                            return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: underline; cursor: pointer;">${data}</a>`;
+                        }
+                    },
                     { data: 'municipalidad_motivo' },
                     {
                         data: 'municipalidad_fechaInicio',
@@ -98,9 +103,6 @@ const app = Vue.createApp({
                         data: null,
                         render: (data, type, row) => {
                             return `
-                                <button class="btn btn-sm btn-info me-1 ver-reclamo" data-id="${row.id}" title="Ver detalles">
-                                    <i class="bi bi-eye"></i>
-                                </button>
                                 <button class="btn btn-sm btn-warning me-1 editar-reclamo" data-id="${row.id}" title="Editar">
                                     <i class="bi bi-pencil"></i>
                                 </button>
@@ -115,7 +117,8 @@ const app = Vue.createApp({
                 order: [[2, 'desc']]
             });
 
-            $('#tabla_reclamos tbody').off('click', '.ver-reclamo').on('click', '.ver-reclamo', (e) => {
+            $('#tabla_reclamos tbody').off('click', '.ver-reclamo-id').on('click', '.ver-reclamo-id', (e) => {
+                e.preventDefault();
                 const id = $(e.currentTarget).data('id');
                 const reclamo = this.reclamos.find(r => r.id == id);
                 if (reclamo) this.verReclamo(reclamo);

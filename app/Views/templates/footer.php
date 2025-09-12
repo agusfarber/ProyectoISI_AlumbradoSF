@@ -30,8 +30,12 @@
 <script src="<?php echo base_url("/static/js/menu.js"); ?>"></script>
 <script src="<?php echo base_url("/static/js/funcionesMaps.js"); ?>"></script>
 <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAfMK5sCP34GT1jFPSSTVORThl1Y6pHVow&loading=async&libraries=maps&v=beta" defer>
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg&loading=async&libraries=maps&v=beta" defer>
 </script>
+
+<!-- Mapbox -->
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
 <!-- SweetAlert2 debe cargarse antes del archivo JavaScript específico de la página -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
@@ -39,15 +43,6 @@
 <?php if (isset($jsPageFile)) { ?>
   <script src="<?= base_url($jsPageFile); ?>"></script><?php } ?>
 <script src="<?php echo base_url("/static/js/tools.js"); ?>"></script>
-
-
-
-
-
-
-<!-- Mapbox -->
-<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 <!-- Utilidades -->
 
 <?php

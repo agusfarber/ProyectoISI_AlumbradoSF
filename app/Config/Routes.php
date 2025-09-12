@@ -38,11 +38,19 @@ $routes->get('api/materiales/tipos', 'Api\\Materiales::getTipos');
 $routes->post('api/materiales/tipos', 'Api\\Materiales::createTipo');
 $routes->delete('api/materiales/tipos/(:num)', 'Api\\Materiales::deleteTipo/$1');
 // Endpoint Materiales
-$routes->resource('api/materiales');
 $routes->post('api/materiales/import', 'Api\\Materiales::import');
+$routes->resource('api/materiales');
 // Endpoint Token103
 $routes->resource('api/token103');
 $routes->post('api/token103/generar-externo', 'Api\\Token103::generarTokenExterno');
+// Endpoint Direcciones
+$routes->get('api/direcciones/buscar', 'Api\\Direcciones::buscarPorDomicilio');
+$routes->resource('api/direcciones');
+// Endpoint Cuadrillas
+$routes->resource('api/cuadrillas', ['controller' => 'Api\\Cuadrillas']);
+$routes->post('api/cuadrillas/asignar', 'Api\\Cuadrillas::asignar');
+$routes->get('api/usuarios/operarios', 'Api\\Usuarios::operarios');
+$routes->get('api/operarios', 'Api\\Usuarios::operarios');
 
 
 
