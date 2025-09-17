@@ -3,11 +3,7 @@
    ======================================== */
 
 /* Forzar la aplicación de estilos en la página de cuadrillas */
-#app.container-fluid {
-    padding: 2rem;
-    min-height: calc(100vh - 0px);
-    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
+
 
 /* Título de la página */
 #app h2 {

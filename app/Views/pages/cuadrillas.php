@@ -15,8 +15,8 @@
             background-color: #0b5ed7 !important;
         }
     </style>
-    <div class="mb-4">
-        <h2>Gestión de Cuadrillas</h2>
+    <div>
+        Gestión de Cuadrillas
     </div>
 
     <!-- Botones de acción y filtros -->
