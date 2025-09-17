@@ -40,7 +40,7 @@ const loginApp = Vue.createApp({
         axios.post(BASE_URL + "auth/login", this.usuario)
           .then(response => {
             if (response.data.message) {
-              window.location.replace(BASE_URL+'dashboard');
+              window.location.replace(BASE_URL+'usuarios');
             }
           })
           .catch(error => {
@@ -75,7 +75,7 @@ const loginApp = Vue.createApp({
         axios.post(BASE_URL + "auth/loginLegajo", this.usuarioLegajo)
           .then(response => {
             if (response.data.message) {
-              window.location.replace(BASE_URL+'dashboard');
+              window.location.replace(BASE_URL+'usuarios');
             }
           })
           .catch(error => {

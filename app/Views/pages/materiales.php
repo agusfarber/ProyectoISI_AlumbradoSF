@@ -1,5 +1,5 @@
 <div id="app" class="container-fluid">
-    <h3>Gestión de Materiales</h3>
+    <div>Gestión de Materiales</div>
     <div class="d-flex justify-content-between align-items-center mb-3">
         <button class="btn btn-primary" @click="abrirFormulario()">+ Nuevo Material</button>
         <div class="d-flex align-items-center gap-2">
@@ -27,19 +27,7 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="material in materiales" :key="material.id">
-                    <td>{{ material.nombre }}</td>
-                    <td>{{ material.cantidad }}</td>
-                    <td>{{ material.tipo_nombre || 'Sin tipo' }}</td>
-                    <td>
-                        <button class="btn btn-sm btn-warning me-1" @click="editarMaterial(material)" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" @click="eliminarMaterial(material)" title="Eliminar">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
+                <!-- Contenido de la tabla gestionado por DataTables -->
             </tbody>
         </table>
     </div>
@@ -91,27 +79,20 @@
                     <form @submit.prevent="guardarTipo" class="mb-4">
                         <div class="input-group">
                             <input type="text" class="form-control" v-model="tipo.nombre" placeholder="Nombre del nuevo tipo" required>
-                            <button type="submit" class="btn btn-info">Agregar Tipo</button>
+                            <button type="submit" class="btn btn-success">Agregar Tipo</button>
                         </div>
                     </form>
                     <div class="table-responsive">
                         <table id="tabla_tipos" class="table table-bordered table-hover w-100">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Nombre</th>
-                                    <th>Acciones</th> </tr>
+                                    <th class="text-start">ID</th>
+                                    <th class="text-start">Nombre</th>
+                                    <th class="text-start">Acciones</th>
+                                </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="tipo in tiposMaterial" :key="tipo.id">
-                                    <td>{{ tipo.id }}</td>
-                                    <td>{{ tipo.nombre }}</td>
-                                    <td>
-                                        <button class="btn btn-sm btn-danger" @click="eliminarTipo(tipo)" title="Eliminar">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
+                                <!-- Contenido de la tabla gestionado por DataTables -->
                             </tbody>
                         </table>
                     </div>

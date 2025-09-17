@@ -1,369 +1,386 @@
-# Documentación de Pruebas - Proyecto ISI Alumbrado San Francisco
+# Testing del Sistema de Alumbrado SF
 
-Este documento contiene la documentación completa de todas las pruebas implementadas para el sistema de alumbrado público de San Francisco.
+## Formato de Documentación en Informes
 
-## Resumen Ejecutivo
+**Nombre de la Prueba**: [Nombre descriptivo]  
+**Ubicación**: [Ruta completa del archivo]  
+**Objetivo**: [Descripción clara del propósito]  
+**Tipo de Prueba**: [Unitaria/Integración/Base de Datos/API]  
+**Datos Utilizados**: [Entradas y parámetros de prueba]  
+**Resultado Esperado**: [Comportamiento esperado]  
+**Resultado Obtenido**: [Estado de la prueba]  
+**Evidencia**: [Resumen de ejecución]
 
-Se han implementado **12 pruebas** que cubren los siguientes tipos:
-- **5 Pruebas Unitarias**: Verificación de funcionalidades aisladas de los modelos (20 tests, 60 assertions)
-- **5 Pruebas de Integración**: Verificación de interacciones entre componentes y base de datos (10 tests, 256 assertions)
-- **5 Pruebas de API**: Verificación de estructura y métodos de controladores (15 tests, 46 assertions)
+---
 
-**Total**: 45 tests, 362 assertions - **100% PASANDO** ✅
+## Tests Implementados
 
-## Configuración de Base de Datos para Testing
+### Test 1: Validación de Login por Legajo con Credenciales Correctas
 
-```php
-database.tests.hostname = 127.0.0.1
-database.tests.database = proyectoisi_alumbradosf_tests
-database.tests.username = root
-database.tests.password = 
-database.tests.DBDriver = MySQLi
+**Nombre de la Prueba**: Validación de Login por Legajo con Credenciales Correctas  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testValidateLoginByLegajoWithCorrectCredentials()`  
+**Objetivo**: Verificar que el método `validateLoginByLegajo()` del UsuarioModel retorna correctamente los datos del usuario cuando se proporcionan credenciales válidas  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Legajo: `'12345'`
+- Contraseña: `'password123'`
+- Usuario de prueba: Juan Pérez (email: juan.perez@test.com, idRol: 1)  
+**Resultado Esperado**: El método debe retornar un array con los datos del usuario (nombre, email, legajo, idRol)  
+**Resultado Obtenido**: ❌ ERROR - Table 'proyectoisi_alumbradosf_tests.usuario' doesn't exist  
+**Evidencia**: 
 ```
-
-## Ejecución de Pruebas
-
-Para ejecutar todas las pruebas:
-```bash
-./vendor/bin/phpunit
+CodeIgniter\Database\Exceptions\DatabaseException: Table 'proyectoisi_alumbradosf_tests.usuario' doesn't exist
+Caused by mysqli_sql_exception: Table 'proyectoisi_alumbradosf_tests.usuario' doesn't exist
 ```
+El test falló porque la tabla 'usuario' no existe en la base de datos de pruebas 'proyectoisi_alumbradosf_tests'. Se ejecutaron 9 tests, todos con el mismo error de tabla inexistente.
 
-Para ejecutar pruebas específicas:
-```bash
-./vendor/bin/phpunit --filter UsuarioModelTest
-./vendor/bin/phpunit --filter MaterialModelTest
-./vendor/bin/phpunit --filter RolModelTest
-./vendor/bin/phpunit --filter Tipo_materialModelTest
-./vendor/bin/phpunit --filter ReclamoModelTest
-./vendor/bin/phpunit --filter UsuarioIntegrationTest
-./vendor/bin/phpunit --filter MaterialIntegrationTest
-./vendor/bin/phpunit --filter RolIntegrationTest
-./vendor/bin/phpunit --filter TipoMaterialIntegrationTest
-./vendor/bin/phpunit --filter ReclamoIntegrationTest
-./vendor/bin/phpunit --filter UsuariosApiTest
-./vendor/bin/phpunit --filter MaterialesApiTest
-./vendor/bin/phpunit --filter RolesApiTest
-./vendor/bin/phpunit --filter ReclamosApiTest
-./vendor/bin/phpunit --filter Token103ApiTest
+---
+
+### Test 2: Validación de Login por Legajo con Credenciales Incorrectas
+
+**Nombre de la Prueba**: Validación de Login por Legajo con Credenciales Incorrectas  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testValidateLoginByLegajoWithIncorrectCredentials()`  
+**Objetivo**: Verificar que el método `validateLoginByLegajo()` del UsuarioModel retorna false cuando se proporcionan credenciales incorrectas  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Legajo: `'12345'`
+- Contraseña: `'wrongpassword'` (incorrecta)
+- Usuario de prueba: Juan Pérez (email: juan.perez@test.com, idRol: 1)  
+**Resultado Esperado**: El método debe retornar false cuando las credenciales son incorrectas  
+**Resultado Obtenido**: ✅ ÉXITO - El método retorna false correctamente  
+**Evidencia**: 
 ```
+Tests: 9, Assertions: 22, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test pasó exitosamente. El método `validateLoginByLegajo()` retorna false cuando se proporcionan credenciales incorrectas, cumpliendo con el comportamiento esperado. Se ejecutaron 9 tests en total con 22 aserciones, todos exitosos.
 
 ---
 
-## 1. Pruebas Unitarias
+### Test 3: Validación de Login con Campos Vacíos
 
-### 1.1 UsuarioModelTest
-
-**Nombre de la Prueba**: Validación de Métodos de Login del Modelo Usuario  
-**Ubicación**: `tests/unit/Models/UsuarioModelTest.php`  
-**Objetivo**: Verificar el correcto funcionamiento de los métodos de validación de login por legajo y email  
+**Nombre de la Prueba**: Validación de Login con Campos Vacíos  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testValidateLoginWithEmptyFields()`  
+**Objetivo**: Verificar que los métodos de validación de login manejan correctamente parámetros vacíos, nulos o con espacios en blanco  
 **Tipo de Prueba**: Unitaria  
-**Datos Utilizados**: Usuarios de prueba con legajos, emails y contraseñas específicas  
-**Resultado Esperado**: Los métodos deben validar correctamente las credenciales válidas e inválidas  
-**Resultado Obtenido**: ✅ PASÓ  
+**Datos Utilizados**: 
+- Legajo: `''` (cadena vacía)
+- Contraseña: `''` (cadena vacía)
+- Legajo: `null`
+- Contraseña: `null`
+- Legajo: `'   '` (solo espacios)
+- Contraseña: `'   '` (solo espacios)
+**Resultado Esperado**: Los métodos deben retornar false cuando se proporcionan campos vacíos o nulos  
+**Resultado Obtenido**: ✅ ÉXITO - Los métodos manejan correctamente campos vacíos  
 **Evidencia**: 
-- `testValidateLoginByLegajoSuccess`: Valida login exitoso por legajo (4 tests, 8 assertions)
-- `testValidateLoginByLegajoFailure`: Valida fallo de login con contraseña incorrecta
-- `testValidateLoginByEmailSuccess`: Valida login exitoso por email
-- `testValidateLoginByEmailFailure`: Valida fallo de login con contraseña incorrecta
+```
+Tests: 10, Assertions: 32, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test pasó exitosamente. Los métodos `validateLoginByLegajo()` y `validateLoginByEmail()` retornan false correctamente cuando se proporcionan campos vacíos, nulos o con solo espacios en blanco. Se ejecutaron 10 tests en total con 32 aserciones, todos exitosos. El comportamiento es robusto ante entradas inválidas.
 
-### 1.2 MaterialModelTest
+---
 
-**Nombre de la Prueba**: Verificación de Método findAllWithTipo del Modelo Material  
-**Ubicación**: `tests/unit/Models/MaterialModelTest.php`  
-**Objetivo**: Verificar que el método findAllWithTipo retorne la estructura correcta de datos con el join a tipo_material  
+### Test 4: Búsqueda de Usuario por ID
+
+**Nombre de la Prueba**: Búsqueda de Usuario por ID  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testFindUserById()`  
+**Objetivo**: Verificar que el método `find()` heredado del modelo CodeIgniter funciona correctamente para buscar usuarios por su ID  
 **Tipo de Prueba**: Unitaria  
-**Datos Utilizados**: Materiales de prueba con tipos asociados  
-**Resultado Esperado**: El método debe retornar materiales con todos los campos requeridos y el nombre del tipo  
-**Resultado Obtenido**: ✅ PASÓ  
+**Datos Utilizados**: 
+- ID válido: `1` (Juan Pérez)
+- ID válido: `2` (María García)
+- ID inexistente: `999`
+- ID inválido: `0`
+- ID inválido: `-1`
+**Resultado Esperado**: El método debe retornar los datos del usuario cuando el ID existe, o null cuando no existe  
+**Resultado Obtenido**: ✅ ÉXITO - El método find() funciona correctamente  
 **Evidencia**: 
-- `testFindAllWithTipoReturnsCorrectStructure`: Verifica estructura de datos retornada (3 tests, 35 assertions)
-- `testFindAllWithTipoJoinWorksCorrectly`: Verifica funcionamiento del join
-- `testFindAllWithTipoReturnsAllFields`: Verifica presencia de todos los campos
+```
+Tests: 11, Assertions: 47, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test pasó exitosamente. El método `find()` heredado del modelo CodeIgniter funciona correctamente:
+- Retorna los datos del usuario cuando el ID existe
+- Retorna null cuando el ID no existe o es inválido
+- Maneja correctamente IDs como string
+- Se ejecutaron 11 tests en total con 47 aserciones, todos exitosos
 
-### 1.3 RolModelTest
+---
 
-**Nombre de la Prueba**: Verificación de Estructura del Modelo Rol  
-**Ubicación**: `tests/unit/Models/RolModelTest.php`  
-**Objetivo**: Verificar la estructura básica y configuración del modelo RolModel  
+### Test 5: Actualización de Usuario
+
+**Nombre de la Prueba**: Actualización de Usuario  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testUpdateUser()`  
+**Objetivo**: Verificar que el método `update()` heredado del modelo CodeIgniter funciona correctamente para actualizar usuarios existentes  
 **Tipo de Prueba**: Unitaria  
-**Datos Utilizados**: Instancia del modelo RolModel  
-**Resultado Esperado**: El modelo debe tener la configuración correcta de tabla, instancia y estructura  
-**Resultado Obtenido**: ✅ PASÓ  
+**Datos Utilizados**: 
+- ID válido: `1` (Juan Pérez)
+- Datos a actualizar: nombre, email, legajo, contraseña, idRol
+- ID inexistente: `999`
+- ID inválido: `0`
+**Resultado Esperado**: El método debe actualizar los datos cuando el ID existe y retornar true, o false cuando no existe  
+**Resultado Obtenido**: ❌ FALLO - El método update() tiene comportamiento inesperado  
 **Evidencia**: 
-- `testRolModelInstance`: Verifica instancia correcta del modelo (4 tests, 4 assertions)
-- `testRolModelTableName`: Verifica nombre de tabla correcto
-- `testRolModelTableStructure`: Verifica estructura de tabla
-- `testRolModelInstanceCreation`: Verifica creación de instancia
+```
+Tests: 12, Assertions: 59, Failures: 1, PHPUnit Warnings: 1.
+Failed asserting that true is false.
+C:\xampp\htdocs\proyectos\ProyectoISI_AlumbradoSF\tests\unit\Models\UsuarioModelTest.php:306
+```
+El test falló porque el método `update()` retorna `true` cuando se intenta actualizar un ID inexistente (999), cuando se esperaba que retornara `false`. Esto indica que CodeIgniter no valida la existencia del registro antes de intentar actualizarlo, o que el comportamiento del método `update()` es diferente al esperado. Se ejecutaron 12 tests con 59 aserciones, 1 fallo.
 
-### 1.4 Tipo_materialModelTest
+---
 
-**Nombre de la Prueba**: Verificación de Estructura del Modelo Tipo de Material  
-**Ubicación**: `tests/unit/Models/Tipo_materialModelTest.php`  
-**Objetivo**: Verificar la estructura básica y configuración del modelo Tipo_materialModel  
+### Test 5 (Corregido): Actualización de Usuario - Comportamiento Real
+
+**Nombre de la Prueba**: Actualización de Usuario - Comportamiento Real  
+**Ubicación**: `tests/unit/Models/UsuarioModelTest.php` - método `testUpdateUserCorrected()`  
+**Objetivo**: Verificar el comportamiento real del método `update()` heredado del modelo CodeIgniter  
 **Tipo de Prueba**: Unitaria  
-**Datos Utilizados**: Instancia del modelo Tipo_materialModel  
-**Resultado Esperado**: El modelo debe tener la configuración correcta de tabla, instancia y estructura  
-**Resultado Obtenido**: ✅ PASÓ  
+**Datos Utilizados**: 
+- ID válido: `1` (Juan Pérez)
+- Datos a actualizar: nombre, email, legajo, contraseña, idRol
+- ID inexistente: `999`
+- ID inválido: `0`
+**Resultado Esperado**: El método debe retornar true siempre (comportamiento real de CodeIgniter), pero verificar que no se actualicen registros inexistentes  
+**Resultado Obtenido**: ❌ ERROR - Excepción con datos vacíos  
 **Evidencia**: 
-- `testTipoMaterialModelInstance`: Verifica instancia correcta del modelo (4 tests, 4 assertions)
-- `testTipoMaterialModelTableName`: Verifica nombre de tabla correcto
-- `testTipoMaterialModelTableStructure`: Verifica estructura de tabla
-- `testTipoMaterialModelInstanceCreation`: Verifica creación de instancia
+```
+Tests: 13, Assertions: 69, Errors: 1, Failures: 1, PHPUnit Warnings: 1.
+CodeIgniter\Database\Exceptions\DataException: There is no data to update.
+C:\xampp\htdocs\proyectoISI_AlumbradoSF\vendor\codeigniter4\framework\system\BaseModel.php:1823
+```
+El test corregido reveló otro comportamiento de CodeIgniter: cuando se intenta actualizar con un array vacío `[]`, CodeIgniter lanza una excepción `DataException: There is no data to update`. Esto es diferente al comportamiento esperado. El test original sigue fallando, y el corregido tiene un error con datos vacíos.
 
-### 1.5 ReclamoModelTest
+---
 
-**Nombre de la Prueba**: Verificación de Estructura del Modelo Reclamo  
-**Ubicación**: `tests/unit/Models/ReclamoModelTest.php`  
-**Objetivo**: Verificar la estructura básica y configuración del modelo ReclamoModel  
+### Test 6: MaterialModel - Método findAllWithTipo()
+
+**Nombre de la Prueba**: MaterialModel - Método findAllWithTipo()  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testFindAllWithTipo()`  
+**Objetivo**: Verificar que el método `findAllWithTipo()` del MaterialModel ejecuta correctamente el JOIN con la tabla `tipo_material` y retorna los materiales con el nombre del tipo asociado  
 **Tipo de Prueba**: Unitaria  
-**Datos Utilizados**: Instancia del modelo ReclamoModel  
-**Resultado Esperado**: El modelo debe tener la configuración correcta de tabla, instancia y estructura  
-**Resultado Obtenido**: ✅ PASÓ  
+**Datos Utilizados**: 
+- Tabla `material`: materiales con diferentes tipos
+- Tabla `tipo_material`: tipos de materiales
+- Materiales con tipo asociado
+- Materiales sin tipo asociado (LEFT JOIN)
+**Resultado Esperado**: El método debe retornar un array con materiales que incluyan el campo `tipo_nombre` del JOIN  
+**Resultado Obtenido**: ✅ ÉXITO - El método findAllWithTipo() funciona correctamente  
 **Evidencia**: 
-- `testReclamoModelInstance`: Verifica instancia correcta del modelo (4 tests, 4 assertions)
-- `testReclamoModelTableName`: Verifica nombre de tabla correcto
-- `testReclamoModelTableStructure`: Verifica estructura de tabla
-- `testReclamoModelInstanceCreation`: Verifica creación de instancia
+```
+Tests: 1, Assertions: 34, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test pasó exitosamente. El método `findAllWithTipo()` del MaterialModel funciona correctamente:
+- Ejecuta el JOIN con la tabla `tipo_material` correctamente
+- Retorna materiales con el campo `tipo_nombre` del JOIN
+- Maneja correctamente materiales sin tipo asociado (LEFT JOIN retorna null)
+- Se ejecutó 1 test con 34 aserciones, todas exitosas
+- Verificó materiales específicos: Lámpara LED (tipo: Lámparas), Cable de Cobre (tipo: Cables), Material Sin Tipo (tipo: null)
 
 ---
 
-## 2. Pruebas de Integración
+### Test 7: MaterialModel - Inserción de Materiales
 
-### 2.1 UsuarioIntegrationTest
-
-**Nombre de la Prueba**: Operaciones CRUD Completo del Modelo Usuario con Base de Datos  
-**Ubicación**: `tests/integration/UsuarioIntegrationTest.php`  
-**Objetivo**: Verificar la integración completa del modelo UsuarioModel con la base de datos MySQL  
-**Tipo de Prueba**: Integración  
-**Datos Utilizados**: Datos de usuario completos (nombre, email, legajo, contraseña, rol)  
-**Resultado Esperado**: Todas las operaciones CRUD deben funcionar correctamente con persistencia en BD  
-**Resultado Obtenido**: ✅ PASÓ  
+**Nombre de la Prueba**: MaterialModel - Inserción de Materiales  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testInsertMaterial()`  
+**Objetivo**: Verificar que se pueden insertar materiales con los campos permitidos y validar el comportamiento con diferentes casos de datos  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Material completo: nombre, idTipo, cantidad
+- Material con campos faltantes: solo nombre y cantidad
+- Material con datos inválidos: campos no permitidos
+- Material con idTipo null
+**Resultado Esperado**: El método debe insertar correctamente materiales válidos y rechazar datos inválidos  
+**Resultado Obtenido**: ❌ FALLO - Comportamiento inesperado con datos faltantes  
 **Evidencia**: 
-- `testUsuarioCRUDOperations`: Verifica ciclo completo de Crear, Leer, Actualizar y Eliminar (2 tests, 14 assertions)
-- `testUsuarioValidationWithDatabase`: Verifica validación de login con datos reales de BD
-
-### 2.2 MaterialIntegrationTest
-
-**Nombre de la Prueba**: Operaciones CRUD del Modelo Material con Relaciones de Tipo  
-**Ubicación**: `tests/integration/MaterialIntegrationTest.php`  
-**Objetivo**: Verificar la integración del modelo MaterialModel con la base de datos y su relación con tipo_material  
-**Tipo de Prueba**: Integración  
-**Datos Utilizados**: Materiales con tipos asociados y cantidades  
-**Resultado Esperado**: Las operaciones CRUD deben funcionar correctamente manteniendo las relaciones  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testMaterialCRUDWithTipoRelationship`: Verifica CRUD con relaciones de tipo (2 tests, 162 assertions)
-- `testMaterialFindAllWithTipoReturnsCompleteData`: Verifica retorno de datos completos con join
-
-### 2.3 RolIntegrationTest
-
-**Nombre de la Prueba**: Operaciones CRUD del Modelo Rol con Base de Datos  
-**Ubicación**: `tests/integration/RolIntegrationTest.php`  
-**Objetivo**: Verificar la integración completa del modelo RolModel con la base de datos MySQL  
-**Tipo de Prueba**: Integración  
-**Datos Utilizados**: Datos de rol completos (nombre)  
-**Resultado Esperado**: Todas las operaciones CRUD deben funcionar correctamente con persistencia en BD  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testRolCRUDOperations`: Verifica ciclo completo de Crear, Leer, Actualizar y Eliminar (2 tests, 10 assertions)
-- `testRolFindAllReturnsCorrectData`: Verifica retorno de datos correctos con findAll
-
-### 2.4 TipoMaterialIntegrationTest
-
-**Nombre de la Prueba**: Operaciones CRUD del Modelo Tipo de Material con Base de Datos  
-**Ubicación**: `tests/integration/TipoMaterialIntegrationTest.php`  
-**Objetivo**: Verificar la integración completa del modelo Tipo_materialModel con la base de datos MySQL  
-**Tipo de Prueba**: Integración  
-**Datos Utilizados**: Datos de tipo de material completos (nombre)  
-**Resultado Esperado**: Todas las operaciones CRUD deben funcionar correctamente con persistencia en BD  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testTipoMaterialCRUDOperations`: Verifica ciclo completo de Crear, Leer, Actualizar y Eliminar (2 tests, 10 assertions)
-- `testTipoMaterialFindAllReturnsCorrectData`: Verifica retorno de datos correctos con findAll
-
-### 2.5 ReclamoIntegrationTest
-
-**Nombre de la Prueba**: Operaciones CRUD del Modelo Reclamo con Base de Datos  
-**Ubicación**: `tests/integration/ReclamoIntegrationTest.php`  
-**Objetivo**: Verificar la integración completa del modelo ReclamoModel con la base de datos MySQL  
-**Tipo de Prueba**: Integración  
-**Datos Utilizados**: Datos de reclamo completos (municipalidad_id, tipo, motivo, fechas, estado, etc.)  
-**Resultado Esperado**: Todas las operaciones CRUD deben funcionar correctamente con persistencia en BD  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testReclamoCRUDOperations`: Verifica ciclo completo de Crear, Leer, Actualizar y Eliminar (2 tests, 80 assertions)
-- `testReclamoFindAllReturnsCorrectData`: Verifica retorno de datos correctos con findAll
+```
+Tests: 2, Assertions: 51, Failures: 1, PHPUnit Warnings: 1.
+Failed asserting that 10 is false.
+C:\xampp\htdocs\proyectoISI_AlumbradoSF\tests\unit\Models\MaterialModelTest.php:231
+```
+El test falló porque el método `insert()` retorna un ID (10) cuando se intenta insertar un material con nombre vacío, cuando se esperaba que retornara `false`. Esto indica que CodeIgniter permite insertar registros con campos vacíos aunque estén marcados como NOT NULL en la base de datos, o que el comportamiento de validación es diferente al esperado. Se ejecutaron 2 tests con 51 aserciones, 1 fallo.
 
 ---
 
-## 3. Pruebas de API
+### Test 8: MaterialModel - Validación de Campos Permitidos
 
-### 3.1 UsuariosApiTest
-
-**Nombre de la Prueba**: Endpoints CRUD de la API de Usuarios  
-**Ubicación**: `tests/api/UsuariosApiTest.php`  
-**Objetivo**: Verificar el correcto funcionamiento de todos los endpoints REST de la API de usuarios  
-**Tipo de Prueba**: API  
-**Datos Utilizados**: Datos JSON para crear, actualizar y eliminar usuarios  
-**Resultado Esperado**: Todos los endpoints deben responder con códigos HTTP correctos y datos JSON válidos  
-**Resultado Obtenido**: ✅ PASÓ  
+**Nombre de la Prueba**: MaterialModel - Validación de Campos Permitidos  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testAllowedFieldsValidation()`  
+**Objetivo**: Verificar que el modelo MaterialModel solo permite insertar/actualizar los campos definidos en `allowedFields`: ['nombre','idTipo','cantidad']  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Campos permitidos: nombre, idTipo, cantidad
+- Campos no permitidos: id, fechaCreacion, usuarioModificacion, campoInventado
+- Intentos de inserción y actualización con campos mixtos
+**Resultado Esperado**: El modelo debe ignorar campos no permitidos y solo procesar los campos válidos  
+**Resultado Obtenido**: ❌ ERROR - Excepción con campos no permitidos  
 **Evidencia**: 
-- `testUsuarioControllerInstance`: Verifica instancia del controlador (3 tests, 6 assertions)
-- `testUsuarioControllerMethodsExist`: Verifica existencia de métodos CRUD
-- `testUsuarioControllerExtendsResourceController`: Verifica herencia de ResourceController
-
-### 3.2 MaterialesApiTest
-
-**Nombre de la Prueba**: Endpoints CRUD y Funcionalidades Especiales de la API de Materiales  
-**Ubicación**: `tests/api/MaterialesApiTest.php`  
-**Objetivo**: Verificar el funcionamiento de la API de materiales incluyendo importación masiva y gestión de tipos  
-**Tipo de Prueba**: API  
-**Datos Utilizados**: Datos JSON para materiales, tipos y operaciones de importación  
-**Resultado Esperado**: Todos los endpoints deben funcionar correctamente con validaciones y respuestas apropiadas  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testMaterialControllerInstance`: Verifica instancia del controlador (3 tests, 10 assertions)
-- `testMaterialControllerMethodsExist`: Verifica existencia de métodos CRUD y especiales
-- `testMaterialControllerExtendsResourceController`: Verifica herencia de ResourceController
-
-### 3.3 RolesApiTest
-
-**Nombre de la Prueba**: Endpoints de la API de Roles  
-**Ubicación**: `tests/api/RolesApiTest.php`  
-**Objetivo**: Verificar el correcto funcionamiento de la API de roles  
-**Tipo de Prueba**: API  
-**Datos Utilizados**: Instancia del controlador Roles  
-**Resultado Esperado**: El controlador debe tener la estructura correcta y heredar de ResourceController  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testRolesControllerInstance`: Verifica instancia del controlador (4 tests, 4 assertions)
-- `testRolesControllerExtendsResourceController`: Verifica herencia de ResourceController
-- `testRolesControllerMethodsExist`: Verifica existencia de métodos
-- `testRolesControllerFormat`: Verifica formato JSON
-
-### 3.4 ReclamosApiTest
-
-**Nombre de la Prueba**: Endpoints CRUD de la API de Reclamos  
-**Ubicación**: `tests/api/ReclamosApiTest.php`  
-**Objetivo**: Verificar el correcto funcionamiento de todos los endpoints REST de la API de reclamos  
-**Tipo de Prueba**: API  
-**Datos Utilizados**: Instancia del controlador Reclamos  
-**Resultado Esperado**: El controlador debe tener la estructura correcta y heredar de ResourceController  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testReclamosControllerInstance`: Verifica instancia del controlador (5 tests, 5 assertions)
-- `testReclamosControllerExtendsResourceController`: Verifica herencia de ResourceController
-- `testReclamosControllerMethodsExist`: Verifica existencia de métodos CRUD
-- `testReclamosControllerFormat`: Verifica formato JSON
-- `testReclamosControllerHasFormatearFechaMethod`: Verifica método de formateo de fechas
-
-### 3.5 Token103ApiTest
-
-**Nombre de la Prueba**: Endpoints CRUD y Funcionalidades Especiales de la API de Token103  
-**Ubicación**: `tests/api/Token103ApiTest.php`  
-**Objetivo**: Verificar el funcionamiento de la API de tokens incluyendo generación externa  
-**Tipo de Prueba**: API  
-**Datos Utilizados**: Instancia del controlador Token103  
-**Resultado Esperado**: El controlador debe tener la estructura correcta y heredar de ResourceController  
-**Resultado Obtenido**: ✅ PASÓ  
-**Evidencia**: 
-- `testToken103ControllerInstance`: Verifica instancia del controlador (5 tests, 5 assertions)
-- `testToken103ControllerExtendsResourceController`: Verifica herencia de ResourceController
-- `testToken103ControllerMethodsExist`: Verifica existencia de métodos CRUD
-- `testToken103ControllerFormat`: Verifica formato JSON
-- `testToken103ControllerHasGenerarTokenExternoMethod`: Verifica método de generación externa
+```
+Tests: 3, Assertions: 68, Errors: 1, Failures: 1, PHPUnit Warnings: 1.
+CodeIgniter\Database\Exceptions\DataException: There is no data to insert.
+C:\xampp\htdocs\proyectoISI_AlumbradoSF\tests\unit\Models\MaterialModelTest.php:311
+```
+El test falló porque cuando se intenta insertar solo con campos no permitidos, CodeIgniter lanza una excepción `DataException: There is no data to insert`. Esto indica que CodeIgniter filtra los campos no permitidos antes de intentar insertar, y si no quedan campos válidos, lanza una excepción. Se ejecutaron 3 tests con 68 aserciones, 1 error y 1 fallo.
 
 ---
 
-## 4. Seeders de Prueba
+### Test 8 (Corregido): MaterialModel - Validación de Campos Permitidos - Comportamiento Real
 
-### 4.1 UsuarioSeeder
-**Ubicación**: `tests/_support/Database/Seeds/UsuarioSeeder.php`  
-**Propósito**: Proporcionar datos de prueba para usuarios en las pruebas unitarias  
-**Datos Incluidos**: 2 usuarios de prueba con credenciales válidas
-
-### 4.2 MaterialSeeder
-**Ubicación**: `tests/_support/Database/Seeds/MaterialSeeder.php`  
-**Propósito**: Proporcionar datos de prueba para materiales y tipos en las pruebas unitarias  
-**Datos Incluidos**: 4 tipos de material y 3 materiales asociados
-
-### 4.3 RolSeeder
-**Ubicación**: `tests/_support/Database/Seeds/RolSeeder.php`  
-**Propósito**: Proporcionar datos de prueba para roles en las pruebas unitarias  
-**Datos Incluidos**: 4 roles de prueba (Usuario, Administrador, Supervisor, Técnico)
-
-### 4.4 TipoMaterialSeeder
-**Ubicación**: `tests/_support/Database/Seeds/TipoMaterialSeeder.php`  
-**Propósito**: Proporcionar datos de prueba para tipos de material en las pruebas unitarias  
-**Datos Incluidos**: 6 tipos de material (Cable Eléctrico, Lámpara, Interruptor, Conexión, Transformador, Fusible)
-
-### 4.5 ReclamoSeeder
-**Ubicación**: `tests/_support/Database/Seeds/ReclamoSeeder.php`  
-**Propósito**: Proporcionar datos de prueba para reclamos en las pruebas unitarias  
-**Datos Incluidos**: 2 reclamos de prueba con datos completos de municipalidad
+**Nombre de la Prueba**: MaterialModel - Validación de Campos Permitidos - Comportamiento Real  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testAllowedFieldsValidationCorrected()`  
+**Objetivo**: Verificar el comportamiento real del modelo MaterialModel con campos permitidos y no permitidos  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Campos permitidos: nombre, idTipo, cantidad
+- Campos no permitidos: id, fechaCreacion, usuarioModificacion, campoInventado
+- Intentos de inserción y actualización con campos mixtos
+**Resultado Esperado**: El modelo debe ignorar campos no permitidos, procesar campos válidos, y lanzar excepción cuando solo hay campos no permitidos  
+**Resultado Obtenido**: ✅ ÉXITO - El comportamiento real de CodeIgniter funciona correctamente  
+**Evidencia**: 
+```
+Tests: 4, Assertions: 87, Errors: 1, Failures: 1, PHPUnit Warnings: 1.
+```
+El test corregido pasó exitosamente. El modelo MaterialModel funciona correctamente con campos permitidos:
+- Ignora campos no permitidos en inserción y actualización
+- Procesa solo los campos válidos definidos en `allowedFields`
+- Lanza excepción `DataException` cuando solo hay campos no permitidos (comportamiento correcto)
+- Se ejecutaron 4 tests con 87 aserciones, el test corregido pasó exitosamente
 
 ---
 
-## 5. Cobertura de Pruebas
+### Test 9: MaterialModel - Búsqueda Básica
 
-### Modelos Cubiertos
-- ✅ `UsuarioModel` - 100% de métodos probados
-- ✅ `MaterialModel` - 100% de métodos probados
-- ✅ `RolModel` - 100% de métodos probados
-- ✅ `Tipo_materialModel` - 100% de métodos probados
-- ✅ `ReclamoModel` - 100% de métodos probados
-
-### Controladores API Cubiertos
-- ✅ `Usuarios` - 100% de endpoints probados
-- ✅ `Materiales` - 100% de endpoints probados
-- ✅ `Roles` - 100% de endpoints probados
-- ✅ `Reclamos` - 100% de endpoints probados
-- ✅ `Token103` - 100% de endpoints probados
-
-### Funcionalidades Verificadas
-- ✅ Validación de login (legajo y email)
-- ✅ Operaciones CRUD completas
-- ✅ Relaciones entre entidades
-- ✅ Endpoints REST
-- ✅ Importación masiva de datos
-- ✅ Validaciones de entrada
-- ✅ Respuestas JSON
-- ✅ Códigos de estado HTTP
-
----
-
-## 6. Recomendaciones
-
-1. **Ejecutar pruebas antes de cada deploy** para asegurar estabilidad
-2. **Mantener la base de datos de testing** separada de producción
-3. **Revisar logs de pruebas** en caso de fallos
-4. **Actualizar seeders** cuando se modifiquen estructuras de datos
-5. **Agregar nuevas pruebas** para funcionalidades futuras
+**Nombre de la Prueba**: MaterialModel - Búsqueda Básica  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testBasicSearchMethods()`  
+**Objetivo**: Verificar que los métodos heredados `find()` y `findAll()` del modelo MaterialModel funcionan correctamente  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- ID válido: `1` (Lámpara LED 50W)
+- ID válido: `2` (Cable de Cobre 2.5mm)
+- ID inexistente: `999`
+- ID inválido: `0`, `-1`
+- ID como string: `'1'`
+**Resultado Esperado**: Los métodos deben retornar los datos del material cuando el ID existe, o null cuando no existe  
+**Resultado Obtenido**: ✅ ÉXITO - Los métodos de búsqueda básica funcionan correctamente  
+**Evidencia**: 
+```
+Tests: 5, Assertions: 131, Errors: 1, Failures: 1, PHPUnit Warnings: 1.
+```
+El test de búsqueda básica pasó exitosamente. Los métodos heredados `find()` y `findAll()` del MaterialModel funcionan correctamente:
+- `find()` retorna datos del material cuando el ID existe
+- `find()` retorna null cuando el ID no existe o es inválido
+- `find()` maneja correctamente IDs como string
+- `findAll()` retorna todos los materiales con estructura correcta
+- Se ejecutaron 5 tests con 131 aserciones, el test de búsqueda básica pasó exitosamente
 
 ---
 
-## 7. Contacto
+### Test 10: MaterialModel - Actualización de Materiales
 
-Para consultas sobre las pruebas o reportar problemas, contactar al equipo de desarrollo del proyecto ISI Alumbrado San Francisco.
+**Nombre de la Prueba**: MaterialModel - Actualización de Materiales  
+**Ubicación**: `tests/unit/Models/MaterialModelTest.php` - método `testUpdateMaterial()`  
+**Objetivo**: Verificar que el método `update()` heredado del modelo MaterialModel funciona correctamente para actualizar diferentes campos de materiales  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Material existente: ID 1 (Lámpara LED 50W)
+- Actualización de cantidad: cambiar de 25 a 50
+- Actualización de nombre: cambiar nombre del material
+- Actualización de tipo: cambiar idTipo de 1 a 2
+- Actualización múltiple: cambiar varios campos a la vez
+- ID inexistente: 999
+**Resultado Esperado**: El método debe actualizar correctamente los campos válidos y retornar true cuando el ID existe  
+**Resultado Obtenido**: ✅ ÉXITO - El método update() funciona correctamente  
+**Evidencia**: 
+```
+Tests: 6, Assertions: 159, Errors: 1, Failures: 1, PHPUnit Warnings: 1.
+```
+El test de actualización de materiales pasó exitosamente. El método `update()` del MaterialModel funciona correctamente:
+- Actualiza campos individuales (cantidad, nombre, tipo) correctamente
+- Actualiza múltiples campos a la vez
+- Retorna true para IDs inexistentes (comportamiento de CodeIgniter)
+- Ignora campos no permitidos en actualizaciones
+- Lanza excepción con datos vacíos (comportamiento correcto)
+- Se ejecutaron 6 tests con 159 aserciones, el test de actualización pasó exitosamente
 
-**Fecha de última actualización**: Diciembre 2024  
-**Versión del documento**: 1.0
+---
 
-## Resumen de Ejecución de Pruebas
+### Test 11: ReclamoModel - Inserción de Reclamos
 
-### Estado General: ✅ TODAS LAS PRUEBAS PASANDO
+**Nombre de la Prueba**: ReclamoModel - Inserción de Reclamos  
+**Ubicación**: `tests/unit/Models/ReclamoModelTest.php` - método `testInsertReclamo()`  
+**Objetivo**: Verificar que se pueden insertar reclamos con los campos permitidos y validar el comportamiento con diferentes casos de datos  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Reclamo completo: todos los 15 campos permitidos
+- Reclamo con campos faltantes: solo campos obligatorios
+- Reclamo con datos inválidos: campos no permitidos
+- Reclamo con fechas: municipalidad_fechaInicio, municipalidad_fechaModificacion
+- Reclamo con coordenadas: latitud, longitud
+**Resultado Esperado**: El método debe insertar correctamente reclamos válidos y rechazar datos inválidos  
+**Resultado Obtenido**: ✅ ÉXITO - La inserción de reclamos funciona correctamente  
+**Evidencia**: 
+```
+Tests: 1, Assertions: 20, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test de inserción de reclamos pasó exitosamente. El ReclamoModel funciona correctamente:
+- Inserta reclamos con todos los 15 campos permitidos
+- Inserta reclamos con campos mínimos
+- Ignora campos no permitidos en inserción
+- Lanza excepción cuando solo hay campos no permitidos (comportamiento correcto)
+- Respeta la configuración de 15 campos permitidos
+- Se ejecutó 1 test con 20 aserciones, todas exitosas
 
-**Pruebas Ejecutadas**: 45  
-**Assertions**: 362  
-**Errores**: 0  
-**Fallos**: 0  
+---
 
-### Desglose por Tipo:
-- **Unitarias**: 20 tests ✅
-- **Integración**: 10 tests ✅  
-- **API**: 15 tests ✅
+### Test 12: ReclamoModel - Validación de Campos Permitidos
 
-### Base de Datos de Testing:
-- **Estado**: Configurada y funcionando
-- **Tablas**: Creadas correctamente (rol, usuario, tipo_material, material, reclamo)
-- **Seeders**: Funcionando correctamente (5 seeders implementados)
+**Nombre de la Prueba**: ReclamoModel - Validación de Campos Permitidos  
+**Ubicación**: `tests/unit/Models/ReclamoModelTest.php` - método `testAllowedFieldsValidation()`  
+**Objetivo**: Verificar que el modelo ReclamoModel solo permite insertar/actualizar los 15 campos definidos en `allowedFields`  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Campos permitidos: los 15 campos municipales (municipalidad_id, municipalidad_tipo, etc.)
+- Campos no permitidos: id, fechaCreacion, usuarioModificacion, campoInventado
+- Intentos de inserción y actualización con campos mixtos
+- Verificación de configuración allowedFields
+**Resultado Esperado**: El modelo debe ignorar campos no permitidos y solo procesar los 15 campos válidos  
+**Resultado Obtenido**: ✅ ÉXITO - La validación de campos permitidos funciona correctamente  
+**Evidencia**: 
+```
+Tests: 2, Assertions: 42, PHPUnit Warnings: 1.
+OK, but there were issues!
+```
+El test de validación de campos permitidos pasó exitosamente. El ReclamoModel funciona correctamente con campos permitidos:
+- Ignora campos no permitidos en inserción y actualización
+- Procesa solo los 15 campos válidos definidos en `allowedFields`
+- Lanza excepción `DataException` cuando solo hay campos no permitidos (comportamiento correcto)
+- Respeta exactamente la configuración de 15 campos municipales permitidos
+- Se ejecutaron 2 tests con 42 aserciones, todas exitosas
+
+---
+
+### Test 13: ReclamoModel - Búsqueda con Datos Complejos
+
+**Nombre de la Prueba**: ReclamoModel - Búsqueda con Datos Complejos  
+**Ubicación**: `tests/unit/Models/ReclamoModelTest.php` - método `testComplexSearchMethods()`  
+**Objetivo**: Verificar que los métodos `find()` y `findAll()` funcionan correctamente con datos complejos de reclamos municipales  
+**Tipo de Prueba**: Unitaria  
+**Datos Utilizados**: 
+- Múltiples reclamos con todos los 15 campos municipales completos
+- Datos realistas: fechas, direcciones, teléfonos, descripciones largas
+- Reclamos con diferentes estados, prioridades y tipos
+- Verificación de búsqueda por ID específico y búsqueda de todos los registros
+**Resultado Esperado**: Los métodos de búsqueda deben retornar datos completos y correctos  
+**Resultado Obtenido**: ❌ FALLO - El test falló porque encuentra 7 reclamos en lugar de 5 esperados  
+**Evidencia**: 
+```
+Tests: 3, Assertions: 55, Failures: 1, PHPUnit Warnings: 1.
+Failed asserting that actual size 7 matches expected size 5.
+```
+El test falló porque la tabla de reclamos contiene datos previos de otros tests. El método `findAll()` retorna 7 registros en lugar de los 5 esperados, indicando que hay datos residuales de tests anteriores.
+
+---
+
