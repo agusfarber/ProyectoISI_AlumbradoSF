@@ -142,6 +142,31 @@
     background: var(--color-white);
 }
 
+/* Modal específico para nueva cuadrilla (más angosto) */
+#app .modal-dialog.modal-md {
+    max-width: 500px;
+}
+
+#app .modal-dialog.modal-md .modal-content {
+    border-radius: 12px;
+}
+
+#app .modal-dialog.modal-md .modal-body {
+    padding: 1.5rem;
+}
+
+#app .modal-dialog.modal-md .form-control {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+#app .modal-dialog.modal-md .form-control:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 0.2rem rgba(110, 109, 153, 0.25);
+}
+
 #app .modal-header {
     border-bottom: 1px solid var(--color-light-gray);
     border-radius: 16px 16px 0 0;
