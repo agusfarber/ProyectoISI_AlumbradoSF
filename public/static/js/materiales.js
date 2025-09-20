@@ -12,7 +12,6 @@ const app = Vue.createApp({
                 nombre: ''
             },
             tabla: null,
-            tablaTipos: null,
             archivoSeleccionado: null,
             itemsImport: [],
         };
@@ -20,22 +19,17 @@ const app = Vue.createApp({
     methods: {
         async obtenerMateriales() {
             try {
-                const urlMateriales = BASE_URL + 'api/materiales';
-                console.log('URL Materiales:', urlMateriales);
-
-                const response = await axios.get(urlMateriales);
-                console.log('Respuesta de la API materiales:', response.data);
-                this.materiales = response.data;
-                console.log('Materiales después de asignar:', this.materiales);
+                const resp = await axios.get(BASE_URL + 'api/materiales');
+                this.materiales = resp.data;
+                console.log('Materiales obtenidos:', this.materiales);
                 
-                // Asegurarse de que el DOM esté actualizado antes de inicializar DataTables
+                // Usar $nextTick para asegurar que el DOM esté actualizado
                 this.$nextTick(() => {
-                    console.log('Inicializando tabla con materiales:', this.materiales);
                     this.inicializarTabla();
                 });
-            } catch (error) {
-                console.error('Error al obtener datos:', error);
-                console.error('URL que falló:', error.config?.url);
+            } catch (e) {
+                console.error('Error al obtener materiales', e);
+                alert('No se pudieron cargar los materiales');
             }
         },
 
@@ -57,7 +51,15 @@ const app = Vue.createApp({
             // Espera a que el modal esté visible para inicializar la tabla
             // Usamos $nextTick para asegurarnos de que el DOM se actualizó
             this.$nextTick(() => {
-                this.inicializarTablaTipos();
+                // Destruye cualquier instancia previa para evitar errores
+                if ($.fn.DataTable.isDataTable('#tabla_tipos')) {
+                    $('#tabla_tipos').DataTable().destroy();
+                }
+
+                // Inicializa la tabla de tipos con DataTables
+                $('#tabla_tipos').DataTable({
+                    // Opciones de configuración si es necesario
+                });
             });
         },
 
@@ -70,31 +72,27 @@ const app = Vue.createApp({
         
 
         inicializarTabla() {
+            // Destruir tabla existente si existe
             if (this.tabla) {
-                console.log('Destruyendo tabla anterior');
                 this.tabla.destroy();
+                this.tabla = null;
             }
-            console.log('Creando nueva tabla con datos:', this.materiales);
+
+            // Limpiar el tbody antes de inicializar
+            $('#tabla_materiales tbody').empty();
+
             this.tabla = $('#tabla_materiales').DataTable({
                 data: this.materiales,
                 responsive: true,
                 columns: [
-                    { 
-                        data: 'nombre',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: 'cantidad',
-                        className: 'text-start'
-                    },
+                    { data: 'nombre' },
+                    { data: 'cantidad' },
                     { 
                         data: 'tipo_nombre',
-                        defaultContent: 'Sin tipo',
-                        className: 'text-start'
+                        defaultContent: 'Sin tipo'
                     },
                     { 
                         data: null,
-                        className: 'text-start',
                         render: (data, type, row) => {
                             return `
                                 <button class="btn btn-sm btn-warning me-1 editar-material" data-id="${row.id}" title="Editar">
@@ -109,56 +107,26 @@ const app = Vue.createApp({
                 ]
             });
 
-            // Configurar eventos directamente (igual que en reclamos)
-            $('#tabla_materiales tbody').off('click', '.editar-material').on('click', '.editar-material', (e) => {
-                const id = $(e.currentTarget).data('id');
-                const material = this.materiales.find(m => m.id == id);
-                if (material) this.editarMaterial(material);
-            });
-            $('#tabla_materiales tbody').off('click', '.eliminar-material').on('click', '.eliminar-material', (e) => {
-                const id = $(e.currentTarget).data('id');
-                const material = this.materiales.find(m => m.id == id);
-                if (material) this.eliminarMaterial(material);
-            });
+            // Configurar eventos de la tabla
+            this.configurarEventosTabla();
         },
 
-        inicializarTablaTipos() {
-            if (this.tablaTipos) {
-                console.log('Destruyendo tabla de tipos anterior');
-                this.tablaTipos.destroy();
-            }
-            console.log('Creando nueva tabla de tipos con datos:', this.tiposMaterial);
-            this.tablaTipos = $('#tabla_tipos').DataTable({
-                data: this.tiposMaterial,
-                responsive: true,
-                columns: [
-                    { 
-                        data: 'id',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: 'nombre',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: null,
-                        className: 'text-start',
-                        render: (data, type, row) => {
-                            return `
-                                <button class="btn btn-sm btn-danger eliminar-tipo" data-id="${row.id}" title="Eliminar">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            `;
-                        }
-                    }
-                ]
+        configurarEventosTabla() {
+            const tableInstance = this.tabla;
+            const vueApp = this;
+            
+            // Remover eventos anteriores para evitar duplicados
+            $('#tabla_materiales').off('click', '.editar-material');
+            $('#tabla_materiales').off('click', '.eliminar-material');
+            
+            $('#tabla_materiales').on('click', '.editar-material', function() {
+                const data = tableInstance.row($(this).closest('tr')).data();
+                vueApp.editarMaterial(data);
             });
 
-            // Configurar eventos directamente
-            $('#tabla_tipos tbody').off('click', '.eliminar-tipo').on('click', '.eliminar-tipo', (e) => {
-                const id = $(e.currentTarget).data('id');
-                const tipo = this.tiposMaterial.find(t => t.id == id);
-                if (tipo) this.eliminarTipo(tipo);
+            $('#tabla_materiales').on('click', '.eliminar-material', function() {
+                const data = tableInstance.row($(this).closest('tr')).data();
+                vueApp.eliminarMaterial(data);
             });
         },
 
@@ -182,81 +150,41 @@ const app = Vue.createApp({
             const esNuevo = !this.material.id;
             const url = BASE_URL + 'api/materiales' + (esNuevo ? '' : '/' + this.material.id);
             const metodo = esNuevo ? 'post' : 'put';
-            
-            // Preparar datos para envío
-            const datosEnvio = { ...this.material };
-            
-            // Si no hay tipo seleccionado, permitir crear con "Sin tipo"
-            if (!datosEnvio.idTipo || datosEnvio.idTipo === '') {
-                datosEnvio.idTipo = null; // o el valor que represente "Sin tipo" en tu API
-            }
-            
-            axios[metodo](url, datosEnvio).then(() => {
-                // Mensaje de éxito
-                if (esNuevo) {
-                    this.mostrarMensaje(`Material "${this.material.nombre}" creado exitosamente`, 'success');
-                } else {
-                    this.mostrarMensaje(`Material "${this.material.nombre}" editado exitosamente`, 'success');
-                }
-                
-                // Actualizar la tabla ANTES de cerrar el modal (igual que en reclamos)
-                this.obtenerMateriales();
+            try {
+                await axios[metodo](url, this.material);
                 bootstrap.Modal.getInstance(document.getElementById('modalMaterial')).hide();
-            }).catch(error => {
-                console.error('Error al guardar material:', error);
                 
-                // Mensaje de error
-                if (esNuevo) {
-                    this.mostrarMensaje('Error al crear el material', 'error');
-                } else {
-                    this.mostrarMensaje('Error al editar el material', 'error');
-                }
-            });
+                // Actualizar la tabla después de guardar
+                console.log('Actualizando tabla después de guardar material...');
+                await this.obtenerMateriales();
+            } catch (e) {
+                console.error('Error al guardar material', e);
+                alert('No se pudo guardar el material');
+            }
         },
         
         async guardarTipo() {
             try {
                 await axios.post(BASE_URL + 'api/materiales/tipos', this.tipo);
-                
-                // Mensaje de éxito
-                this.mostrarMensaje(`Tipo "${this.tipo.nombre}" creado exitosamente`, 'success');
-                
-                // Actualizar los datos y la tabla
                 await this.obtenerTiposMaterial();
                 this.tipo.nombre = ''; // Limpiar el input
-                
-                // Actualizar la tabla de tipos si está inicializada
-                if (this.tablaTipos) {
-                    this.$nextTick(() => {
-                        this.inicializarTablaTipos();
-                    });
-                }
             } catch (e) {
                 console.error('Error al guardar tipo', e);
-                this.mostrarMensaje('Error al crear el tipo de material', 'error');
+                alert('No se pudo guardar el tipo de material');
             }
         },
 
         async eliminarMaterial(item) {
-            // Confirmación personalizada
-            const mensajeConfirmacion = `¿Está seguro que desea eliminar el material "${item.nombre}"?`;
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Material');
-            
-            if (!confirmacion) {
-                return;
-            }
-
+            if (!confirm(`¿Seguro que deseas eliminar "${item.nombre}"?`)) return;
             try {
                 await axios.delete(BASE_URL + 'api/materiales/' + item.id);
                 
-                // Mensaje de éxito
-                this.mostrarMensaje(`Material "${item.nombre}" eliminado exitosamente`, 'success');
-                
-                // Actualizar la tabla después de eliminar (igual que en reclamos)
-                this.obtenerMateriales();
+                // Actualizar la tabla después de eliminar
+                console.log('Actualizando tabla después de eliminar material...');
+                await this.obtenerMateriales();
             } catch (e) {
                 console.error('Error al eliminar material', e);
-                this.mostrarMensaje('Error al eliminar el material', 'error');
+                alert('No se pudo eliminar el material');
             }
         },
 
@@ -267,11 +195,7 @@ const app = Vue.createApp({
         },
 
         async importarArchivo() {
-            if (!this.archivoSeleccionado) {
-                this.mostrarMensaje('Debe seleccionar un archivo para importar', 'warning');
-                return;
-            }
-            
+            if (!this.archivoSeleccionado) return;
             const file = this.archivoSeleccionado;
             const nombre = (file.name || '').toLowerCase();
 
@@ -284,64 +208,47 @@ const app = Vue.createApp({
                     await this.ensureXLSX();
                     await this.procesarExcel(file);
                 } else {
-                    this.mostrarMensaje('Formato no soportado. Sube un CSV o Excel.', 'warning');
+                    alert('Formato no soportado. Sube un CSV o Excel.');
                     return;
                 }
 
                 console.log('Items procesados para importar:', this.itemsImport);
 
                 if (this.itemsImport.length === 0) {
-                    this.mostrarMensaje('No se encontraron filas válidas para importar. Verifica que el archivo tenga la estructura correcta: nombre, cantidad, tipo', 'warning');
+                    alert('No se encontraron filas válidas para importar. Verifica que el archivo tenga la estructura correcta: nombre, cantidad, tipo');
                     return;
                 }
-
-                // Confirmación antes de importar
-                const mensajeConfirmacion = `¿Está seguro que desea importar ${this.itemsImport.length} materiales?`;
-                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Importar Materiales');
-                
-                if (!confirmacion) {
-                    return;
-                }
-
-                // Mensaje de progreso
-                this.mostrarMensaje('Importando materiales', 'info');
 
                 console.log('Enviando datos a la API...');
                 const resp = await axios.post(BASE_URL + 'api/materiales/import', { items: this.itemsImport });
                 console.log('Respuesta de la API:', resp.data);
                 
-                // Mensaje de éxito con detalles
-                let mensajeExito = `Importación completada exitosamente<br>
-                    <strong>Materiales importados:</strong> ${resp.data.insertados}`;
-                
+                let mensaje = `Importación completada.\nInsertados: ${resp.data.insertados}`;
                 if (resp.data.errores && resp.data.errores.length > 0) {
-                    mensajeExito += `<br><strong>Errores:</strong> ${resp.data.errores.length}`;
+                    mensaje += `\nErrores (${resp.data.errores.length}):\n${resp.data.errores.join('\n')}`;
                 }
                 
-                this.mostrarMensaje(mensajeExito, 'success');
-                
+                alert(mensaje);
                 this.archivoSeleccionado = null;
                 document.getElementById('inputArchivoMateriales').value = '';
                 
-                // Limpiar items de importación
-                this.itemsImport = [];
-                
-                // Actualizar la tabla después de la importación (igual que en reclamos)
-                this.obtenerMateriales();
+                // Actualizar la tabla después de la importación
+                console.log('Actualizando tabla después de importación...');
+                await this.obtenerMateriales();
             } catch (e) {
                 console.error('Error al importar archivo', e);
-                let mensajeError = 'Error al importar el archivo';
+                let mensajeError = 'No se pudo importar el archivo.';
                 
                 if (e.response && e.response.data) {
                     console.error('Error del servidor:', e.response.data);
                     if (e.response.data.messages) {
-                        mensajeError += ': ' + JSON.stringify(e.response.data.messages);
+                        mensajeError += '\nDetalles: ' + JSON.stringify(e.response.data.messages);
                     } else if (e.response.data.message) {
-                        mensajeError += ': ' + e.response.data.message;
+                        mensajeError += '\nDetalles: ' + e.response.data.message;
                     }
                 }
                 
-                this.mostrarMensaje(mensajeError, 'error');
+                alert(mensajeError);
             }
         },
 
@@ -386,7 +293,7 @@ const app = Vue.createApp({
                     
                     console.log(`Línea ${i + 1} procesada:`, { nombre, cantidad, tipo });
                     
-                    if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0) {
+                    if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0 && tipo !== '') {
                         this.itemsImport.push({ nombre, cantidad, tipo });
                         console.log(`Línea ${i + 1} agregada a import`);
                     } else {
@@ -420,7 +327,7 @@ const app = Vue.createApp({
                 const cantidad = parseInt(cantidadRaw, 10);
                 const tipo = String((row[2] ?? '')).trim();
                 
-                if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0) {
+                if (nombre !== '' && !Number.isNaN(cantidad) && cantidad >= 0 && tipo !== '') {
                     this.itemsImport.push({ nombre, cantidad, tipo });
                 }
             }
@@ -445,137 +352,17 @@ const app = Vue.createApp({
         },
 
         async eliminarTipo(tipo) {
-            // Confirmación personalizada
-            const mensajeConfirmacion = `¿Está seguro que desea eliminar el tipo "${tipo.nombre}"?`;
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Tipo');
-            
-            if (!confirmacion) {
-                return;
-            }
+            if (!confirm(`¿Seguro que deseas eliminar el tipo "${tipo.nombre}"?`)) return;
 
             try {
                 const url = BASE_URL + 'api/materiales/tipos/' + tipo.id;
                 await axios.delete(url);
-                
-                // Mensaje de éxito
-                this.mostrarMensaje(`Tipo "${tipo.nombre}" eliminado exitosamente`, 'success');
-                
-                // Actualizar los datos y la tabla
                 await this.obtenerTiposMaterial();
-                
-                // Actualizar la tabla de tipos si está inicializada
-                if (this.tablaTipos) {
-                    this.$nextTick(() => {
-                        this.inicializarTablaTipos();
-                    });
-                }
+                alert('Tipo de material eliminado con éxito.');
             } catch (e) {
                 console.error('Error al eliminar tipo', e);
-                this.mostrarMensaje('Error al eliminar el tipo de material. Asegúrate de que no haya materiales asociados a este tipo.', 'error');
+                alert('No se pudo eliminar el tipo de material. Asegúrate de que no haya materiales asociados a este tipo.');
             }
-        },
-
-        /**
-         * Muestra mensajes de notificación estilo cuadrillas
-         */
-        mostrarMensaje(mensaje, tipo) {
-            // Si es un mensaje de éxito, eliminar mensajes de progreso anteriores
-            if (tipo === 'success') {
-                $('.alert-info').fadeOut(200, function() {
-                    $(this).remove();
-                });
-            }
-            
-            // Crear y mostrar un toast o alert
-            const alertClass = tipo === 'success' ? 'alert-success' : 
-                              tipo === 'warning' ? 'alert-warning' : 
-                              tipo === 'info' ? 'alert-info' : 'alert-danger';
-            
-            const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
-                </div>
-            `;
-            
-            $('body').append(alertHtml);
-            
-            // Auto-remover después de 5 segundos
-            setTimeout(() => {
-                $('.alert').fadeOut(500, function() {
-                    $(this).remove();
-                });
-            }, 5000);
-        },
-
-        /**
-         * Muestra una confirmación personalizada estilo cuadrillas
-         */
-        mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
-            return new Promise((resolve) => {
-                // Crear el modal de confirmación
-                const modalHtml = `
-                    <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                // Remover modal anterior si existe
-                $('#modalConfirmacion').remove();
-                
-                // Agregar el modal al body
-                $('body').append(modalHtml);
-                
-                // Mostrar el modal
-                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
-                modal.show();
-
-                // Manejar botones
-                $('#btnConfirmar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(true);
-                });
-
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
-
-                // Manejar cierre del modal (X o ESC)
-                $('#modalConfirmacion').on('hidden.bs.modal', () => {
-                    $('#modalConfirmacion').remove();
-                    resolve(false);
-                });
-            });
         }
     },
     mounted() {
