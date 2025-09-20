@@ -81,48 +81,26 @@ const app = Vue.createApp({
                 columns: [
                     {
                         data: 'municipalidad_id',
-                        className: 'text-start',
                         render: (data, type, row) => {
                             return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: underline; cursor: pointer;">${data}</a>`;
                         }
                     },
-                    { 
-                        data: 'municipalidad_motivo',
-                        className: 'text-start'
-                    },
+                    { data: 'municipalidad_motivo' },
                     {
                         data: 'municipalidad_fechaInicio',
-                        className: 'text-start',
                         render: (data) => this.formatearFecha(data)
                     },
                     {
                         data: 'municipalidad_fechaModificacion',
-                        className: 'text-start',
                         render: (data) => this.formatearFecha(data)
                     },
-                    { 
-                        data: 'municipalidad_recepcion',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: 'municipalidad_estado',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: 'prioridad',
-                        className: 'text-start'
-                    }, // Columna de prioridad, ahora simplemente 'prioridad'
-                    { 
-                        data: 'municipalidad_domicilio',
-                        className: 'text-start'
-                    },
-                    { 
-                        data: 'municipalidad_numeroDomicilio',
-                        className: 'text-start'
-                    },
+                    { data: 'municipalidad_recepcion' },
+                    { data: 'municipalidad_estado' },
+                    { data: 'prioridad' }, // Columna de prioridad, ahora simplemente 'prioridad'
+                    { data: 'municipalidad_domicilio' },
+                    { data: 'municipalidad_numeroDomicilio' },
                     {
                         data: null,
-                        className: 'text-start',
                         render: (data, type, row) => {
                             return `
                                 <button class="btn btn-sm btn-warning me-1 editar-reclamo" data-id="${row.id}" title="Editar">
@@ -180,32 +158,13 @@ const app = Vue.createApp({
             if (fechaDesde || fechaHasta) {
                 $.fn.dataTable.ext.search.push(
                     (settings, data, dataIndex) => {
-                        // Obtener la fecha de inicio desde los datos originales (sin formatear)
-                        const reclamo = this.reclamos[dataIndex];
-                        if (!reclamo || !reclamo.municipalidad_fechaInicio) {
-                            return false;
-                        }
-                        
-                        // Crear objeto Date desde la fecha de inicio original
-                        const fechaInicioTabla = new Date(reclamo.municipalidad_fechaInicio);
+                        const rawFechaInicioStr = data[2]; // Columna de Fecha de Inicio
+                        const fechaInicioTabla = new Date(rawFechaInicioStr.replace(' ', 'T'));
                         if (isNaN(fechaInicioTabla.getTime())) {
                             return false;
                         }
-                        
-                        // Comparar solo la parte de fecha (ignorando hora)
-                        const fechaInicioSoloFecha = new Date(fechaInicioTabla.getFullYear(), fechaInicioTabla.getMonth(), fechaInicioTabla.getDate());
-                        const fechaDesdeSoloFecha = fechaDesde ? new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), fechaDesde.getDate()) : null;
-                        const fechaHastaSoloFecha = fechaHasta ? new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate()) : null;
-                        
-                        // Verificar si la fecha está dentro del rango (inclusivo en ambos extremos)
-                        const pasaFechaDesde = !fechaDesdeSoloFecha || fechaInicioSoloFecha.getTime() >= fechaDesdeSoloFecha.getTime();
-                        const pasaFechaHasta = !fechaHastaSoloFecha || fechaInicioSoloFecha.getTime() <= fechaHastaSoloFecha.getTime();
-                        
-                        // Log para depuración (puedes comentar esta línea después de verificar que funciona)
-                        if (fechaDesdeSoloFecha && fechaHastaSoloFecha) {
-                            console.log(`Reclamo ${reclamo.municipalidad_id}: ${fechaInicioSoloFecha.toDateString()} - Desde: ${fechaDesdeSoloFecha.toDateString()} Hasta: ${fechaHastaSoloFecha.toDateString()} - Pasa: ${pasaFechaDesde && pasaFechaHasta}`);
-                        }
-                        
+                        const pasaFechaDesde = !fechaDesde || fechaInicioTabla.getTime() >= fechaDesde.getTime();
+                        const pasaFechaHasta = !fechaHasta || fechaInicioTabla.getTime() <= fechaHasta.getTime();
                         return pasaFechaDesde && pasaFechaHasta;
                     }
                 );
@@ -451,26 +410,17 @@ const app = Vue.createApp({
          */
         async sincronizarReclamosPorFechas() {
             if (!this.tokenDisponible || !this.tokenActual) {
-                this.mostrarMensaje('Token no disponible: Debe configurar un token válido para sincronizar', 'warning');
+                alert('Token no disponible: Debe configurar un token válido para sincronizar');
                 return;
             }
 
             if (!this.syncFechaDesde || !this.syncFechaHasta) {
-                this.mostrarMensaje('Fechas requeridas: Debe seleccionar un rango de fechas', 'warning');
+                alert('Fechas requeridas: Debe seleccionar un rango de fechas');
                 return;
             }
 
-            // Confirmación antes de sincronizar
-            const mensajeConfirmacion = `¿Está seguro que desea sincronizar los reclamos del sistema 103?`;
-            
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Sincronizar Reclamos por Fechas');
-            
-            if (!confirmacion) {
-                return;
-            }
-
-            // Mensaje de progreso
-            this.mostrarMensaje('Sincronizando reclamos', 'info');
+            // Mensaje para el usuario mientras se sincronizan los reclamos
+            alert('Sincronizando reclamos... Por favor espere.');
 
             try {
                 const response = await axios.get(this.apiUrl + '/recibirReclamos', {
@@ -502,18 +452,18 @@ const app = Vue.createApp({
                     }
                 }
 
-                // Mensaje de éxito con resumen detallado
-                const mensajeExito = `Sincronización completada exitosamente<br>
-                    <strong>Total procesados:</strong> ${reclamosRecibidos.length} reclamos<br>
-                    <strong>Nuevos:</strong> ${reclamosGuardados}<br>
-                    <strong>Actualizados:</strong> ${reclamosActualizados}`;
-                
-                this.mostrarMensaje(mensajeExito, 'success');
+                // Mensaje de éxito con resumen
+                alert(`Sincronización completada:
+                    Se procesaron ${reclamosRecibidos.length} reclamos:
+                    - Nuevos: ${reclamosGuardados}
+                    - Actualizados: ${reclamosActualizados}`);
+
                 this.obtenerReclamos();
 
             } catch (error) {
                 console.error('Error al sincronizar reclamos:', error);
-                this.mostrarMensaje('Error en sincronización: No se pudieron sincronizar los reclamos. Verifique el token y la conexión.', 'error');
+                // Mensaje de error
+                alert('Error en sincronización: No se pudieron sincronizar los reclamos. Verifique el token y la conexión.');
             }
         },
 
@@ -522,26 +472,17 @@ const app = Vue.createApp({
          */
         async sincronizarReclamoEspecifico() {
             if (!this.tokenDisponible || !this.tokenActual) {
-                this.mostrarMensaje('Token no disponible: Debe configurar un token válido para sincronizar', 'warning');
+                alert('Token no disponible: Debe configurar un token válido para sincronizar');
                 return;
             }
 
             if (!this.numeroReclamo) {
-                this.mostrarMensaje('Número de reclamo requerido: Debe ingresar un número de reclamo', 'warning');
+                alert('Número de reclamo requerido: Debe ingresar un número de reclamo');
                 return;
             }
 
-            // Confirmación antes de sincronizar
-            const mensajeConfirmacion = `¿Está seguro que desea sincronizar el reclamo específico?`;
-            
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Sincronizar Reclamo Específico');
-            
-            if (!confirmacion) {
-                return;
-            }
-
-            // Mensaje de progreso
-            this.mostrarMensaje('Buscando reclamo', 'info');
+            // Mensaje para el usuario mientras se busca el reclamo
+            alert('Buscando reclamo... Por favor espere.');
 
             try {
                 const response = await axios.get(this.apiUrl + `/recibirReclamo/${this.numeroReclamo}`, {
@@ -552,25 +493,18 @@ const app = Vue.createApp({
 
                 console.log('Respuesta de la API externa:', response.data);
 
-                const resultado = await this.procesarYGuardarReclamo(response.data);
+                await this.procesarYGuardarReclamo(response.data);
 
-                // Mensaje de éxito con detalles
-                let mensajeExito;
-                if (resultado === 'creado') {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}<br><strong>Estado:</strong> Nuevo reclamo creado`;
-                } else if (resultado === 'actualizado') {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}<br><strong>Estado:</strong> Reclamo actualizado`;
-                } else {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}`;
-                }
+                // Mensaje de éxito
+                alert(`Reclamo sincronizado: El reclamo ${this.numeroReclamo} se ha sincronizado correctamente.`);
 
-                this.mostrarMensaje(mensajeExito, 'success');
                 this.numeroReclamo = '';
                 this.obtenerReclamos();
 
             } catch (error) {
                 console.error('Error al sincronizar reclamo:', error);
-                this.mostrarMensaje('Error en sincronización: No se pudo sincronizar el reclamo. Verifique el número y la conexión.', 'error');
+                // Mensaje de error
+                alert('Error en sincronización: No se pudo sincronizar el reclamo. Verifique el número y la conexión.');
             }
         },
 
@@ -624,109 +558,6 @@ const app = Vue.createApp({
                 console.error('Error al convertir fecha externa:', error);
                 return '';
             }
-        },
-
-        /**
-         * Muestra mensajes de notificación estilo cuadrillas
-         */
-        mostrarMensaje(mensaje, tipo) {
-            // Si es un mensaje de éxito, eliminar mensajes de progreso anteriores
-            if (tipo === 'success') {
-                $('.alert-info.mensaje-notificacion').fadeOut(200, function() {
-                    $(this).remove();
-                });
-            }
-            
-            // Crear y mostrar un toast o alert
-            const alertClass = tipo === 'success' ? 'alert-success' : 
-                              tipo === 'warning' ? 'alert-warning' : 
-                              tipo === 'info' ? 'alert-info' : 'alert-danger';
-            
-            const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
-                </div>
-            `;
-            
-            $('body').append(alertHtml);
-            
-            // Auto-remover después de 5 segundos - solo los mensajes de notificación flotantes
-            setTimeout(() => {
-                $('.mensaje-notificacion').fadeOut(500, function() {
-                    $(this).remove();
-                });
-            }, 5000);
-        },
-
-        /**
-         * Muestra una confirmación personalizada estilo cuadrillas
-         */
-        mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
-            return new Promise((resolve) => {
-                // Crear el modal de confirmación
-                const modalHtml = `
-                    <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                // Remover modal anterior si existe
-                $('#modalConfirmacion').remove();
-                
-                // Agregar el modal al body
-                $('body').append(modalHtml);
-                
-                // Mostrar el modal
-                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
-                modal.show();
-
-                // Manejar botones
-                $('#btnConfirmar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(true);
-                });
-
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
-
-                // Manejar cierre del modal (X o ESC)
-                $('#modalConfirmacion').on('hidden.bs.modal', () => {
-                    $('#modalConfirmacion').remove();
-                    resolve(false);
-                });
-            });
         }
     },
 

@@ -4,7 +4,7 @@
     <!-- Botones principal, filtros y sincronización -->
     <div class="d-flex justify-content-between mb-3">
         <!-- Botón a la izquierda -->
-        <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button>
+        <!--button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Reclamo</button-->
 
         <!-- Botones a la derecha -->
         <div class="d-flex gap-2">
@@ -46,11 +46,11 @@
             </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaDesde" class="form-label">Fecha Desde</label>
-                <input type="date" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde" @change="aplicarFiltros">
+                <input type="datetime-local" id="filtroFechaDesde" class="form-control" v-model="filtroFechaDesde" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 mb-2 mb-md-0">
                 <label for="filtroFechaHasta" class="form-label">Fecha Hasta</label>
-                <input type="date" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta" @change="aplicarFiltros">
+                <input type="datetime-local" id="filtroFechaHasta" class="form-control" v-model="filtroFechaHasta" @change="aplicarFiltros">
             </div>
             <div class="col-md-2 d-flex align-items-end">
                 <div class="d-grid gap-2 w-100">
