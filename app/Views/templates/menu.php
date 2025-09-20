@@ -17,12 +17,6 @@
 
   <!-- Navegación del sidebar -->
   <nav class="sidebar-nav">
-    <div class="nav-item">
-      <a class="nav-link" href="<?= base_url("/dashboard"); ?>" title="Dashboard">
-        <i class="bi bi-speedometer2"></i>
-        <span>Dashboard</span>
-      </a>
-    </div>
 
     <?php if ($userRole == '1'): ?>
     <div class="nav-item">

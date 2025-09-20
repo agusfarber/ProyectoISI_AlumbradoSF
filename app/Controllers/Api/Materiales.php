@@ -29,17 +29,30 @@ class Materiales extends ResourceController
     {
         $data = $this->request->getJSON(true);
 
-        if (empty($data['nombre']) || !isset($data['cantidad']) || !isset($data['idTipo'])) {
-            return $this->failValidationErrors('Faltan datos obligatorios: nombre, cantidad y tipo.');
+        if (empty($data['nombre']) || !isset($data['cantidad'])) {
+            return $this->failValidationErrors('Faltan datos obligatorios: nombre y cantidad.');
         }
 
         $data['nombre'] = trim((string) $data['nombre']);
         $data['cantidad'] = (int) $data['cantidad'];
-        $data['idTipo'] = (int) $data['idTipo'];
 
-        // La validación de creación sigue requiriendo un tipo
-        if ($data['nombre'] === '' || $data['cantidad'] < 0 || $data['idTipo'] <= 0) {
-            return $this->failValidationErrors('Nombre, cantidad o tipo inválidos.');
+        // Manejar idTipo - puede ser null para "Sin tipo"
+        if (isset($data['idTipo'])) {
+            if ($data['idTipo'] === null || $data['idTipo'] === '' || $data['idTipo'] === 0) {
+                $data['idTipo'] = null; // "Sin tipo"
+            } else {
+                $data['idTipo'] = (int) $data['idTipo'];
+                if ($data['idTipo'] <= 0) {
+                    return $this->failValidationErrors('El tipo de material es inválido.');
+                }
+            }
+        } else {
+            $data['idTipo'] = null; // "Sin tipo" por defecto
+        }
+
+        // Validaciones básicas
+        if ($data['nombre'] === '' || $data['cantidad'] < 0) {
+            return $this->failValidationErrors('Nombre o cantidad inválidos.');
         }
 
         $id = $this->model->insert($data);
@@ -137,9 +150,16 @@ class Materiales extends ResourceController
                 $nombre = isset($item['nombre']) ? trim((string) $item['nombre']) : '';
                 $cantidad = isset($item['cantidad']) ? (int) $item['cantidad'] : null;
                 $tipoNombre = isset($item['tipo']) ? trim((string) $item['tipo']) : '';
-                $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
                 
-                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: {$idTipo}");
+                // Si el tipo está vacío, asignar null (Sin tipo)
+                if ($tipoNombre === '') {
+                    $idTipo = null;
+                    log_message('debug', "Item {$index} - Tipo vacío, asignando 'Sin tipo' (null)");
+                } else {
+                    $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
+                }
+                
+                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: " . ($idTipo === null ? 'null' : $idTipo));
                 
                 // Validaciones más detalladas
                 if ($nombre === '') {
@@ -152,7 +172,8 @@ class Materiales extends ResourceController
                     continue;
                 }
                 
-                if ($idTipo === 0) {
+                // Solo validar tipo si no es null (Sin tipo)
+                if ($idTipo !== null && $idTipo === 0) {
                     $errores[] = "Fila " . ($index + 1) . ": El tipo '{$tipoNombre}' no existe. Tipos disponibles: " . implode(', ', array_keys($tiposMap));
                     continue;
                 }
@@ -160,7 +181,7 @@ class Materiales extends ResourceController
                 $validados[] = [
                     'nombre' => $nombre,
                     'cantidad' => $cantidad,
-                    'idTipo' => $idTipo,
+                    'idTipo' => $idTipo, // Puede ser null para "Sin tipo"
                 ];
             }
 

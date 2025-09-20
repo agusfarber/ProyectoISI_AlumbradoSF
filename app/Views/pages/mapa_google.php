@@ -58,6 +58,10 @@
                 <i class="bi bi-geo-alt-fill text-white"></i> Cambiar a Mapbox
             </a-->
             
+            
+            <a href="<?= base_url('/mapa_mapbox'); ?>" class="btn btn-primary">
+                <i class="bi bi-geo-alt-fill text-white"></i> Cambiar a Mapbox
+            </a>
         </div>
     </div>
 
