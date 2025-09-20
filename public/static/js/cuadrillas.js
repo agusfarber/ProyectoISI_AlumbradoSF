@@ -10,11 +10,6 @@ const app = Vue.createApp({
             cuadrillaSeleccionada: '',
             operariosDisponiblesParaEdicion: [],
             operariosSeleccionadosEdicion: [],
-            // Variables para filtros
-            filtroBusqueda: '',
-            filtroOperarios: '',
-            filtroCantidadOperarios: '',
-            cuadrillasFiltradas: [],
             tabla: null,
             // Variable para controlar la cuadrilla seleccionada por fila
             filaSeleccionada: null
@@ -90,65 +85,6 @@ const app = Vue.createApp({
                     this.seleccionarCuadrillaPorFila(data.id, e.currentTarget);
                 }
             });
-        },
-
-        // Aplicar filtros
-        aplicarFiltros() {
-            if (!this.tabla) return;
-
-            // Limpiar filtros anteriores
-            while ($.fn.dataTable.ext.search.length > 0) {
-                $.fn.dataTable.ext.search.pop();
-            }
-
-            // Filtro por búsqueda de nombre
-            if (this.filtroBusqueda) {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const nombre = data[1].toLowerCase(); // Columna de nombre
-                    return nombre.includes(this.filtroBusqueda.toLowerCase());
-                });
-            }
-
-            // Filtro por operarios
-            if (this.filtroOperarios === 'con-operarios') {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return cuadrilla.operarios && cuadrilla.operarios.length > 0;
-                });
-            } else if (this.filtroOperarios === 'sin-operarios') {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return !cuadrilla.operarios || cuadrilla.operarios.length === 0;
-                });
-            }
-
-            // Filtro por cantidad de operarios
-            if (this.filtroCantidadOperarios) {
-                const cantidad = parseInt(this.filtroCantidadOperarios);
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return cuadrilla.operarios && cuadrilla.operarios.length === cantidad;
-                });
-            }
-
-            this.tabla.draw();
-        },
-
-        // Limpiar filtros
-        limpiarFiltros() {
-            this.filtroBusqueda = '';
-            this.filtroOperarios = '';
-            this.filtroCantidadOperarios = '';
-            
-            // Limpiar filtros de DataTable
-            while ($.fn.dataTable.ext.search.length > 0) {
-                $.fn.dataTable.ext.search.pop();
-            }
-            
-            if (this.tabla) {
-                this.tabla.search('');
-                this.tabla.draw();
-            }
         },
 
         // Seleccionar cuadrilla por clic en fila

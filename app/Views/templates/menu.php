@@ -33,7 +33,7 @@
     </div>
     <?php endif; ?>
 
-    <?php if ($userRole == '1'): ?>
+    <?php if ($userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/cuadrillas"); ?>" title="Cuadrillas">
         <i class="bi bi-people-fill"></i>
