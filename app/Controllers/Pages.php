@@ -24,7 +24,6 @@ class Pages extends BaseController
             'pages' => ['1'],
             'reclamos' => ['1', '2', '3'],
             'materiales' => ['1', '2'],
-            'cuadrillas' => ['2'],
             'token103' => ['1', '2', '3'],
             'mapa' => ['1', '2', '3'],
             'mapa_google' => ['1', '2', '3'],

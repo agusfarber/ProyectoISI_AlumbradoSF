@@ -19,16 +19,60 @@
         <h2>Gestión de Cuadrillas</h2>
     </div>
 
-    <!-- Botones de acción -->
-    <div class="mb-3">
-        <button class="btn btn-primary me-2" @click="abrirFormulario()">+ Nueva Cuadrilla</button>
-        <button class="btn btn-success" 
-                @click="abrirAdministracionCuadrilla()"
-                :disabled="!cuadrillaSeleccionada"
-                :title="cuadrillaSeleccionada ? 'Administrar la cuadrilla seleccionada' : 'Seleccione una cuadrilla primero'">
-            <i class="bi bi-gear-fill"></i> ADMINISTRAR CUADRILLA
+    <!-- Botones de acción y filtros -->
+    <div class="d-flex justify-content-between mb-3">
+        <!-- Botones a la izquierda -->
+        <div>
+            <button class="btn btn-primary me-2" @click="abrirFormulario()">+ Nueva Cuadrilla</button>
+            <button class="btn btn-success" 
+                    @click="abrirAdministracionCuadrilla()"
+                    :disabled="!cuadrillaSeleccionada"
+                    :title="cuadrillaSeleccionada ? 'Administrar la cuadrilla seleccionada' : 'Seleccione una cuadrilla primero'">
+                <i class="bi bi-gear-fill"></i> ADMINISTRAR CUADRILLA
+            </button>
+        </div>
+        
+        <!-- Botón de filtros a la derecha -->
+        <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
+            <i class="bi bi-funnel"></i> Filtros
         </button>
     </div>
+
+    <!-- Panel de Filtros colapsable -->
+    <div class="collapse mb-3" id="filtrosPanel">
+        <div class="row align-items-end">
+            <div class="col-md-4 mb-2 mb-md-0">
+                <label for="filtroBusqueda" class="form-label">Buscar por nombre</label>
+                <input type="text" id="filtroBusqueda" class="form-control" v-model="filtroBusqueda" @input="aplicarFiltros" placeholder="Buscar cuadrilla...">
+            </div>
+            <div class="col-md-3 mb-2 mb-md-0">
+                <label for="filtroOperarios" class="form-label">Filtrar por operarios</label>
+                <select id="filtroOperarios" class="form-select" v-model="filtroOperarios" @change="aplicarFiltros">
+                    <option value="">Todas las cuadrillas</option>
+                    <option value="con-operarios">Con operarios asignados</option>
+                    <option value="sin-operarios">Sin operarios asignados</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-2 mb-md-0">
+                <label for="filtroCantidadOperarios" class="form-label">Cantidad de operarios</label>
+                <select id="filtroCantidadOperarios" class="form-select" v-model="filtroCantidadOperarios" @change="aplicarFiltros">
+                    <option value="">Cualquier cantidad</option>
+                    <option value="1">1 operario</option>
+                    <option value="2">2 operarios</option>
+                    <option value="3">3 operarios</option>
+                    <option value="4">4 operarios</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="d-grid gap-2 w-100">
+                    <button class="btn btn-outline-secondary" @click="limpiarFiltros">
+                        <i class="bi bi-x-circle"></i> Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 
     <!-- Tabla de cuadrillas -->
     <div class="table-responsive">
@@ -48,23 +92,23 @@
 
     <!-- Modal Cuadrilla -->
     <div class="modal fade" id="modalCuadrilla" tabindex="-1">
-        <div class="modal-dialog" :class="cuadrilla.id ? 'modal-lg' : 'modal-md'" :style="cuadrilla.id ? 'max-width: 70vw; max-height: 90vh;' : 'max-width: 500px;'">
+        <div class="modal-dialog modal-lg" style="max-width: 70vw; max-height: 90vh;">
             <div class="modal-content">
                 <form @submit.prevent="guardarCuadrilla">
                     <div class="modal-header">
                         <h5 class="modal-title">{{ cuadrilla.id ? 'Administrar Cuadrilla' : 'Nueva Cuadrilla' }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
-                    <div class="modal-body" :style="cuadrilla.id ? 'max-height: 70vh; overflow-y: auto;' : ''">
+                    <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                         <div class="row">
-                            <div :class="cuadrilla.id ? 'col-md-3' : 'col-12'">
+                            <div class="col-md-3">
                                 <div class="mb-3">
                                     <label class="form-label"><strong>Nombre de la Cuadrilla</strong></label>
                                     <input type="text" class="form-control" v-model="cuadrilla.nombre" :required="!cuadrilla.id" placeholder="Ingrese el nombre de la cuadrilla">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label"><strong>Descripción</strong> <small class="text-muted">(Opcional)</small></label>
-                                    <textarea class="form-control" v-model="cuadrilla.descripcion" :rows="cuadrilla.id ? 4 : 3" placeholder="Descripción de la cuadrilla..."></textarea>
+                                    <textarea class="form-control" v-model="cuadrilla.descripcion" rows="4" placeholder="Descripción de la cuadrilla..."></textarea>
                                 </div>
                             </div>
                             <div class="col-md-4" v-if="cuadrilla.id">
