@@ -1,8 +1,9 @@
 <div id="app" class="container-fluid">
     <div>Usuarios</div>
+    <br>
 
-    <!-- Botón para agregar usuario -->
-    <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Usuario</button>
+    <!-- Botón para agregar usuario 
+    <button class="btn btn-primary mb-3" @click="abrirFormulario()">+ Nuevo Usuario</button-->
 
     <!-- Tabla de usuarios -->
     <div class="table-responsive">
@@ -12,7 +13,7 @@
                     <th>Nombre</th>
                     <th>Email / Legajo</th>
                     <th>Rol</th>
-                    <th>Acciones</th>
+                    <!--th>Acciones</th-->
                 </tr>
             </thead>
             <tbody>
@@ -20,6 +21,7 @@
                     <td>{{ user.nombre }}</td>
                     <td>{{ user.email || user.legajo || 'No especificado' }}</td>
                     <td>{{ getNombreRol(user.idRol) }}</td>
+                    <!--
                     <td>
                         <button class="btn btn-sm btn-info me-1" @click="verUsuario(user)" title="Ver detalles">
                             <i class="bi bi-eye"></i>
@@ -31,6 +33,7 @@
                             <i class="bi bi-trash"></i>
                         </button>
                     </td>
+                    -->
                 </tr>
             </tbody>
         </table>

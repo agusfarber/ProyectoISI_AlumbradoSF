@@ -40,6 +40,14 @@ const app = Vue.createApp({
          * Guarda o actualiza las credenciales
          */
         async guardarCredenciales() {
+            // Confirmación antes de guardar
+            const mensajeConfirmacion = `¿Está seguro que desea guardar las credenciales?`;
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Guardar Credenciales');
+            
+            if (!confirmacion) {
+                return;
+            }
+
             try {
                 const url = BASE_URL + 'api/token103';
 
@@ -54,12 +62,12 @@ const app = Vue.createApp({
                 this.credencialesGuardadas = true;
                 this.obtenerTokenUnico(); // Recargar el token para actualizar la vista
 
-                // Mensaje de éxito con alert()
-                alert('Credenciales guardadas: Las credenciales se han guardado correctamente.');
+                // Mensaje de éxito personalizado
+                this.mostrarMensaje('Credenciales guardadas correctamente', 'success');
             } catch (error) {
                 console.error('Error al guardar credenciales:', error);
-                // Mensaje de error con alert()
-                alert('Error: No se pudieron guardar las credenciales.');
+                // Mensaje de error personalizado
+                this.mostrarMensaje('Error al guardar las credenciales', 'error');
             }
         },
 
@@ -68,13 +76,21 @@ const app = Vue.createApp({
          */
         async generarToken() {
             if (!this.credencialesGuardadas) {
-                // Mensaje de advertencia con alert()
-                alert('Credenciales requeridas: Debe guardar las credenciales antes de generar un token.');
+                // Mensaje de advertencia personalizado
+                this.mostrarMensaje('Debe guardar las credenciales antes de generar un token', 'warning');
                 return;
             }
 
-            // Un simple alert para indicar que se está generando el token
-            alert('Generando token... Por favor espere.');
+            // Confirmación antes de generar token
+            const mensajeConfirmacion = `¿Está seguro que desea generar un nuevo token?`;
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Generar Token');
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            // Mensaje de progreso personalizado
+            this.mostrarMensaje('Generando token... Por favor espere', 'info');
 
             try {
                 const response = await axios.post(this.apiUrl + '/generarToken', this.credenciales);
@@ -101,15 +117,15 @@ const app = Vue.createApp({
                     await axios.post(BASE_URL + 'api/token103', tokenData);
                 }
 
-                // Mensaje de éxito con alert()
-                alert('Token generado: El token se ha generado y guardado correctamente.');
+                // Mensaje de éxito personalizado
+                this.mostrarMensaje('Token generado y guardado correctamente', 'success');
 
                 this.obtenerTokenUnico(); // Recargar los datos para mostrar el nuevo token
 
             } catch (error) {
                 console.error('Error al generar token:', error);
-                // Mensaje de error con alert()
-                alert('Error al generar token: No se pudo generar el token. Verifique las credenciales y la conexión.');
+                // Mensaje de error personalizado
+                this.mostrarMensaje('Error al generar el token. Verifique las credenciales y la conexión', 'error');
             }
         },
 
@@ -135,9 +151,112 @@ const app = Vue.createApp({
 
             } catch (err) {
                 console.error('Error al copiar:', err);
-                // Puedes mantener una alerta nativa para los errores
-                alert('No se pudo copiar el token.');
+                // Mensaje de error personalizado
+                this.mostrarMensaje('No se pudo copiar el token', 'error');
             }
+        },
+
+        /**
+         * Muestra mensajes de notificación estilo cuadrillas
+         */
+        mostrarMensaje(mensaje, tipo) {
+            // Si es un mensaje de éxito, eliminar mensajes de progreso anteriores
+            if (tipo === 'success') {
+                $('.alert-info.mensaje-notificacion').fadeOut(200, function() {
+                    $(this).remove();
+                });
+            }
+            
+            // Crear y mostrar un toast o alert
+            const alertClass = tipo === 'success' ? 'alert-success' : 
+                              tipo === 'warning' ? 'alert-warning' : 
+                              tipo === 'info' ? 'alert-info' : 'alert-danger';
+            
+            const alertHtml = `
+                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+                    ${mensaje}
+                </div>
+            `;
+            
+            $('body').append(alertHtml);
+            
+            // Auto-remover después de 5 segundos - solo los mensajes de notificación flotantes
+            setTimeout(() => {
+                $('.mensaje-notificacion').fadeOut(500, function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        },
+
+        /**
+         * Muestra una confirmación personalizada estilo cuadrillas
+         */
+        mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
+            return new Promise((resolve) => {
+                // Crear el modal de confirmación
+                const modalHtml = `
+                    <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-question-circle me-2"></i>${titulo}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="text-center">
+                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                                        <p class="mt-3 mb-0">${mensaje}</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
+                                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                                    </button>
+                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
+                                        <i class="bi bi-check-circle me-1"></i>Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remover modal anterior si existe
+                $('#modalConfirmacion').remove();
+                
+                // Agregar el modal al body
+                $('body').append(modalHtml);
+                
+                // Mostrar el modal
+                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+                modal.show();
+
+                // Manejar botones
+                $('#btnConfirmar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(true);
+                });
+
+                $('#btnCancelar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(false);
+                });
+
+                // Manejar cierre del modal (X o ESC)
+                $('#modalConfirmacion').on('hidden.bs.modal', () => {
+                    $('#modalConfirmacion').remove();
+                    resolve(false);
+                });
+            });
         },
 
         /**
