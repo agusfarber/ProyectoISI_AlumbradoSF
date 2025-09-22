@@ -1,9 +1,7 @@
 <div id="app" class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-4">Gestión de Tokens de Acceso</h2>
-        </div>
-    </div>
+    
+    <div>Gestión de Tokens de Acceso</div>
+    <br>
 
     <div class="row mb-4">
         <div class="col-md-6">
