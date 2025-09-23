@@ -82,7 +82,7 @@
                             <input type="date" id="syncFechaHasta" class="form-control" v-model="syncFechaHasta">
                         </div>
                         <button class="btn btn-primary" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible">
-                            <i class="bi bi-download"></i> Sincronizar Reclamos
+                            <i class="bi bi-download text-white"></i> Sincronizar Reclamos
                         </button>
                     </div>
 

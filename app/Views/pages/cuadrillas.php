@@ -15,8 +15,8 @@
             background-color: #0b5ed7 !important;
         }
     </style>
-    <div class="mb-4">
-        <h2>Gestión de Cuadrillas</h2>
+    <div>
+        Gestión de Cuadrillas
     </div>
 
     <!-- Botones de acción y filtros -->
@@ -28,7 +28,7 @@
                     @click="abrirAdministracionCuadrilla()"
                     :disabled="!cuadrillaSeleccionada"
                     :title="cuadrillaSeleccionada ? 'Administrar la cuadrilla seleccionada' : 'Seleccione una cuadrilla primero'">
-                <i class="bi bi-gear-fill"></i> ADMINISTRAR CUADRILLA
+                <i class="bi bi-gear-fill text-white"></i> ADMINISTRAR CUADRILLA
             </button>
         </div>
         
@@ -143,7 +143,7 @@
                                 </div>
                                 <div class="mt-3">
                                     <button type="button" class="btn btn-success btn-sm" @click="agregarOperariosSeleccionados" :disabled="operariosSeleccionadosEdicion.length === 0">
-                                        <i class="bi bi-plus-circle"></i> Agregar Seleccionados 
+                                        <i class="bi bi-plus-circle text-white"></i> Agregar Seleccionados 
                                         <span v-if="operariosSeleccionadosEdicion.length > 0" class="badge bg-light text-dark ms-1">{{ operariosSeleccionadosEdicion.length }}</span>
                                     </button>
                                 </div>

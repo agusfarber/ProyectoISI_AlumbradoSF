@@ -101,7 +101,7 @@ const app = Vue.createApp({
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <button class="btn btn-sm btn-danger eliminar-material" data-id="${row.id}" title="Eliminar">
-                                    <i class="bi bi-trash"></i>
+                                    <i class="bi bi-trash text-white"></i>
                                 </button>
                             `;
                         }
@@ -146,7 +146,7 @@ const app = Vue.createApp({
                         render: (data, type, row) => {
                             return `
                                 <button class="btn btn-sm btn-danger eliminar-tipo" data-id="${row.id}" title="Eliminar">
-                                    <i class="bi bi-trash"></i>
+                                    <i class="bi bi-trash text-white"></i>
                                 </button>
                             `;
                         }

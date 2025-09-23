@@ -240,11 +240,11 @@ window.app = Vue.createApp({
                     `;
 
                     // Crear el marcador con color según estado del reclamo
-                    let color = '#4285F4'; // Azul por defecto
-                    if (reclamo.municipalidad_estado === 'Recibido') color = '#4285F4'; // Azul
+                    let color = '#808080'; // Gris por defecto
+                    if (reclamo.municipalidad_estado === 'Recibido') color = '#808080'; // Gris
                     else if (reclamo.municipalidad_estado === 'Asignado') color = '#FF0000'; // Rojo
                     else if (reclamo.municipalidad_estado === 'En ejecución') color = '#FFD700'; // Amarillo
-                    else if (reclamo.municipalidad_estado === 'Completado') color = '#00FF00'; // Verde
+                    else if (reclamo.municipalidad_estado === 'Completado') color = '#198754'; // Verde Bootstrap success
                     else if (reclamo.municipalidad_estado === 'En plan') color = '#808080'; // Gris
                     else if (reclamo.municipalidad_estado === 'Error de datos') color = '#808080'; // Gris
 
@@ -260,7 +260,7 @@ window.app = Vue.createApp({
             }
 
             console.log(`📍 Marcadores agregados: ${this.marcadores.length} total`);
-            console.log(`   - 🔵 Recibido: ${contadorEstados['Recibido']}`);
+            console.log(`   - ⚫ Recibido: ${contadorEstados['Recibido']}`);
             console.log(`   - 🔴 Asignado: ${contadorEstados['Asignado']}`);
             console.log(`   - 🟡 En ejecución: ${contadorEstados['En ejecución']}`);
             console.log(`   - 🟢 Completado: ${contadorEstados['Completado']}`);
@@ -655,7 +655,7 @@ window.app = Vue.createApp({
                     dropdownButton.innerHTML = '<i class="bi bi-funnel"></i> Filtrar por Estado';
                 } else {
                     const iconos = {
-                        'Recibido': '🔵',
+                        'Recibido': '⚫',
                         'Asignado': '🔴',
                         'En ejecución': '🟡',
                         'Completado': '🟢',
@@ -705,7 +705,7 @@ window.app = Vue.createApp({
                     dropdownButton.innerHTML = '<i class="bi bi-funnel"></i> Todos los Estados';
                 } else {
                     const iconos = {
-                        'Recibido': '🔵',
+                        'Recibido': '⚫',
                         'Asignado': '🔴',
                         'En ejecución': '🟡',
                         'Completado': '🟢',
@@ -768,7 +768,7 @@ window.app = Vue.createApp({
                 console.log(`📍 Marcadores visibles: ${contadorVisible} (filtros: ${this.estadosSeleccionados.join(', ')})`);
             }
             
-            console.log(`   - 🔵 Recibido: ${contadorEstados['Recibido']}`);
+            console.log(`   - ⚫ Recibido: ${contadorEstados['Recibido']}`);
             console.log(`   - 🔴 Asignado: ${contadorEstados['Asignado']}`);
             console.log(`   - 🟡 En ejecución: ${contadorEstados['En ejecución']}`);
             console.log(`   - 🟢 Completado: ${contadorEstados['Completado']}`);
