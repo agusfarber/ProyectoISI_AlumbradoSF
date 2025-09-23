@@ -20,13 +20,13 @@ class Pages extends BaseController
         // Definir qué roles pueden acceder a qué páginas
         $rolePermissions = [
             'usuarios' => ['1', '2', '3'],
-            'pages' => ['1'],
-            'cuadrillas' => ['2'],
+            'cuadrillas' => ['1', '2', '3'],
             'reclamos' => ['1', '2', '3'],
-            'materiales' => ['1', '2'],
-            'token103' => ['1', '2', '3'],
-            'mapa' => ['1', '2', '3'],
+            'materiales' => ['1', '2', '3'],
             'mapa_google' => ['1', '2', '3'],
+            'mapa_mapbox' => ['1', '2', '3'],
+            'token103' => ['1', '2', '3'],
+            'tareas' => ['1', '2', '3'],
         ];
       
         // Obtener el rol del usuario
