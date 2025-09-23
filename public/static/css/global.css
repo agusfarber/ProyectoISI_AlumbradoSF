@@ -661,6 +661,13 @@
   background: var(--gradient-secondary) !important;
 }
 
+/* Excepción específica para la página de tareas - Badge Completado debe ser verde */
+body #app.container-fluid .badge.bg-success {
+  background: #198754 !important;
+  background-color: #198754 !important;
+  color: #fff !important;
+}
+
 /* ========================================
    ESTILOS PARA SOMBRAS
    ======================================== */

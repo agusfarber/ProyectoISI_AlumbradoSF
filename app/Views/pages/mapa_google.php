@@ -18,7 +18,7 @@
                     <div class="form-check mb-1">
                         <input class="form-check-input" type="checkbox" id="filtroRecibido" value="Recibido" @change="toggleEstado" :checked="estadosSeleccionados.includes('Recibido')">
                         <label class="form-check-label" for="filtroRecibido">
-                            🔵 Recibido
+                            ⚫ Recibido
                         </label>
                     </div>
                     <div class="form-check mb-1">

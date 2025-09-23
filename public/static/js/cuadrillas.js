@@ -492,14 +492,11 @@ const app = Vue.createApp({
 
         // Quitar operario de la cuadrilla
         quitarOperario(operarioId) {
-            // Usar confirmación nativa como en otros módulos (reclamos, usuarios, materiales)
-            if (confirm('¿Está seguro de que desea quitar este operario de la cuadrilla?')) {
-                // Eliminar operario del array local
-                this.cuadrilla.operarios = this.cuadrilla.operarios.filter(op => op.id !== operarioId);
-                // Recargar operarios disponibles para mostrar el operario removido
-                this.cargarOperariosDisponiblesParaEdicion();
-                this.mostrarMensaje('Operario removido correctamente', 'success');
-            }
+            // Eliminar operario del array local directamente sin confirmación
+            this.cuadrilla.operarios = this.cuadrilla.operarios.filter(op => op.id !== operarioId);
+            // Recargar operarios disponibles para mostrar el operario removido
+            this.cargarOperariosDisponiblesParaEdicion();
+            this.mostrarMensaje('Operario removido correctamente', 'success');
         },
 
         mostrarMensaje(mensaje, tipo) {
