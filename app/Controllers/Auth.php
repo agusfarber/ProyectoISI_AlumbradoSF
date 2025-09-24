@@ -36,7 +36,8 @@ class Auth extends Controller
             ]);
                    
           return $this->response->setStatusCode(200)->setJSON([
-              'message' => 'Inicio de sesión exitoso.'
+              'message' => 'Inicio de sesión exitoso.',
+              'role' => $user['idRol']
           ]);
           
         } else {
@@ -68,7 +69,8 @@ class Auth extends Controller
             ]);
                    
           return $this->response->setStatusCode(200)->setJSON([
-              'message' => 'Inicio de sesión exitoso.'
+              'message' => 'Inicio de sesión exitoso.',
+              'role' => $user['idRol']
           ]);
           
         } else {

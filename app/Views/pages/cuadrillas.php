@@ -92,7 +92,7 @@
 
     <!-- Modal Cuadrilla -->
     <div class="modal fade" id="modalCuadrilla" tabindex="-1">
-        <div class="modal-dialog modal-lg" style="max-width: 70vw; max-height: 90vh;">
+        <div class="modal-dialog modal-dialog-centered" :class="cuadrilla.id ? 'modal-lg' : ''" :style="cuadrilla.id ? 'max-width: 70vw; max-height: 90vh;' : 'max-width: 500px; max-height: 90vh;'">
             <div class="modal-content">
                 <form @submit.prevent="guardarCuadrilla">
                     <div class="modal-header">
@@ -101,7 +101,7 @@
                     </div>
                     <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div :class="cuadrilla.id ? 'col-md-3' : 'col-12'">
                                 <div class="mb-3">
                                     <label class="form-label"><strong>Nombre de la Cuadrilla</strong></label>
                                     <input type="text" class="form-control" v-model="cuadrilla.nombre" :required="!cuadrilla.id" placeholder="Ingrese el nombre de la cuadrilla">

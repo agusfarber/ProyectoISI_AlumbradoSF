@@ -40,7 +40,15 @@ const loginApp = Vue.createApp({
         axios.post(BASE_URL + "auth/login", this.usuario)
           .then(response => {
             if (response.data.message) {
-              window.location.replace(BASE_URL+'usuarios');
+              // Redirigir según el rol del usuario
+              const userRole = response.data.role;
+              if (userRole == 3) {
+                // Operarios van a materiales
+                window.location.replace(BASE_URL+'materiales');
+              } else {
+                // Otros roles van a usuarios
+                window.location.replace(BASE_URL+'usuarios');
+              }
             }
           })
           .catch(error => {
@@ -75,7 +83,15 @@ const loginApp = Vue.createApp({
         axios.post(BASE_URL + "auth/loginLegajo", this.usuarioLegajo)
           .then(response => {
             if (response.data.message) {
-              window.location.replace(BASE_URL+'usuarios');
+              // Redirigir según el rol del usuario
+              const userRole = response.data.role;
+              if (userRole == 3) {
+                // Operarios van a materiales
+                window.location.replace(BASE_URL+'materiales');
+              } else {
+                // Otros roles van a usuarios
+                window.location.replace(BASE_URL+'usuarios');
+              }
             }
           })
           .catch(error => {

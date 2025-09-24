@@ -19,7 +19,7 @@
   <nav class="sidebar-nav">
     
 
-    <?php if ($userRole == '1'): ?>
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/usuarios"); ?>" title="Usuarios">
         <i class="bi bi-people"></i>
@@ -28,7 +28,7 @@
     </div>
     <?php endif; ?>
 
-    <?php if ($userRole == '2'): ?>
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/cuadrillas"); ?>" title="Cuadrillas">
         <i class="bi bi-people-fill"></i>
@@ -37,7 +37,7 @@
     </div>
     <?php endif; ?>
     
-    <?php if ($userRole == '2'): ?>
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/reclamos"); ?>" title="Reclamos">
         <i class="bi bi-exclamation-triangle"></i>
@@ -46,7 +46,7 @@
     </div>
     <?php endif; ?>
 
-    <?php if ($userRole == '2' || $userRole == '3'): ?>
+    <?php if ($userRole == '1' || $userRole == '2' || $userRole == '3'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">
         <i class="bi bi-box-seam"></i>
@@ -55,7 +55,7 @@
     </div>
     <?php endif; ?>
 
-    <?php if ($userRole == '2' || $userRole == '3'): ?>
+    <?php if ($userRole == '1' || $userRole == '2' || $userRole == '3'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/mapa_google"); ?>" title="Mapa">
         <i class="bi bi-geo-alt"></i>
@@ -64,7 +64,7 @@
     </div>
     <?php endif; ?>
     
-    <?php if ($userRole == '2'): ?>
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/token103"); ?>" title="Tokens de Acceso">
         <i class="bi bi-key"></i>
@@ -73,7 +73,7 @@
     </div>
     <?php endif; ?>
 
-    <?php if ($userRole == '3'): ?>
+    <?php if ($userRole == '1' ||$userRole == '3'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/tareas"); ?>" title="Tareas">
         <i class="bi bi-clipboard-check"></i>
