@@ -64,8 +64,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <h6 class="card-title mb-0 text-primary fw-bold">
-                            <i class="bi bi-exclamation-circle me-1"></i>
-                            #{{ reclamo.municipalidad_id }}
+                            {{ reclamo.municipalidad_id }}
                         </h6>
                         <span class="badge" :class="getEstadoBadgeClass(reclamo.municipalidad_estado)">
                             {{ reclamo.municipalidad_estado }}
@@ -81,20 +80,6 @@
                     
                     <div class="mb-1">
                         <small class="text-dark">
-                            <i class="bi bi-calendar me-1"></i>
-                            {{ formatearFecha(reclamo.municipalidad_fechaInicio) }}
-                        </small>
-                    </div>
-                              
-                    <div class="mb-1">
-                        <small class="text-dark">
-                            <i class="bi bi-star me-1"></i>
-                            Prioridad: {{ reclamo.prioridad }}
-                        </small>
-                    </div>
-                    
-                    <div class="mb-1">
-                        <small class="text-dark">
                             <i class="bi bi-tag me-1"></i>
                             {{ reclamo.municipalidad_motivo }}
                         </small>
@@ -105,7 +90,7 @@
                 <div class="card-footer bg-transparent">
                     <div class="d-flex gap-1">
                         <button class="btn btn-sm btn-primary flex-fill" @click.stop="cambiarEstado(reclamo)" title="Acciones">
-                            <i class="bi bi-lightning text-white"></i> Acciones
+                            Acciones
                         </button>
                     </div>
                 </div>
@@ -216,7 +201,6 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="bi bi-lightning me-2"></i>
                         Acciones - Reclamo #{{ reclamoSeleccionado.municipalidad_id }}
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

@@ -381,10 +381,15 @@ const app = Vue.createApp({
 
             console.log('Cuadrilla encontrada:', cuadrilla);
 
-            // Usar confirmación nativa como en otros módulos (reclamos, usuarios, materiales)
-            if (confirm(`¿Seguro que deseas eliminar la cuadrilla "${cuadrilla.nombre}"? Esta acción eliminará también todas las asignaciones de operarios y no se puede deshacer.`)) {
-                await this.procesarEliminacionCuadrilla();
+            // Mostrar modal de confirmación personalizado
+            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la cuadrilla "${cuadrilla.nombre}"? Esta acción eliminará también todas las asignaciones de operarios y no se puede deshacer.`;
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Cuadrilla');
+            
+            if (!confirmacion) {
+                return;
             }
+
+            await this.procesarEliminacionCuadrilla();
         },
 
         // Procesar la eliminación de la cuadrilla
@@ -497,6 +502,76 @@ const app = Vue.createApp({
             // Recargar operarios disponibles para mostrar el operario removido
             this.cargarOperariosDisponiblesParaEdicion();
             this.mostrarMensaje('Operario removido correctamente', 'success');
+        },
+
+        /**
+         * Muestra una confirmación personalizada estilo cuadrillas
+         */
+        mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
+            return new Promise((resolve) => {
+                // Crear el modal de confirmación
+                const modalHtml = `
+                    <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-question-circle me-2"></i>${titulo}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="text-center">
+                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                                        <p class="mt-3 mb-0">${mensaje}</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
+                                        <i class="bi bi-x-circle me-1 text-white"></i>Cancelar
+                                    </button>
+                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
+                                        <i class="bi bi-check-circle me-1"></i>Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remover modal anterior si existe
+                $('#modalConfirmacion').remove();
+                
+                // Agregar el modal al body
+                $('body').append(modalHtml);
+                
+                // Mostrar el modal
+                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+                modal.show();
+
+                // Manejar botones
+                $('#btnConfirmar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(true);
+                });
+
+                $('#btnCancelar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(false);
+                });
+
+                // Manejar cierre del modal (X o ESC)
+                $('#modalConfirmacion').on('hidden.bs.modal', () => {
+                    $('#modalConfirmacion').remove();
+                    resolve(false);
+                });
+            });
         },
 
         mostrarMensaje(mensaje, tipo) {
