@@ -291,7 +291,20 @@ window.app = Vue.createApp({
                     {
                         data: 'municipalidad_id',
                         render: (data, type, row) => {
-                            return `<a href="#" class="id-clickeable text-primary fw-bold" data-id="${row.id}" style="text-decoration: underline; cursor: pointer;" title="Clic para ver detalles">${data}</a>`;
+                            // Determinar el color según el estado
+                            let color = '#808080'; // Gris por defecto
+                            if (row.municipalidad_estado === 'Recibido') color = '#808080'; // Gris
+                            else if (row.municipalidad_estado === 'Asignado') color = '#FF0000'; // Rojo
+                            else if (row.municipalidad_estado === 'En ejecución') color = '#FFD700'; // Amarillo
+                            else if (row.municipalidad_estado === 'Completado') color = '#198754'; // Verde Bootstrap success
+                            else if (row.municipalidad_estado === 'En plan') color = '#808080'; // Gris
+                            else if (row.municipalidad_estado === 'Error de datos') color = '#808080'; // Gris
+                            
+                            return `<a href="#" class="id-clickeable text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;" title="Clic para ver detalles">
+                                        <svg width="16" height="20" viewBox="0 0 24 24" style="margin-right: 5px; vertical-align: middle;" fill="${color}">
+                                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                        </svg>${data}
+                                    </a>`;
                         }
                     },
                     { data: 'municipalidad_domicilio' },
