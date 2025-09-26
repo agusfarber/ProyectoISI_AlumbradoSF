@@ -32,10 +32,10 @@
             </button>
         </div>
         
-        <!-- Botón de filtros a la derecha -->
+        <!-- Botón de filtros a la derecha 
         <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
             <i class="bi bi-funnel"></i> Filtros
-        </button>
+        </button-->
     </div>
 
     <!-- Panel de Filtros colapsable -->
@@ -188,7 +188,7 @@
                                 </button>
                             </div>
                             <div>
-                                <button type="submit" class="btn btn-success">Guardar</button>
+                                <button type="submit" class="btn btn-success me-2">Guardar</button>
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                             </div>
                         </div>

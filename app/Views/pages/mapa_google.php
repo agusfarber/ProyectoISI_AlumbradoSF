@@ -53,7 +53,9 @@
                     </div>
                 </div>
             </div-->
-            
+            <a href="<?= base_url('/mapa_mapbox'); ?>" class="btn btn-success">
+                <i class="bi bi-geo-alt-fill text-white"></i> Cambiar a Mapbox
+            </a>
         </div>
     </div>
 

@@ -199,11 +199,34 @@ window.app = Vue.createApp({
 
         async agregarMarcadoresReclamos() {
             // Limpiar marcadores existentes
-            this.marcadores.forEach(marker => marker.setMap(null));
+            this.marcadores.forEach(marker => {
+                marker.setMap(null);
+                // Forzar eliminación del DOM como en Mapbox
+                if (marker.setVisible) {
+                    marker.setVisible(false);
+                }
+            });
             this.marcadores = [];
             
             // Limpiar referencia al info window abierto
-            this.infoWindowAbierto = null;
+            if (this.infoWindowAbierto) {
+                this.infoWindowAbierto.close();
+                this.infoWindowAbierto = null;
+            }
+            
+            // Limpieza adicional del DOM de Google Maps
+            setTimeout(() => {
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    // Buscar y eliminar elementos huérfanos de Google Maps
+                    const orphanElements = mapContainer.querySelectorAll('[style*="position: absolute"]');
+                    orphanElements.forEach(element => {
+                        if (element.style && element.style.zIndex && element.style.zIndex > 1000) {
+                            element.remove();
+                        }
+                    });
+                }
+            }, 50);
 
             let contadorEstados = {
                 'Recibido': 0,
@@ -388,7 +411,7 @@ window.app = Vue.createApp({
                 const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
                 
                 if (!coordenadas) {
-                    alert('No se pudieron obtener las coordenadas del reclamo');
+                    this.mostrarMensaje('No se pudieron obtener las coordenadas del reclamo', 'error');
                     return;
                 }
 
@@ -412,12 +435,12 @@ window.app = Vue.createApp({
 
                 } else {
                     // Si no se encuentra el marcador, mostrar mensaje simple
-                    alert(`Reclamo ${reclamo.municipalidad_id} resaltado (marcador no encontrado)`);
+                    this.mostrarMensaje(`Reclamo ${reclamo.municipalidad_id} resaltado (marcador no encontrado)`, 'info');
                 }
 
             } catch (error) {
                 console.error('Error al resaltar reclamo:', error);
-                alert('Error al resaltar el reclamo en el mapa');
+                this.mostrarMensaje('Error al resaltar el reclamo en el mapa', 'error');
             }
         },
 
@@ -458,8 +481,8 @@ window.app = Vue.createApp({
             // Agregar evento de clic en el mapa
             this.map.addListener('click', this.onMapClick);
             
-            // Mostrar mensaje de instrucción
-            alert('Modo de reubicación activado. Haga clic en cualquier lugar del mapa para seleccionar la nueva ubicación del reclamo.');
+            // Mostrar modal de instrucción
+            this.mostrarModalInstruccion();
             
             // Centrar el mapa en el reclamo actual si tiene coordenadas
             if (this.reclamoParaReubicar.municipalidad_domicilio && this.reclamoParaReubicar.municipalidad_numeroDomicilio) {
@@ -469,36 +492,42 @@ window.app = Vue.createApp({
 
         async eliminarUbicacionPersonalizada() {
             if (!this.ubicacionPersonalizada || !this.ubicacionPersonalizada.id) {
-                alert('No se puede eliminar la ubicación personalizada');
+                this.mostrarMensaje('No se puede eliminar la ubicación personalizada', 'warning');
                 return;
             }
 
-            if (confirm('¿Está seguro de que desea eliminar la ubicación personalizada? El punto volverá a usar las coordenadas automáticas de Google Maps.')) {
-                try {
-                    // Eliminar la dirección personalizada
-                    await axios.delete(BASE_URL + 'api/direcciones/' + this.ubicacionPersonalizada.id);
-                    
-                    // Cerrar modal de estado
-                    const modalEstado = bootstrap.Modal.getInstance(document.getElementById('modalEstadoUbicacion'));
-                    if (modalEstado) {
-                        modalEstado.hide();
-                    }
-                    
-                    // Limpiar estado
-                    this.ubicacionPersonalizada = null;
-                    this.reclamoParaReubicar = {};
-                    
-                    // Recargar marcadores y tabla
-                    await this.obtenerDirecciones();
-                    await this.agregarMarcadoresReclamos();
-                    this.inicializarTabla();
-                    
-                    alert('Ubicación personalizada eliminada correctamente. El punto ahora usa las coordenadas automáticas.');
-                    
-                } catch (error) {
-                    console.error('Error al eliminar ubicación personalizada:', error);
-                    alert('Error al eliminar la ubicación personalizada');
+            // Mostrar modal de confirmación
+            const mensajeConfirmacion = '¿Está seguro de que desea eliminar la ubicación personalizada? El punto volverá a usar las coordenadas automáticas de Google Maps.';
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Ubicación Personalizada');
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                // Eliminar la dirección personalizada
+                await axios.delete(BASE_URL + 'api/direcciones/' + this.ubicacionPersonalizada.id);
+                
+                // Cerrar modal de estado
+                const modalEstado = bootstrap.Modal.getInstance(document.getElementById('modalEstadoUbicacion'));
+                if (modalEstado) {
+                    modalEstado.hide();
                 }
+                
+                // Limpiar estado
+                this.ubicacionPersonalizada = null;
+                this.reclamoParaReubicar = {};
+                
+                // Recargar marcadores y tabla
+                await this.obtenerDirecciones();
+                await this.agregarMarcadoresReclamos();
+                this.inicializarTabla();
+                
+                this.mostrarMensaje('Ubicación personalizada eliminada correctamente', 'success');
+                
+            } catch (error) {
+                console.error('Error al eliminar ubicación personalizada:', error);
+                this.mostrarMensaje('Error al eliminar la ubicación personalizada', 'error');
             }
         },
 
@@ -554,7 +583,7 @@ window.app = Vue.createApp({
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-success" id="btnConfirmarReubicacion">
-                                    <i class="bi bi-geo-alt"></i> Confirmar Reubicación
+                                    <i class="bi bi-geo-alt text-white"></i> Confirmar Reubicación
                                 </button>
                                 <button type="button" class="btn btn-secondary" id="btnCancelarReubicacion">
                                     Cancelar
@@ -590,7 +619,7 @@ window.app = Vue.createApp({
 
         async confirmarReubicacion() {
             if (!this.nuevaUbicacion) {
-                alert('Por favor seleccione una nueva ubicación en el mapa');
+                this.mostrarMensaje('Por favor seleccione una nueva ubicación en el mapa', 'warning');
                 return;
             }
 
@@ -619,11 +648,11 @@ window.app = Vue.createApp({
                 await this.agregarMarcadoresReclamos();
                 this.inicializarTabla();
                 
-                alert('Ubicación actualizada correctamente');
+                this.mostrarMensaje('Ubicación actualizada correctamente', 'success');
                 
             } catch (error) {
                 console.error('Error al guardar nueva ubicación:', error);
-                alert('Error al guardar la nueva ubicación');
+                this.mostrarMensaje('Error al guardar la nueva ubicación', 'error');
             }
         },
 
@@ -838,7 +867,43 @@ window.app = Vue.createApp({
             this.map = new google.maps.Map(document.getElementById('map'), {
                 center: { lat: lat, lng: lng },
                 zoom: 13,
-                mapTypeId: google.maps.MapTypeId.ROADMAP
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                // Desactivar marcadores de POI (estaciones de servicio, negocios, etc.)
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.business",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.government",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.medical",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.place_of_worship",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.school",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.sports_complex",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "transit.station",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
             });
 
             // Inicializar el geocoder
@@ -861,6 +926,158 @@ window.app = Vue.createApp({
             await this.obtenerDirecciones();
             await this.agregarMarcadoresReclamos();
             this.inicializarTabla();
+        },
+
+        /**
+         * Muestra un modal de instrucción para el modo de reubicación
+         */
+        mostrarModalInstruccion() {
+            const modalHtml = `
+                <div class="modal fade" id="modalInstruccionReubicacion" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-geo-alt me-2"></i>Modo de Reubicación Activado
+                                </h5>
+                                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="text-center">
+                                    <i class="bi bi-cursor-fill text-info" style="font-size: 3rem;"></i>
+                                    <p class="mt-3 mb-0">
+                                        <strong>Instrucciones:</strong><br>
+                                        Haga clic en cualquier lugar del mapa para seleccionar la nueva ubicación del reclamo.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-info" data-bs-dismiss="modal" id="btnEntendido">
+                                    <i class="bi bi-check-circle me-1"></i>Entendido
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remover modal anterior si existe
+            $('#modalInstruccionReubicacion').remove();
+            
+            // Agregar el modal al body
+            $('body').append(modalHtml);
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('modalInstruccionReubicacion'));
+            modal.show();
+
+            // Manejar cierre del modal
+            $('#modalInstruccionReubicacion').on('hidden.bs.modal', () => {
+                $('#modalInstruccionReubicacion').remove();
+            });
+        },
+
+        /**
+         * Muestra una confirmación personalizada estilo cuadrillas
+         */
+        mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
+            return new Promise((resolve) => {
+                // Crear el modal de confirmación
+                const modalHtml = `
+                    <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header bg-warning text-dark">
+                                    <h5 class="modal-title">
+                                        <i class="bi bi-question-circle me-2"></i>${titulo}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="text-center">
+                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
+                                        <p class="mt-3 mb-0">${mensaje}</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
+                                        <i class="bi bi-x-circle me-1 text-white"></i>Cancelar
+                                    </button>
+                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
+                                        <i class="bi bi-check-circle me-1"></i>Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Remover modal anterior si existe
+                $('#modalConfirmacion').remove();
+                
+                // Agregar el modal al body
+                $('body').append(modalHtml);
+                
+                // Mostrar el modal
+                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+                modal.show();
+
+                // Manejar botones
+                $('#btnConfirmar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(true);
+                });
+
+                $('#btnCancelar').on('click', () => {
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacion').remove();
+                    }, 300);
+                    resolve(false);
+                });
+
+                // Manejar cierre del modal (X o ESC)
+                $('#modalConfirmacion').on('hidden.bs.modal', () => {
+                    $('#modalConfirmacion').remove();
+                    resolve(false);
+                });
+            });
+        },
+
+        /**
+         * Muestra mensajes de notificación estilo cuadrillas
+         */
+        mostrarMensaje(mensaje, tipo) {
+            // Si es un mensaje de éxito, eliminar mensajes de progreso anteriores
+            if (tipo === 'success') {
+                $('.alert-info.mensaje-notificacion').fadeOut(200, function() {
+                    $(this).remove();
+                });
+            }
+            
+            // Crear y mostrar un toast o alert
+            const alertClass = tipo === 'success' ? 'alert-success' : 
+                              tipo === 'warning' ? 'alert-warning' : 
+                              tipo === 'info' ? 'alert-info' : 'alert-danger';
+            
+            const alertHtml = `
+                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
+                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+                    ${mensaje}
+                </div>
+            `;
+            
+            $('body').append(alertHtml);
+            
+            // Auto-remover después de 5 segundos - solo los mensajes de notificación flotantes
+            setTimeout(() => {
+                $('.mensaje-notificacion').fadeOut(500, function() {
+                    $(this).remove();
+                });
+            }, 5000);
         }
     },
     async mounted() {

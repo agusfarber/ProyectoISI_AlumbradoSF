@@ -8,7 +8,7 @@ class CreateTestTables extends Migration
 {
     public function up()
     {
-        // Crear tabla rol
+        // Crear tabla rol para los tests
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -20,11 +20,15 @@ class CreateTestTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 100,
             ],
+            'descripcion' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('rol');
 
-        // Crear tabla usuario
+        // Crear tabla usuario para los tests
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -42,23 +46,19 @@ class CreateTestTables extends Migration
             ],
             'legajo' => [
                 'type' => 'VARCHAR',
-                'constraint' => 50,
+                'constraint' => 20,
             ],
-            'contrasena' => [
-                'type' => 'VARCHAR',
-                'constraint' => 255,
-            ],
-            'idRol' => [
+            'rol_id' => [
                 'type' => 'INT',
                 'constraint' => 11,
                 'unsigned' => true,
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->addForeignKey('idRol', 'rol', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('rol_id', 'rol', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('usuario');
 
-        // Crear tabla tipo_material
+        // Crear tabla cuadrilla para los tests
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -70,39 +70,39 @@ class CreateTestTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 100,
             ],
-        ]);
-        $this->forge->addKey('id', true);
-        $this->forge->createTable('tipo_material');
-
-        // Crear tabla material
-        $this->forge->addField([
-            'id' => [
-                'type' => 'INT',
-                'constraint' => 11,
-                'unsigned' => true,
-                'auto_increment' => true,
-            ],
-            'nombre' => [
-                'type' => 'VARCHAR',
-                'constraint' => 100,
-            ],
-            'idTipo' => [
-                'type' => 'INT',
-                'constraint' => 11,
-                'unsigned' => true,
+            'descripcion' => [
+                'type' => 'TEXT',
                 'null' => true,
             ],
-            'cantidad' => [
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->createTable('cuadrilla');
+
+        // Crear tabla cuadrilla_operarios para los tests
+        $this->forge->addField([
+            'id' => [
                 'type' => 'INT',
                 'constraint' => 11,
-                'default' => 0,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'cuadrilla_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'usuario_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->addForeignKey('idTipo', 'tipo_material', 'id', 'SET NULL', 'CASCADE');
-        $this->forge->createTable('material');
+        $this->forge->addForeignKey('cuadrilla_id', 'cuadrilla', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('usuario_id', 'usuario', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->createTable('cuadrilla_operarios');
 
-        // Crear tabla reclamo
+        // Crear tabla reclamo para los tests
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -120,47 +120,52 @@ class CreateTestTables extends Migration
             ],
             'municipalidad_motivo' => [
                 'type' => 'VARCHAR',
-                'constraint' => 255,
+                'constraint' => 200,
             ],
             'municipalidad_fechaInicio' => [
                 'type' => 'DATETIME',
-                'null' => true,
             ],
             'municipalidad_fechaModificacion' => [
                 'type' => 'DATETIME',
-                'null' => true,
             ],
             'municipalidad_recepcion' => [
                 'type' => 'VARCHAR',
                 'constraint' => 100,
+                'null' => true,
             ],
             'municipalidad_estado' => [
                 'type' => 'VARCHAR',
-                'constraint' => 100,
+                'constraint' => 50,
             ],
             'municipalidad_telefono' => [
                 'type' => 'VARCHAR',
                 'constraint' => 20,
+                'null' => true,
             ],
             'municipalidad_domicilio' => [
                 'type' => 'VARCHAR',
-                'constraint' => 255,
+                'constraint' => 200,
+                'null' => true,
             ],
             'municipalidad_numeroDomicilio' => [
                 'type' => 'VARCHAR',
-                'constraint' => 20,
+                'constraint' => 10,
+                'null' => true,
             ],
             'municipalidad_entreCalleUno' => [
                 'type' => 'VARCHAR',
                 'constraint' => 100,
+                'null' => true,
             ],
             'municipalidad_entreCalleDos' => [
                 'type' => 'VARCHAR',
                 'constraint' => 100,
+                'null' => true,
             ],
             'municipalidad_ciudadano' => [
                 'type' => 'VARCHAR',
                 'constraint' => 100,
+                'null' => true,
             ],
             'municipalidad_descripcion' => [
                 'type' => 'TEXT',
@@ -168,7 +173,8 @@ class CreateTestTables extends Migration
             ],
             'prioridad' => [
                 'type' => 'VARCHAR',
-                'constraint' => 50,
+                'constraint' => 20,
+                'null' => true,
             ],
         ]);
         $this->forge->addKey('id', true);
@@ -178,8 +184,8 @@ class CreateTestTables extends Migration
     public function down()
     {
         $this->forge->dropTable('reclamo');
-        $this->forge->dropTable('material');
-        $this->forge->dropTable('tipo_material');
+        $this->forge->dropTable('cuadrilla_operarios');
+        $this->forge->dropTable('cuadrilla');
         $this->forge->dropTable('usuario');
         $this->forge->dropTable('rol');
     }
