@@ -83,7 +83,7 @@ const app = Vue.createApp({
                         data: 'municipalidad_id',
                         className: 'text-start',
                         render: (data, type, row) => {
-                            return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: underline; cursor: pointer;">${data}</a>`;
+                            return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
                         }
                     },
                     { 
