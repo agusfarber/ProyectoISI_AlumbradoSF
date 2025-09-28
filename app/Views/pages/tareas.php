@@ -197,7 +197,7 @@
 
     <!-- Modal Acciones -->
     <div class="modal fade" id="modalAcciones" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
@@ -206,29 +206,95 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Estado Actual:</label>
-                        <br>
-                        <span class="badge" :class="getEstadoBadgeClass(reclamoSeleccionado.municipalidad_estado)">
-                            {{ reclamoSeleccionado.municipalidad_estado }}
-                        </span>
-                    </div>
-                    <div class="mb-3">
-                        <label for="nuevoEstado" class="form-label">Nuevo Estado:</label>
-                        <select id="nuevoEstado" class="form-select" v-model="nuevoEstado" required>
-                            <option value="" disabled>Seleccionar nuevo estado</option>
-                            <option value="Recibido">Recibido</option>
-                            <option value="Asignado">Asignado</option>
-                            <option value="En ejecución">En ejecución</option>
-                            <option value="Completado">Completado</option>
-                            <option value="En plan">En plan</option>
-                            <option value="Error de datos">Error de datos</option>
-                        </select>
+                    <!-- Pestañas de navegación -->
+                    <ul class="nav nav-tabs" id="accionesTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="cambiar-estado-tab" data-bs-toggle="tab" data-bs-target="#cambiar-estado" type="button" role="tab" aria-controls="cambiar-estado" aria-selected="true">
+                                Cambiar Estado
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="historial-tab" data-bs-toggle="tab" data-bs-target="#historial" type="button" role="tab" aria-controls="historial" aria-selected="false" @click="cargarHistorial">
+                                Historial
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Contenido de las pestañas -->
+                    <div class="tab-content" id="accionesTabsContent">
+                        <!-- Pestaña Cambiar Estado -->
+                        <div class="tab-pane fade show active" id="cambiar-estado" role="tabpanel" aria-labelledby="cambiar-estado-tab">
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Estado Actual:</label>
+                                    <br>
+                                    <span class="badge" :class="getEstadoBadgeClass(reclamoSeleccionado.municipalidad_estado)">
+                                        {{ reclamoSeleccionado.municipalidad_estado }}
+                                    </span>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="nuevoEstado" class="form-label">Nuevo Estado:</label>
+                                    <select id="nuevoEstado" class="form-select" v-model="nuevoEstado" required>
+                                        <option value="" disabled>Seleccionar nuevo estado</option>
+                                        <option value="Recibido">Recibido</option>
+                                        <option value="Asignado">Asignado</option>
+                                        <option value="En ejecución">En ejecución</option>
+                                        <option value="Completado">Completado</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Pestaña Historial -->
+                        <div class="tab-pane fade" id="historial" role="tabpanel" aria-labelledby="historial-tab">
+                            <div class="mt-3">
+                                <div v-if="cargandoHistorial" class="text-center py-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Cargando...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Cargando historial...</p>
+                                </div>
+                                
+                                <div v-else-if="historialReclamo.length === 0" class="text-center py-4">
+                                    <i class="bi bi-clock-history text-muted" style="font-size: 2rem;"></i>
+                                    <p class="text-muted mt-2">No hay historial disponible para este reclamo.</p>
+                                </div>
+                                
+                                <div v-else class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Estado Anterior</th>
+                                                <th>Estado Actual</th>
+                                                <th>Usuario</th>
+                                                <th>Fecha de Cambio</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="item in historialReclamo" :key="item.id">
+                                                <td>
+                                                    <span class="badge" :class="getEstadoBadgeClass(item.estado_anterior)">
+                                                        {{ item.estado_anterior || 'N/A' }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge" :class="getEstadoBadgeClass(item.estado_actual)">
+                                                        {{ item.estado_actual }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ item.nombre_usuario || 'Sistema' }}</td>
+                                                <td>{{ formatearFecha(item.fecha_cambio) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" @click="guardarCambioEstado">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" @click="guardarCambioEstado" v-if="nuevoEstado">
                         <i class="bi bi-check-circle me-1 text-white"></i>Guardar Cambio de Estado
                     </button>
                 </div>

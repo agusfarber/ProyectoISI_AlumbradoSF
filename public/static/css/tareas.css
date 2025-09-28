@@ -189,33 +189,119 @@ body #app.container-fluid .badge.bg-success {
     max-width: 800px;
 }
 
-.nav-tabs .nav-link {
+/* Estilos para las pestañas del modal de acciones */
+#modalAcciones .nav-tabs {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 0;
+}
+
+#modalAcciones .nav-tabs .nav-link {
     border: 1px solid transparent;
     border-top-left-radius: 0.375rem;
     border-top-right-radius: 0.375rem;
     color: #495057;
     font-weight: 500;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
 }
 
-.nav-tabs .nav-link:hover {
+#modalAcciones .nav-tabs .nav-link:hover {
     border-color: #e9ecef #e9ecef #dee2e6;
     color: #0d6efd;
+    background-color: #f8f9fa;
 }
 
-.nav-tabs .nav-link.active {
-    color: #495057;
-    background-color: #fff;
-    border-color: #dee2e6 #dee2e6 #fff;
+#modalAcciones .nav-tabs .nav-link.active {
+    color: #fff;
+    background-color: #0d6efd;
+    border-color: #0d6efd #0d6efd #fff;
+    border-bottom: 2px solid #fff;
+    font-weight: 600;
 }
 
-.tab-content {
-    border: 1px solid #dee2e6;
-    border-top: none;
-    border-radius: 0 0 0.375rem 0.375rem;
+#modalAcciones .tab-content {
+    border: none;
+    padding: 0;
 }
 
-.tab-pane {
-    min-height: 300px;
+#modalAcciones .tab-pane {
+    min-height: 200px;
+    padding: 1rem 0;
+}
+
+/* Estilos para la tabla de historial */
+#modalAcciones .table-sm th,
+#modalAcciones .table-sm td {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+#modalAcciones .table-sm th {
+    background-color: #0d6efd;
+    border-bottom: 2px solid #dee2e6;
+    font-weight: 600;
+    color: #fff;
+}
+
+#modalAcciones .table-sm tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Estilos para el spinner de carga */
+#modalAcciones .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Estilos para el estado vacío del historial */
+#modalAcciones .text-center.py-4 {
+    background-color: #f8f9fa;
+    border-radius: 0.375rem;
+    border: 2px dashed #dee2e6;
+    margin: 1rem 0;
+}
+
+/* Mejoras en los badges del historial */
+#modalAcciones .badge {
+    font-size: 0.75rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Asegurar que los badges del historial usen los colores correctos */
+#modalAcciones .badge.bg-success {
+    background-color: #198754 !important; /* Verde para Completado */
+    color: #fff !important;
+}
+
+#modalAcciones .badge.bg-warning {
+    background-color: #FFD700 !important; /* Amarillo para En ejecución */
+    color: #000 !important;
+}
+
+#modalAcciones .badge.bg-danger {
+    background-color: #FF0000 !important; /* Rojo para Asignado */
+    color: #fff !important;
+}
+
+#modalAcciones .badge.bg-secondary {
+    background-color: #808080 !important; /* Gris para Recibido, En plan y Error de datos */
+    color: #fff !important;
+}
+
+/* Responsive para el modal */
+@media (max-width: 768px) {
+    #modalAcciones .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    #modalAcciones .nav-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+    
+    #modalAcciones .table-responsive {
+        font-size: 0.8rem;
+    }
 }
 
 /* Mejoras en los botones de acción */

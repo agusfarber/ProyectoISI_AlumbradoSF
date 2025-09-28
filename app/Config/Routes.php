@@ -32,6 +32,7 @@ $routes->resource('api/usuarios');
 // Endpoint Roles
 $routes->resource('api/roles');
 // Endpoint Reclamos (sistema interno)
+$routes->get('api/reclamos/(:num)/historial', 'Api\\Reclamos::historial/$1');
 $routes->resource('api/reclamos');
 // Endpoints para Tipos de Materiales
 $routes->get('api/materiales/tipos', 'Api\\Materiales::getTipos');
