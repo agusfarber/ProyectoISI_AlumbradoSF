@@ -4,6 +4,7 @@ namespace App\Controllers\Api;
 
 use CodeIgniter\RESTful\ResourceController;
 use App\Models\ReclamoModel;
+use App\Models\Historial_reclamoModel;
 
 class Reclamos extends ResourceController
 {
@@ -71,6 +72,21 @@ class Reclamos extends ResourceController
             return $this->failValidationErrors('Faltan datos obligatorios.');
         }
 
+        // Obtener el reclamo actual para comparar estados
+        $reclamoActual = $this->model->find($id);
+        if (!$reclamoActual) {
+            return $this->failNotFound('Reclamo no encontrado.');
+        }
+
+        // Verificar si hay cambio de estado para registrar en historial
+        $estadoAnterior = $reclamoActual['municipalidad_estado'] ?? '';
+        $estadoNuevo = $data['municipalidad_estado'] ?? '';
+        
+        // Log de depuración para verificar los valores
+        log_message('debug', 'Estado anterior: ' . $estadoAnterior);
+        log_message('debug', 'Estado nuevo: ' . $estadoNuevo);
+        log_message('debug', 'Datos recibidos: ' . json_encode($data));
+        
         // Establecer tipo fijo
         $data['municipalidad_tipo'] = 'ALUMBRADO PÚBLICO';
 
@@ -93,6 +109,13 @@ class Reclamos extends ResourceController
 
         if ($actualizado === false) {
             return $this->failServerError('Error al actualizar el reclamo.');
+        }
+
+        // Registrar cambio de estado en historial si hubo cambio
+        if (!empty($estadoNuevo) && $estadoAnterior !== $estadoNuevo) {
+            // Verificar que tenemos el nro_reclamo correcto
+            $nroReclamo = $reclamoActual['municipalidad_id'] ?? $data['municipalidad_id'] ?? '';
+            $this->registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo);
         }
 
         $reclamoActualizado = $this->model->find($id);
@@ -133,5 +156,82 @@ class Reclamos extends ResourceController
         // Intentar parsear la fecha con zona horaria de Argentina
         $date = new \DateTime($fecha, new \DateTimeZone('America/Argentina/Buenos_Aires'));
         return $date->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Obtiene el historial de cambios de estado de un reclamo específico
+     */
+    public function historial($id = null)
+    {
+        if (!$id) {
+            return $this->failValidationErrors('ID de reclamo requerido.');
+        }
+
+        try {
+            // Obtener el reclamo para verificar que existe
+            $reclamo = $this->model->find($id);
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $historialModel = new Historial_reclamoModel();
+            $db = \Config\Database::connect();
+            
+            // Obtener el historial con el nombre del usuario
+            $query = $db->table('historial_reclamo h')
+                        ->select('h.*, u.nombre as nombre_usuario')
+                        ->join('usuario u', 'u.id = h.usuario_id', 'left')
+                        ->where('h.nro_reclamo', $reclamo['municipalidad_id'])
+                        ->orderBy('h.fecha_cambio', 'DESC')
+                        ->get();
+            
+            $historial = $query->getResultArray();
+            
+            return $this->respond($historial);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener historial: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener el historial del reclamo.');
+        }
+    }
+
+    /**
+     * Registra un cambio de estado en el historial de reclamos
+     */
+    private function registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo)
+    {
+        try {
+            $historialModel = new Historial_reclamoModel();
+            
+            // Log de depuración para verificar los parámetros recibidos
+            log_message('debug', 'Registrando cambio - NroReclamo: ' . $nroReclamo . ', EstadoAnterior: ' . $estadoAnterior . ', EstadoNuevo: ' . $estadoNuevo);
+            
+            // Obtener el ID del usuario desde la sesión
+            $usuarioId = session()->get('user_id');
+            
+            // Si no hay usuario en sesión, usar un valor por defecto o no registrar
+            if (!$usuarioId) {
+                // Opción 1: No registrar si no hay usuario
+                // return;
+                
+                // Opción 2: Usar un valor por defecto (sistema)
+                $usuarioId = 0; // 0 podría representar "sistema" o "no especificado"
+            }
+
+            $datosHistorial = [
+                'nro_reclamo' => $nroReclamo,
+                'estado_anterior' => $estadoAnterior,
+                'estado_actual' => $estadoNuevo,
+                'usuario_id' => $usuarioId,
+                'fecha_cambio' => date('Y-m-d H:i:s')
+            ];
+
+            log_message('debug', 'Datos a insertar en historial: ' . json_encode($datosHistorial));
+            $historialModel->insert($datosHistorial);
+            
+        } catch (\Exception $e) {
+            // Log del error pero no interrumpir el flujo principal
+            log_message('error', 'Error al registrar cambio de estado en historial: ' . $e->getMessage());
+        }
     }
 }

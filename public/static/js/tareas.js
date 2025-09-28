@@ -11,7 +11,11 @@ const app = Vue.createApp({
             // filtroFechaHasta: '',
             
             // Variables para modales
-            nuevoEstado: ''
+            nuevoEstado: '',
+            
+            // Variables para historial
+            historialReclamo: [],
+            cargandoHistorial: false
         };
     },
 
@@ -60,7 +64,36 @@ const app = Vue.createApp({
         cambiarEstado(reclamo) {
             this.reclamoSeleccionado = { ...reclamo };
             this.nuevoEstado = '';
-            new bootstrap.Modal(document.getElementById('modalAcciones')).show();
+            this.historialReclamo = []; // Limpiar historial anterior
+            
+            // Mostrar el modal
+            const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
+            modal.show();
+            
+            // Asegurar que la pestaña "Cambiar Estado" esté activa
+            this.$nextTick(() => {
+                // Activar la pestaña "Cambiar Estado"
+                const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
+                const historialTab = document.getElementById('historial-tab');
+                const cambiarEstadoPane = document.getElementById('cambiar-estado');
+                const historialPane = document.getElementById('historial');
+                
+                if (cambiarEstadoTab && historialTab && cambiarEstadoPane && historialPane) {
+                    // Remover clases activas de ambas pestañas
+                    cambiarEstadoTab.classList.remove('active');
+                    historialTab.classList.remove('active');
+                    cambiarEstadoPane.classList.remove('show', 'active');
+                    historialPane.classList.remove('show', 'active');
+                    
+                    // Activar la pestaña "Cambiar Estado"
+                    cambiarEstadoTab.classList.add('active');
+                    cambiarEstadoPane.classList.add('show', 'active');
+                    
+                    // Actualizar atributos ARIA
+                    cambiarEstadoTab.setAttribute('aria-selected', 'true');
+                    historialTab.setAttribute('aria-selected', 'false');
+                }
+            });
         },
 
         /**
@@ -189,6 +222,29 @@ const app = Vue.createApp({
                 case 'Media': return 'bg-warning';
                 case 'Baja': return 'bg-success';
                 default: return 'bg-secondary';
+            }
+        },
+
+        /**
+         * Carga el historial de cambios de estado de un reclamo
+         */
+        async cargarHistorial() {
+            if (!this.reclamoSeleccionado.id) {
+                return;
+            }
+
+            this.cargandoHistorial = true;
+            
+            try {
+                const response = await axios.get(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/historial');
+                this.historialReclamo = response.data;
+                console.log('Historial cargado:', this.historialReclamo);
+            } catch (error) {
+                console.error('Error al cargar historial:', error);
+                this.mostrarMensaje('Error al cargar el historial del reclamo', 'error');
+                this.historialReclamo = [];
+            } finally {
+                this.cargandoHistorial = false;
             }
         },
 
