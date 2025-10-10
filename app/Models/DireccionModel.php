@@ -10,6 +10,9 @@ class DireccionModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['domicilio','numero_domicilio','latitud','longitud'];
+  protected $allowedFields = ['domicilio','numero_domicilio','latitud','longitud','personalizada'];
+
+  // Desactivar timestamps explícitamente
+  protected $useTimestamps = false;
 
 }

@@ -52,6 +52,12 @@ $routes->resource('api/cuadrillas', ['controller' => 'Api\\Cuadrillas']);
 $routes->post('api/cuadrillas/asignar', 'Api\\Cuadrillas::asignar');
 $routes->get('api/usuarios/operarios', 'Api\\Usuarios::operarios');
 $routes->get('api/operarios', 'Api\\Usuarios::operarios');
+// Endpoint Rutas
+$routes->post('api/rutas/generar', 'Api\\Rutas::generarRuta');
+$routes->post('api/rutas/vista-previa', 'Api\\Rutas::vistaPreviaRuta');
+$routes->get('api/rutas/(:num)/reclamos', 'Api\\Rutas::getReclamosRuta/$1');
+$routes->resource('api/rutas');
+
 
 
 

@@ -63,6 +63,15 @@
       </a>
     </div>
     <?php endif; ?>
+
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/rutas"); ?>" title="Rutas">
+        <i class="bi bi-map"></i>
+        <span>Rutas</span>
+      </a>
+    </div>
+    <?php endif; ?>
     
     <?php if ($userRole == '1' || $userRole == '2'): ?>
     <div class="nav-item">
