@@ -5,11 +5,16 @@ namespace App\Controllers\Api;
 use CodeIgniter\RESTful\ResourceController;
 use App\Models\ReclamoModel;
 use App\Models\Historial_reclamoModel;
+use App\Models\DireccionModel;
 
 class Reclamos extends ResourceController
 {
     protected $modelName = 'App\Models\ReclamoModel';
     protected $format = 'json';
+
+    // API Keys para geocodificación
+    private $googleMapsApiKey = 'AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg'; // Reemplazar con tu key real
+    private $mapboxApiKey = 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw';
 
     public function __construct()
     {
@@ -57,6 +62,11 @@ class Reclamos extends ResourceController
 
         if ($reclamoId === false) {
             return $this->failServerError('Error al guardar reclamo.');
+        }
+
+        // Procesar y guardar la dirección del reclamo automáticamente
+        if (!empty($data['municipalidad_domicilio']) && !empty($data['municipalidad_numeroDomicilio'])) {
+            $this->procesarDireccionReclamo($data['municipalidad_domicilio'], $data['municipalidad_numeroDomicilio']);
         }
 
         $reclamoCreado = $this->model->find($reclamoId);
@@ -116,6 +126,19 @@ class Reclamos extends ResourceController
             // Verificar que tenemos el nro_reclamo correcto
             $nroReclamo = $reclamoActual['municipalidad_id'] ?? $data['municipalidad_id'] ?? '';
             $this->registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo);
+        }
+
+        // Procesar y guardar la dirección del reclamo si cambió o es nueva
+        if (!empty($data['municipalidad_domicilio']) && !empty($data['municipalidad_numeroDomicilio'])) {
+            // Solo procesar si la dirección cambió
+            $direccionCambio = (
+                $reclamoActual['municipalidad_domicilio'] !== $data['municipalidad_domicilio'] ||
+                $reclamoActual['municipalidad_numeroDomicilio'] !== $data['municipalidad_numeroDomicilio']
+            );
+            
+            if ($direccionCambio) {
+                $this->procesarDireccionReclamo($data['municipalidad_domicilio'], $data['municipalidad_numeroDomicilio']);
+            }
         }
 
         $reclamoActualizado = $this->model->find($id);
@@ -232,6 +255,200 @@ class Reclamos extends ResourceController
         } catch (\Exception $e) {
             // Log del error pero no interrumpir el flujo principal
             log_message('error', 'Error al registrar cambio de estado en historial: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Geocodifica una dirección usando Google Maps API
+     * Retorna las coordenadas (latitud, longitud) o null si falla
+     */
+    private function geocodificarConGoogleMaps($domicilio, $numeroDomicilio)
+    {
+        try {
+            // Construir la dirección completa
+            $direccionCompleta = trim($domicilio) . ' ' . trim($numeroDomicilio) . ', San Francisco, Córdoba, Argentina';
+            
+            // URL de la API de Google Maps Geocoding
+            $url = 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query([
+                'address' => $direccionCompleta,
+                'key' => $this->googleMapsApiKey,
+                'region' => 'ar'
+            ]);
+
+            log_message('info', 'Geocodificando con Google Maps: ' . $direccionCompleta);
+
+            // Realizar la petición
+            $client = \Config\Services::curlrequest();
+            $response = $client->get($url, ['timeout' => 10]);
+            
+            $data = json_decode($response->getBody(), true);
+
+            // Verificar si la respuesta es válida
+            if ($data && $data['status'] === 'OK' && !empty($data['results'][0])) {
+                $location = $data['results'][0]['geometry']['location'];
+                $lat = $location['lat'];
+                $lng = $location['lng'];
+                
+                log_message('info', "Google Maps - Coordenadas encontradas: Lat {$lat}, Lng {$lng}");
+                
+                return [
+                    'latitud' => $lat,
+                    'longitud' => $lng,
+                    'fuente' => 'google_maps'
+                ];
+            }
+
+            log_message('warning', 'Google Maps no encontró resultados para: ' . $direccionCompleta);
+            return null;
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error en geocodificación con Google Maps: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Geocodifica una dirección usando Mapbox API como fallback
+     * Retorna las coordenadas (latitud, longitud) o null si falla
+     */
+    private function geocodificarConMapbox($domicilio, $numeroDomicilio)
+    {
+        try {
+            // Construir la dirección completa
+            $direccionCompleta = trim($domicilio) . ' ' . trim($numeroDomicilio) . ', San Francisco, Córdoba, Argentina';
+            
+            // URL de la API de Mapbox Geocoding
+            $url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($direccionCompleta) . ".json?" . http_build_query([
+                'access_token' => $this->mapboxApiKey,
+                'country' => 'AR',
+                'limit' => 1
+            ]);
+
+            log_message('info', 'Geocodificando con Mapbox (fallback): ' . $direccionCompleta);
+
+            // Realizar la petición
+            $client = \Config\Services::curlrequest();
+            $response = $client->get($url, ['timeout' => 10]);
+            
+            $data = json_decode($response->getBody(), true);
+
+            // Verificar si la respuesta es válida
+            if ($data && !empty($data['features'][0])) {
+                $coordinates = $data['features'][0]['center'];
+                $lng = $coordinates[0];
+                $lat = $coordinates[1];
+                
+                log_message('info', "Mapbox - Coordenadas encontradas: Lat {$lat}, Lng {$lng}");
+                
+                return [
+                    'latitud' => $lat,
+                    'longitud' => $lng,
+                    'fuente' => 'mapbox'
+                ];
+            }
+
+            log_message('warning', 'Mapbox no encontró resultados para: ' . $direccionCompleta);
+            return null;
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error en geocodificación con Mapbox: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Guarda o actualiza una dirección en la tabla de direcciones
+     * Solo guarda si no existe previamente
+     */
+    private function guardarDireccion($domicilio, $numeroDomicilio, $latitud, $longitud, $fuente = 'google_maps')
+    {
+        try {
+            // Validar que tenemos todos los datos necesarios
+            if (empty($domicilio) || empty($numeroDomicilio) || empty($latitud) || empty($longitud)) {
+                log_message('debug', 'Dirección incompleta, no se guardará');
+                return false;
+            }
+
+            $direccionModel = new DireccionModel();
+            
+            // Normalizar los datos para la búsqueda
+            $domicilioNormalizado = strtoupper(trim($domicilio));
+            $numeroNormalizado = trim($numeroDomicilio);
+
+            // Verificar si ya existe esta dirección
+            $direccionExistente = $direccionModel
+                ->where('TRIM(UPPER(domicilio))', $domicilioNormalizado)
+                ->where('TRIM(numero_domicilio)', $numeroNormalizado)
+                ->first();
+
+            if ($direccionExistente) {
+                // Si ya existe, verificar si es personalizada
+                if ($direccionExistente['personalizada'] == 1) {
+                    log_message('info', "Dirección ya existe y es personalizada, no se actualiza: {$domicilio} {$numeroDomicilio}");
+                    return false; // No actualizar direcciones personalizadas
+                }
+                
+                // Si existe pero no es personalizada, no hacer nada (mantener la que ya está)
+                log_message('info', "Dirección ya existe en la base de datos: {$domicilio} {$numeroDomicilio}");
+                return false;
+            }
+
+            // Si no existe, crear nueva dirección con personalizada = 0
+            $datosDireccion = [
+                'domicilio' => $domicilio,
+                'numero_domicilio' => $numeroDomicilio,
+                'latitud' => $latitud,
+                'longitud' => $longitud,
+                'personalizada' => 0 // Marcada como no personalizada (geocodificación automática)
+            ];
+
+            $direccionId = $direccionModel->insert($datosDireccion);
+
+            if ($direccionId) {
+                log_message('info', "Nueva dirección guardada (fuente: {$fuente}): {$domicilio} {$numeroDomicilio} - Lat: {$latitud}, Lng: {$longitud}");
+                return true;
+            }
+
+            return false;
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar dirección: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Procesa y geocodifica una dirección de un reclamo
+     * Intenta primero con Google Maps, luego con Mapbox si falla
+     */
+    private function procesarDireccionReclamo($domicilio, $numeroDomicilio)
+    {
+        // Validar que tenemos domicilio y número
+        if (empty($domicilio) || empty($numeroDomicilio)) {
+            log_message('debug', 'Reclamo sin domicilio completo, no se geocodificará');
+            return;
+        }
+
+        // Intentar geocodificar con Google Maps primero
+        $coordenadas = $this->geocodificarConGoogleMaps($domicilio, $numeroDomicilio);
+
+        // Si Google Maps falla, intentar con Mapbox
+        if ($coordenadas === null) {
+            log_message('info', 'Google Maps falló, intentando con Mapbox...');
+            $coordenadas = $this->geocodificarConMapbox($domicilio, $numeroDomicilio);
+        }
+
+        // Si se obtuvieron coordenadas, guardar la dirección
+        if ($coordenadas !== null) {
+            $this->guardarDireccion(
+                $domicilio,
+                $numeroDomicilio,
+                $coordenadas['latitud'],
+                $coordenadas['longitud'],
+                $coordenadas['fuente']
+            );
+        } else {
+            log_message('warning', "No se pudieron obtener coordenadas para: {$domicilio} {$numeroDomicilio}");
         }
     }
 }

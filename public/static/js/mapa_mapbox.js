@@ -414,13 +414,14 @@ window.app = Vue.createApp({
             
             // Verificar si tiene ubicación personalizada
             if (reclamo.municipalidad_domicilio && reclamo.municipalidad_numeroDomicilio) {
-                const direccionPersonalizada = await this.buscarDireccionPersonalizada(
+                const direccionEncontrada = await this.buscarDireccionPersonalizada(
                     reclamo.municipalidad_domicilio, 
                     reclamo.municipalidad_numeroDomicilio
                 );
                 
-                if (direccionPersonalizada && direccionPersonalizada.latitud && direccionPersonalizada.longitud) {
-                    this.ubicacionPersonalizada = direccionPersonalizada;
+                // Solo marcar como personalizada si el campo 'personalizada' es 1
+                if (direccionEncontrada && direccionEncontrada.latitud && direccionEncontrada.longitud && direccionEncontrada.personalizada == 1) {
+                    this.ubicacionPersonalizada = direccionEncontrada;
                 }
             }
             
@@ -595,7 +596,8 @@ window.app = Vue.createApp({
                     domicilio: this.reclamoParaReubicar.municipalidad_domicilio,
                     numero_domicilio: this.reclamoParaReubicar.municipalidad_numeroDomicilio,
                     latitud: this.nuevaUbicacion.lat,
-                    longitud: this.nuevaUbicacion.lng
+                    longitud: this.nuevaUbicacion.lng,
+                    personalizada: 1 // Marcar como personalizada
                 };
 
                 await axios.post(BASE_URL + 'api/direcciones', datosDireccion);

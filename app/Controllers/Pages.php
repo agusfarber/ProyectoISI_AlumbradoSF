@@ -25,6 +25,8 @@ class Pages extends BaseController
             'materiales' => ['1', '2', '3'],
             'mapa_google' => ['1', '2', '3'],
             'mapa_mapbox' => ['1', '2', '3'],
+            'rutas' => ['1', '2', '3'],
+            'ruta_google' => ['1', '2', '3'],
             'token103' => ['1', '2', '3'],
             'tareas' => ['1', '2', '3'],
         ];

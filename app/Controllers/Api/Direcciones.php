@@ -34,10 +34,11 @@ class Direcciones extends ResourceController
                                         ->first();
 
         if ($direccionExistente) {
-            // Si existe, actualizar las coordenadas
+            // Si existe, actualizar las coordenadas y marcar como personalizada
             $actualizado = $this->model->update($direccionExistente['id'], [
                 'latitud' => $data['latitud'],
-                'longitud' => $data['longitud']
+                'longitud' => $data['longitud'],
+                'personalizada' => 1 // Marcar como personalizada cuando se actualiza desde el mapa
             ]);
 
             if ($actualizado === false) {
@@ -48,6 +49,11 @@ class Direcciones extends ResourceController
             return $this->respond($direccionActualizada);
         } else {
             // Si no existe, crear nueva dirección
+            // Si viene el campo 'personalizada', usarlo; si no, por defecto es 1 (desde mapa)
+            if (!isset($data['personalizada'])) {
+                $data['personalizada'] = 1; // Por defecto, desde el mapa es personalizada
+            }
+            
             $direccionId = $this->model->insert($data);
 
             if ($direccionId === false) {
