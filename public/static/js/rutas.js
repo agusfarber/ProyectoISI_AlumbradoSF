@@ -12,6 +12,8 @@ const app = Vue.createApp({
             
             // Datos para nueva ruta
             nuevaRuta: {
+                nombre: 'Hoja de ruta',
+                color: '#FF6B35',
                 cantidadReclamos: 5,
                 seleccionManual: false,
                 primerReclamoManual: false
@@ -25,6 +27,10 @@ const app = Vue.createApp({
             // Modo de selección
             modoSeleccionManual: false,
             modoSeleccionPrimerReclamo: false,
+            
+            // Modo de edición
+            modoEdicion: false,
+            rutaOriginal: [], // Guardar la ruta original antes de editar
             
             // Vista previa de la ruta
             vistaPrevia: {
@@ -47,19 +53,47 @@ const app = Vue.createApp({
             marcadoresVisualizacion: [],
             directionsRendererVisualizacion: null,
             infoWindowAbiertoVisualizacion: null,
-            infoWindowAbiertoVistaPrevia: null
+            infoWindowAbiertoVistaPrevia: null,
+            
+            // Visualización de todas las rutas activas
+            rutasActivas: [],
+            mapaRutasActivas: null,
+            marcadoresRutasActivas: [],
+            directionsRenderersRutasActivas: [],
+            infoWindowAbiertoRutasActivas: null,
+            
+            // Cache de coordenadas y optimización
+            cacheCoordenadasReclamos: {}, // Cache de coordenadas por reclamo ID
+            direccionesPersonalizadas: [], // Todas las direcciones personalizadas pre-cargadas
+            
+            // Control de proveedores de mapa
+            proveedorMapaVistaPrevia: 'google', // 'google' o 'mapbox'
+            proveedorMapaVisualizacion: 'google', // Para modal de ver ruta individual
+            proveedorMapaRutasActivas: 'google', // Para modal de todas las rutas activas
+            
+            // Mapas Mapbox
+            mapaMapbox: null,
+            mapaVisualizacionMapbox: null,
+            mapaRutasActivasMapbox: null,
+            
+            // API Key de Mapbox
+            mapboxToken: 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw'
         };
     },
 
     computed: {
         puedeGenerarRuta() {
-            return this.nuevaRuta.cantidadReclamos > 0 && 
+            return this.nuevaRuta.nombre && 
+                   this.nuevaRuta.nombre.trim() !== '' &&
+                   this.nuevaRuta.cantidadReclamos > 0 && 
                    this.reclamosDisponibles >= this.nuevaRuta.cantidadReclamos &&
                    this.vistaPrevia.activa; // Solo puede generar si ya vio la vista previa
         },
         
         puedeVerVistaPrevia() {
-            return this.nuevaRuta.cantidadReclamos > 0 && 
+            return this.nuevaRuta.nombre && 
+                   this.nuevaRuta.nombre.trim() !== '' &&
+                   this.nuevaRuta.cantidadReclamos > 0 && 
                    this.reclamosDisponibles >= this.nuevaRuta.cantidadReclamos &&
                    !this.vistaPrevia.activa; // Solo si no está activa aún
         }
@@ -95,8 +129,26 @@ const app = Vue.createApp({
                 this.reclamos = response.data;
                 // Contar solo reclamos no completados
                 this.reclamosDisponibles = this.reclamos.filter(r => r.municipalidad_estado !== 'Completado').length;
+                
+                // Pre-cargar todas las direcciones personalizadas
+                await this.preCargarDireccionesPersonalizadas();
             } catch (error) {
                 console.error('Error al obtener reclamos:', error);
+            }
+        },
+
+        /**
+         * Pre-carga todas las direcciones personalizadas de una vez
+         */
+        async preCargarDireccionesPersonalizadas() {
+            try {
+                const baseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+                const response = await axios.get(`${baseUrl}/api/direcciones`);
+                this.direccionesPersonalizadas = response.data;
+                console.log(`Direcciones personalizadas pre-cargadas: ${this.direccionesPersonalizadas.length}`);
+            } catch (error) {
+                console.error('Error al pre-cargar direcciones:', error);
+                this.direccionesPersonalizadas = [];
             }
         },
 
@@ -113,20 +165,30 @@ const app = Vue.createApp({
                 responsive: true,
                 columns: [
                     {
-                        data: 'id',
-                        className: 'text-center'
+                        data: 'nombre',
+                        className: 'text-start',
+                        render: (data, type, row) => {
+                            const nombre = data || 'Sin nombre';
+                            const color = row.color || '#808080';
+                            return `
+                                <div class="d-flex align-items-center gap-2">
+                                    <div style="width: 20px; height: 20px; border-radius: 50%; background-color: ${color}; border: 2px solid #dee2e6; flex-shrink: 0;"></div>
+                                    <span>${nombre}</span>
+                                </div>
+                            `;
+                        }
                     },
                     {
                         data: 'cantidadReclamos',
-                        className: 'text-center'
+                        className: 'text-start'
                     },
                     {
                         data: 'tiempoEstimado',
-                        className: 'text-center'
+                        className: 'text-start'
                     },
                     {
                         data: 'activa',
-                        className: 'text-center',
+                        className: 'text-start',
                         render: (data) => {
                             return data == 1 ? 
                                 '<span class="badge bg-success">Activa</span>' : 
@@ -140,7 +202,7 @@ const app = Vue.createApp({
                     },
                     {
                         data: null,
-                        className: 'text-center',
+                        className: 'text-start',
                         render: (data, type, row) => {
                             return `
                                 <button class="btn btn-sm btn-info me-1 ver-ruta" data-id="${row.id}" title="Ver ruta en mapa">
@@ -153,7 +215,7 @@ const app = Vue.createApp({
                         }
                     }
                 ],
-                order: [[0, 'desc']]
+                order: [[4, 'desc']]
             });
 
             // Eventos de la tabla
@@ -185,6 +247,8 @@ const app = Vue.createApp({
          */
         resetearModal() {
             this.nuevaRuta = {
+                nombre: 'Hoja de ruta',
+                color: '#FF6B35',
                 cantidadReclamos: 5,
                 seleccionManual: false,
                 primerReclamoManual: false
@@ -193,6 +257,8 @@ const app = Vue.createApp({
             this.primerReclamoSeleccionado = null;
             this.modoSeleccionManual = false;
             this.modoSeleccionPrimerReclamo = false;
+            this.modoEdicion = false;
+            this.rutaOriginal = [];
             this.limpiarVistaPrevia();
         },
 
@@ -202,22 +268,160 @@ const app = Vue.createApp({
         volverAConfigurar() {
             this.limpiarVistaPrevia();
             this.vistaPrevia.activa = false;
+            this.modoEdicion = false;
+            this.rutaOriginal = [];
         },
 
-
         /**
-         * Cuenta reclamos por prioridad
+         * Activa el modo de edición de la ruta
          */
-        contarPorPrioridad(prioridad) {
-            return this.reclamos.filter(r => 
-                r.municipalidad_estado !== 'Completado' && 
-                (r.prioridad || 'Baja') === prioridad
-            ).length;
+        activarModoEdicion() {
+            this.modoEdicion = true;
+            // Guardar copia de la ruta original por si cancela
+            this.rutaOriginal = JSON.parse(JSON.stringify(this.vistaPrevia.rutaOptimizada));
+            this.mostrarMensaje('Modo edición activado. Haga clic en los reclamos del mapa para agregarlos.', 'info');
         },
 
+        /**
+         * Cancela la edición y vuelve a la ruta original
+         */
+        cancelarEdicion() {
+            this.vistaPrevia.rutaOptimizada = JSON.parse(JSON.stringify(this.rutaOriginal));
+            this.modoEdicion = false;
+            this.rutaOriginal = [];
+            // Actualizar el mapa para reflejar la ruta original
+            this.actualizarMapaVistaPrevia();
+            this.mostrarMensaje('Edición cancelada. Se restauró la ruta original.', 'info');
+        },
 
         /**
-         * Inicializa el mapa de Google Maps
+         * Mueve un reclamo hacia arriba en la lista
+         */
+        moverReclamoArriba(index) {
+            if (index === 0) return;
+            
+            const temp = this.vistaPrevia.rutaOptimizada[index];
+            this.vistaPrevia.rutaOptimizada[index] = this.vistaPrevia.rutaOptimizada[index - 1];
+            this.vistaPrevia.rutaOptimizada[index - 1] = temp;
+            
+            // Forzar actualización de Vue
+            this.vistaPrevia.rutaOptimizada = [...this.vistaPrevia.rutaOptimizada];
+            
+            // Actualizar el mapa
+            this.actualizarMapaVistaPrevia();
+        },
+
+        /**
+         * Mueve un reclamo hacia abajo en la lista
+         */
+        moverReclamoAbajo(index) {
+            if (index === this.vistaPrevia.rutaOptimizada.length - 1) return;
+            
+            const temp = this.vistaPrevia.rutaOptimizada[index];
+            this.vistaPrevia.rutaOptimizada[index] = this.vistaPrevia.rutaOptimizada[index + 1];
+            this.vistaPrevia.rutaOptimizada[index + 1] = temp;
+            
+            // Forzar actualización de Vue
+            this.vistaPrevia.rutaOptimizada = [...this.vistaPrevia.rutaOptimizada];
+            
+            // Actualizar el mapa
+            this.actualizarMapaVistaPrevia();
+        },
+
+        /**
+         * Elimina un reclamo de la ruta
+         */
+        eliminarReclamoDeRuta(index) {
+            const reclamo = this.vistaPrevia.rutaOptimizada[index];
+            this.vistaPrevia.rutaOptimizada.splice(index, 1);
+            
+            this.mostrarMensaje(`Reclamo #${reclamo.municipalidad_id} eliminado de la ruta`, 'success');
+            
+            // Actualizar el mapa
+            this.actualizarMapaVistaPrevia();
+        },
+
+        /**
+         * Agrega un reclamo a la ruta al hacer clic en el mapa (solo en modo edición)
+         */
+        async agregarReclamoARuta(reclamo) {
+            if (!this.modoEdicion) return;
+            
+            // Verificar si el reclamo ya está en la ruta
+            const yaEstaEnRuta = this.vistaPrevia.rutaOptimizada.find(r => r.id === reclamo.id);
+            if (yaEstaEnRuta) {
+                this.mostrarMensaje('Este reclamo ya está en la ruta', 'warning');
+                return;
+            }
+            
+            // Verificar si el reclamo está en otra ruta activa
+            const estaEnOtraRuta = await this.verificarReclamoEnOtraRuta(reclamo.id);
+            if (estaEnOtraRuta) {
+                this.mostrarMensaje('Este reclamo ya está en otra ruta activa', 'warning');
+                return;
+            }
+            
+            // Verificar si el reclamo está completado
+            if (reclamo.municipalidad_estado === 'Completado') {
+                this.mostrarMensaje('No se pueden agregar reclamos completados', 'warning');
+                return;
+            }
+            
+            // Agregar el reclamo al final de la ruta
+            this.vistaPrevia.rutaOptimizada.push(reclamo);
+            
+            this.mostrarMensaje(`Reclamo #${reclamo.municipalidad_id} agregado a la ruta`, 'success');
+            
+            // Actualizar el mapa
+            this.actualizarMapaVistaPrevia();
+        },
+
+        /**
+         * Verifica si un reclamo está en otra ruta activa
+         */
+        async verificarReclamoEnOtraRuta(reclamoId) {
+            try {
+                const rutasActivas = this.rutas.filter(r => r.activa == 1);
+                
+                for (const ruta of rutasActivas) {
+                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
+                    const reclamosRuta = response.data;
+                    
+                    const estaEnEstaRuta = reclamosRuta.find(r => r.id === reclamoId);
+                    if (estaEnEstaRuta) {
+                        return true;
+                    }
+                }
+                
+                return false;
+            } catch (error) {
+                console.error('Error al verificar reclamo en rutas:', error);
+                return false;
+            }
+        },
+
+        /**
+         * Actualiza el mapa de vista previa (redibuja marcadores y ruta)
+         */
+        async actualizarMapaVistaPrevia() {
+            if (this.proveedorMapaVistaPrevia === 'mapbox') {
+                // Actualizar mapa Mapbox
+                if (!this.mapaMapbox) return;
+                await this.mostrarVistaPreviaEnMapaMapbox();
+            } else {
+                // Actualizar mapa Google
+                if (!this.mapa) return;
+                
+                // Limpiar completamente la vista previa
+                this.limpiarVistaPreviaCompleto();
+                
+                // Volver a mostrar la ruta actualizada
+                await this.mostrarVistaPreviaEnMapa();
+            }
+        },
+
+        /**
+         * Inicializa el mapa de Google Maps (con fallback a Mapbox)
          */
         async inicializarMapa() {
             try {
@@ -249,8 +453,19 @@ const app = Vue.createApp({
                 // NO agregar marcadores aquí - se agregarán cuando se genere la vista previa
 
             } catch (error) {
-                console.error('Error al inicializar mapa:', error);
-                this.mostrarMensaje('Error al inicializar el mapa', 'error');
+                console.error('Error al inicializar mapa Google Maps:', error);
+                console.log('Intentando fallback a Mapbox...');
+                
+                // FALLBACK AUTOMÁTICO: Cambiar a Mapbox si Google Maps falla
+                this.proveedorMapaVistaPrevia = 'mapbox';
+                await this.$nextTick();
+                try {
+                    await this.inicializarMapaMapbox();
+                    this.mostrarMensaje('Google Maps no disponible. Usando Mapbox como alternativa.', 'warning');
+                } catch (mapboxError) {
+                    console.error('Error al inicializar Mapbox:', mapboxError);
+                    this.mostrarMensaje('Error: No se pudo inicializar ningún proveedor de mapas', 'error');
+                }
             }
         },
 
@@ -312,28 +527,43 @@ const app = Vue.createApp({
         },
 
         /**
-         * Obtiene coordenadas para un reclamo
+         * Obtiene coordenadas para un reclamo (optimizado con cache)
          */
         async obtenerCoordenadasReclamo(reclamo) {
             try {
-                // Buscar dirección personalizada
+                // Verificar si ya está en cache
+                if (this.cacheCoordenadasReclamos[reclamo.id]) {
+                    return this.cacheCoordenadasReclamos[reclamo.id];
+                }
+                
+                // Buscar dirección personalizada en datos pre-cargados
                 if (reclamo.municipalidad_domicilio && reclamo.municipalidad_numeroDomicilio) {
-                    const baseUrl = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
-                    const urlBuscar = `${baseUrl}/api/direcciones/buscar?domicilio=${encodeURIComponent(reclamo.municipalidad_domicilio)}&numero_domicilio=${encodeURIComponent(reclamo.municipalidad_numeroDomicilio)}`;
+                    const direccionPersonalizada = this.direccionesPersonalizadas.find(dir => 
+                        dir.domicilio.toUpperCase().trim() === reclamo.municipalidad_domicilio.toUpperCase().trim() &&
+                        dir.numero_domicilio.toString().trim() === reclamo.municipalidad_numeroDomicilio.toString().trim()
+                    );
                     
-                    const response = await axios.get(urlBuscar);
-                    if (response.data && response.data.length > 0) {
-                        const direccion = response.data[0];
-                        return {
-                            lat: parseFloat(direccion.latitud),
-                            lng: parseFloat(direccion.longitud),
+                    if (direccionPersonalizada && direccionPersonalizada.latitud && direccionPersonalizada.longitud) {
+                        const coordenadas = {
+                            lat: parseFloat(direccionPersonalizada.latitud),
+                            lng: parseFloat(direccionPersonalizada.longitud),
                             esPersonalizada: true
                         };
+                        // Guardar en cache
+                        this.cacheCoordenadasReclamos[reclamo.id] = coordenadas;
+                        return coordenadas;
                     }
                 }
 
                 // Si no hay dirección personalizada, usar geocodificación
-                return await this.geocodificarDireccion(reclamo);
+                const coordenadas = await this.geocodificarDireccion(reclamo);
+                
+                // Guardar en cache si se obtuvo resultado
+                if (coordenadas) {
+                    this.cacheCoordenadasReclamos[reclamo.id] = coordenadas;
+                }
+                
+                return coordenadas;
 
             } catch (error) {
                 console.error('Error al obtener coordenadas:', error);
@@ -342,32 +572,72 @@ const app = Vue.createApp({
         },
 
         /**
-         * Geocodifica una dirección usando Google Maps
+         * Geocodifica una dirección usando Google Maps (con fallback a Mapbox)
          */
         async geocodificarDireccion(reclamo) {
-            return new Promise((resolve) => {
-                let direccion = '';
-                if (reclamo.municipalidad_domicilio) {
-                    direccion += reclamo.municipalidad_domicilio;
-                }
-                if (reclamo.municipalidad_numeroDomicilio) {
-                    direccion += ' ' + reclamo.municipalidad_numeroDomicilio;
-                }
-                direccion += ', San Francisco, Córdoba, Argentina';
+            let direccion = '';
+            if (reclamo.municipalidad_domicilio) {
+                direccion += reclamo.municipalidad_domicilio;
+            }
+            if (reclamo.municipalidad_numeroDomicilio) {
+                direccion += ' ' + reclamo.municipalidad_numeroDomicilio;
+            }
+            direccion += ', San Francisco, Córdoba, Argentina';
 
-                this.geocoder.geocode({ address: direccion }, (results, status) => {
-                    if (status === 'OK' && results[0]) {
-                        const location = results[0].geometry.location;
-                        resolve({
-                            lat: location.lat(),
-                            lng: location.lng(),
-                            esPersonalizada: false
-                        });
-                    } else {
-                        resolve(null);
+            // Intentar primero con Google Maps
+            try {
+                const resultadoGoogle = await new Promise((resolve, reject) => {
+                    if (!this.geocoder) {
+                        reject(new Error('Geocoder no disponible'));
+                        return;
                     }
+                    
+                    this.geocoder.geocode({ address: direccion }, (results, status) => {
+                        if (status === 'OK' && results[0]) {
+                            const location = results[0].geometry.location;
+                            resolve({
+                                lat: location.lat(),
+                                lng: location.lng(),
+                                esPersonalizada: false,
+                                fuente: 'google'
+                            });
+                        } else {
+                            reject(new Error('Google Geocoding falló: ' + status));
+                        }
+                    });
                 });
-            });
+                
+                return resultadoGoogle;
+                
+            } catch (errorGoogle) {
+                console.warn('Google Geocoding falló, intentando con Mapbox...', errorGoogle);
+                
+                // FALLBACK: Intentar con Mapbox Geocoding API
+                try {
+                    const direccionCompleta = encodeURIComponent(direccion);
+                    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${direccionCompleta}.json?access_token=${this.mapboxToken}&country=AR&limit=1`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.features && data.features.length > 0) {
+                        const [lng, lat] = data.features[0].center;
+                        console.log(`Geocodificado con Mapbox: ${direccion}`);
+                        return {
+                            lat: lat,
+                            lng: lng,
+                            esPersonalizada: false,
+                            fuente: 'mapbox'
+                        };
+                    } else {
+                        console.error('Mapbox tampoco encontró resultados para:', direccion);
+                        return null;
+                    }
+                } catch (errorMapbox) {
+                    console.error('Error en geocodificación con Mapbox:', errorMapbox);
+                    return null;
+                }
+            }
         },
 
         /**
@@ -566,11 +836,17 @@ const app = Vue.createApp({
             
             // Primero agregar todos los reclamos que NO están en la ruta (puntiagudos)
             const idsRutaPrevia = this.vistaPrevia.rutaOptimizada.map(r => r.id);
+            const reclamosNoEnRuta = this.reclamos.filter(r => !idsRutaPrevia.includes(r.id));
             
-            for (const reclamo of this.reclamos) {
-                if (!idsRutaPrevia.includes(reclamo.id)) {
-                    const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                    
+            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
+            const promesasCoordenadas = reclamosNoEnRuta.map(reclamo => 
+                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
+            );
+            
+            const resultados = await Promise.all(promesasCoordenadas);
+            
+            // Crear marcadores con los resultados
+            for (const { reclamo, coords: coordenadas } of resultados) {
                     if (coordenadas) {
                         const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
                         const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
@@ -602,25 +878,34 @@ const app = Vue.createApp({
                         });
 
                         marker.addListener('click', () => {
+                        // Si está en modo edición, agregar reclamo a la ruta
+                        if (this.modoEdicion) {
+                            this.agregarReclamoARuta(reclamo);
+                        } else {
+                            // Si no está en modo edición, solo mostrar info window
                             if (this.infoWindowAbiertoVistaPrevia) {
                                 this.infoWindowAbiertoVistaPrevia.close();
                             }
                             infoWindow.open(this.mapa, marker);
                             this.infoWindowAbiertoVistaPrevia = infoWindow;
+                        }
                         });
 
                         marker._reclamo = reclamo;
                         marker._infoWindow = infoWindow;
                         this.vistaPrevia.marcadoresOtros.push(marker);
-                    }
                 }
             }
             
             // Luego agregar marcadores numerados circulares para la ruta
-            for (let i = 0; i < this.vistaPrevia.rutaOptimizada.length; i++) {
-                const reclamo = this.vistaPrevia.rutaOptimizada[i];
-                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                
+            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
+            const promesasRuta = this.vistaPrevia.rutaOptimizada.map((reclamo, i) => 
+                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords, index: i }))
+            );
+            
+            const resultadosRuta = await Promise.all(promesasRuta);
+            
+            for (const { reclamo, coords: coordenadas, index: i } of resultadosRuta) {
                 if (coordenadas) {
                     const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
                     const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
@@ -679,10 +964,15 @@ const app = Vue.createApp({
                         const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
                         const reclamosRuta = response.data;
                         
+                        // OPTIMIZACIÓN: Paralelizar obtención de coordenadas para marcadores
+                        const promesasMarcadores = reclamosRuta.map(reclamo => 
+                            this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
+                        );
+                        
+                        const resultadosMarcadores = await Promise.all(promesasMarcadores);
+                        
                         // Crear marcadores discretos (pequeños, grises, con opacidad)
-                        for (const reclamo of reclamosRuta) {
-                            const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                            
+                        for (const { reclamo, coords: coordenadas } of resultadosMarcadores) {
                             if (coordenadas) {
                                 // Marcador discreto en gris (un poco más visible)
                                 const marker = new google.maps.Marker({
@@ -729,28 +1019,78 @@ const app = Vue.createApp({
                             }
                         }
                         
-                        // Trazar línea gris discreta para la ruta activa
+                        // Trazar ruta por las calles usando Google Directions Service
+                        // OPTIMIZACIÓN: Obtener coordenadas en paralelo primero
                         if (reclamosRuta.length > 1) {
-                            const coordenadas = [];
-                            for (const reclamo of reclamosRuta) {
-                                const coords = await this.obtenerCoordenadasReclamo(reclamo);
-                                if (coords) {
-                                    coordenadas.push({ lat: coords.lat, lng: coords.lng });
-                                }
-                            }
+                            // Ya tenemos las coordenadas de resultadosMarcadores, reutilizarlas
+                            const coordenadas = resultadosMarcadores
+                                .filter(r => r.coords)
+                                .map(r => ({ lat: r.coords.lat, lng: r.coords.lng }));
                             
                             if (coordenadas.length > 1) {
+                                // Usar el color de la ruta o gris por defecto
+                                const colorRuta = ruta.color || '#909090';
+                                
+                                // Usar DirectionsService para trazar por las calles
+                                const directionsService = new google.maps.DirectionsService();
+                                const directionsRenderer = new google.maps.DirectionsRenderer({
+                                    suppressMarkers: true, // No mostrar marcadores por defecto
+                                    preserveViewport: true, // No ajustar el viewport automáticamente
+                                    polylineOptions: {
+                                        strokeColor: colorRuta,
+                                        strokeOpacity: 0.6,
+                                        strokeWeight: 3,
+                                        zIndex: 50
+                                    }
+                                });
+                                
+                                directionsRenderer.setMap(this.mapa);
+                                
+                                // Construir la solicitud
+                                const origin = coordenadas[0];
+                                const destination = coordenadas[coordenadas.length - 1];
+                                const waypoints = coordenadas.slice(1, -1).map(coord => ({
+                                    location: coord,
+                                    stopover: true
+                                }));
+                                
+                                const request = {
+                                    origin: origin,
+                                    destination: destination,
+                                    waypoints: waypoints,
+                                    travelMode: google.maps.TravelMode.DRIVING,
+                                    unitSystem: google.maps.UnitSystem.METRIC,
+                                    optimizeWaypoints: false
+                                };
+                                
+                                try {
+                                    const result = await new Promise((resolve, reject) => {
+                                        directionsService.route(request, (result, status) => {
+                                            if (status === 'OK') {
+                                                resolve(result);
+                                            } else {
+                                                reject(new Error('Error al obtener direcciones: ' + status));
+                                            }
+                                        });
+                                    });
+                                    
+                                    directionsRenderer.setDirections(result);
+                                    this.vistaPrevia.marcadoresRutasActivas.push(directionsRenderer);
+                                    
+                                } catch (error) {
+                                    console.warn('Error al trazar ruta activa ' + ruta.id + ' por calles, usando línea recta:', error);
+                                    // Fallback: usar línea recta si falla
                                 const polyline = new google.maps.Polyline({
                                     path: coordenadas,
                                     geodesic: true,
-                                    strokeColor: '#909090',
+                                        strokeColor: colorRuta,
                                     strokeOpacity: 0.6,
                                     strokeWeight: 3,
-                                    zIndex: 50 // Bajo z-index para estar detrás
+                                        zIndex: 50
                                 });
-                                
                                 polyline.setMap(this.mapa);
-                                this.vistaPrevia.marcadoresRutasActivas.push(polyline); // Guardar para limpiar después
+                                    this.vistaPrevia.marcadoresRutasActivas.push(polyline);
+                                }
                             }
                         }
                         
@@ -831,17 +1171,17 @@ const app = Vue.createApp({
         },
 
         /**
-         * Traza la ruta usando Google Directions Service
+         * Traza la ruta usando Google Directions Service (con fallback a Mapbox)
          */
         async trazarRutaConDirections() {
             try {
                 const directionsService = new google.maps.DirectionsService();
                 
-                // Crear directions renderer
+                // Crear directions renderer con el color seleccionado
                 this.vistaPrevia.directionsRenderer = new google.maps.DirectionsRenderer({
                     suppressMarkers: true, // No mostrar marcadores por defecto (ya tenemos los nuestros)
                     polylineOptions: {
-                        strokeColor: '#FF6B35',
+                        strokeColor: this.nuevaRuta.color,
                         strokeOpacity: 0.8,
                         strokeWeight: 4
                     }
@@ -861,11 +1201,24 @@ const app = Vue.createApp({
                     await this.trazarRutaComplejaVistaPrevia(directionsService, this.vistaPrevia.directionsRenderer, coordenadas);
                 }
 
-                console.log('Vista previa de ruta trazada correctamente por las calles');
+                console.log('Vista previa de ruta trazada correctamente por las calles con Google Maps');
             } catch (error) {
-                console.error('Error al trazar ruta en vista previa:', error);
-                // Fallback: mostrar línea recta si falla el servicio de direcciones
-                this.trazarRutaRectaVistaPrevia();
+                console.error('Error al trazar ruta con Google Maps:', error);
+                console.log('Intentando fallback a Mapbox...');
+                
+                // FALLBACK AUTOMÁTICO: Cambiar a Mapbox si Google Directions falla
+                try {
+                    this.proveedorMapaVistaPrevia = 'mapbox';
+                    await this.$nextTick();
+                    await this.inicializarMapaMapbox();
+                    await this.mostrarVistaPreviaEnMapaMapbox();
+                    this.mostrarMensaje('Google Maps no responde. Usando Mapbox como alternativa.', 'warning');
+                } catch (mapboxError) {
+                    console.error('Error con Mapbox:', mapboxError);
+                    // Último fallback: línea recta
+                    this.trazarRutaRectaVistaPrevia();
+                    this.mostrarMensaje('Ambos servicios de mapas fallaron. Mostrando ruta simplificada.', 'warning');
+                }
             }
         },
 
@@ -940,7 +1293,7 @@ const app = Vue.createApp({
             const polyline = new google.maps.Polyline({
                 path: coordenadas,
                 geodesic: true,
-                strokeColor: '#FF6B35',
+                strokeColor: this.nuevaRuta.color,
                 strokeOpacity: 0.8,
                 strokeWeight: 4
             });
@@ -972,7 +1325,7 @@ const app = Vue.createApp({
                     anchor: new google.maps.Point(20, 20)
                 };
             } else {
-                // Sin animación para Media y Baja
+                // Sin animación para prioridad Baja
                 return {
                     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                         <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
@@ -996,6 +1349,16 @@ const app = Vue.createApp({
             this.vistaPrevia.rutaOptimizada = [];
             this.vistaPrevia.tiempoEstimado = 0;
             this.vistaPrevia.distanciaTotal = 0;
+            this.vistaPrevia.activa = false; // Resetear el estado activa
+            
+            // Limpiar mapa Mapbox si existe
+            if (this.mapaMapbox) {
+                this.mapaMapbox.remove();
+                this.mapaMapbox = null;
+            }
+            
+            // Resetear proveedor
+            this.proveedorMapaVistaPrevia = 'google';
         },
 
         /**
@@ -1017,7 +1380,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Crea la hoja de ruta automática
+         * Crea la hoja de ruta automática o editada
          */
         async crearRutaAutomatica() {
             if (!this.puedeGenerarRuta) {
@@ -1025,18 +1388,52 @@ const app = Vue.createApp({
                 return;
             }
 
-            try {
-                const datosRuta = {
-                    cantidadReclamos: parseInt(this.nuevaRuta.cantidadReclamos),
-                    reclamosManuales: [],
-                    primerReclamoManual: null
-                };
+            // Validar que el nombre no esté vacío
+            if (!this.nuevaRuta.nombre || this.nuevaRuta.nombre.trim() === '') {
+                this.mostrarMensaje('Debe ingresar un nombre para la hoja de ruta', 'warning');
+                return;
+            }
+            
+            // Validar que haya al menos un reclamo en la ruta
+            if (this.vistaPrevia.rutaOptimizada.length === 0) {
+                this.mostrarMensaje('La ruta debe tener al menos un reclamo', 'warning');
+                return;
+            }
 
-                this.mostrarMensaje('Creando hoja de ruta automática...', 'info');
+            try {
+                let datosRuta;
+                
+                if (this.modoEdicion) {
+                    // Si está en modo edición, enviar la ruta editada manualmente
+                    datosRuta = {
+                        nombre: this.nuevaRuta.nombre.trim(),
+                        color: this.nuevaRuta.color,
+                        cantidadReclamos: this.vistaPrevia.rutaOptimizada.length,
+                        reclamosManuales: this.vistaPrevia.rutaOptimizada.map(r => r.id),
+                        primerReclamoManual: null,
+                        modoManual: true // Flag para indicar que es una ruta editada manualmente
+                    };
+                } else {
+                    // Ruta automática normal
+                    datosRuta = {
+                        nombre: this.nuevaRuta.nombre.trim(),
+                        color: this.nuevaRuta.color,
+                        cantidadReclamos: parseInt(this.nuevaRuta.cantidadReclamos),
+                        reclamosManuales: [],
+                        primerReclamoManual: null,
+                        modoManual: false
+                    };
+                }
+
+                this.mostrarMensaje(this.modoEdicion ? 'Creando hoja de ruta editada...' : 'Creando hoja de ruta automática...', 'info');
 
                 const response = await axios.post(BASE_URL + 'api/rutas/generar', datosRuta);
                 
                 this.mostrarMensaje('Hoja de ruta creada exitosamente', 'success');
+                
+                // Resetear modo edición
+                this.modoEdicion = false;
+                this.rutaOriginal = [];
                 
                 // Cerrar modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('modalCrearRuta'));
@@ -1093,7 +1490,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Inicializa el mapa para visualizar la ruta
+         * Inicializa el mapa para visualizar la ruta (con fallback a Mapbox)
          */
         async inicializarMapaVisualizacion() {
             try {
@@ -1123,21 +1520,39 @@ const app = Vue.createApp({
                 await this.trazarRutaVisualizacion();
 
             } catch (error) {
-                console.error('Error al inicializar mapa de visualización:', error);
+                console.error('Error al inicializar mapa Google Maps:', error);
+                console.log('Intentando fallback a Mapbox...');
+                
+                // FALLBACK AUTOMÁTICO
+                this.proveedorMapaVisualizacion = 'mapbox';
+                await this.$nextTick();
+                try {
+                    await this.inicializarMapaVisualizacionMapbox();
+                    await this.mostrarRutaEnMapaMapbox();
+                    this.mostrarMensaje('Google Maps no disponible. Usando Mapbox como alternativa.', 'warning');
+                } catch (mapboxError) {
+                    console.error('Error al inicializar Mapbox:', mapboxError);
+                    this.mostrarMensaje('Error: No se pudo inicializar el mapa', 'error');
+                }
             }
         },
 
         /**
-         * Agrega marcadores numerados de la ruta
+         * Agrega marcadores numerados de la ruta (optimizado)
          */
         async agregarMarcadoresVisualizacion() {
             // Limpiar marcadores anteriores
             this.marcadoresVisualizacion.forEach(marker => marker.setMap(null));
             this.marcadoresVisualizacion = [];
 
-            for (const reclamo of this.reclamosRutaVisualizando) {
-                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                
+            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
+            const promesasCoordenadas = this.reclamosRutaVisualizando.map(reclamo => 
+                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
+            );
+            
+            const resultados = await Promise.all(promesasCoordenadas);
+            
+            for (const { reclamo, coords: coordenadas } of resultados) {
                 if (coordenadas) {
                     const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
                     const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
@@ -1206,10 +1621,13 @@ const app = Vue.createApp({
             try {
                 const directionsService = new google.maps.DirectionsService();
                 
+                // Usar el color de la ruta o rojo por defecto
+                const colorRuta = this.rutaVisualizando.color || '#FF0000';
+                
                 this.directionsRendererVisualizacion = new google.maps.DirectionsRenderer({
                     suppressMarkers: true,
                     polylineOptions: {
-                        strokeColor: '#FF0000',
+                        strokeColor: colorRuta,
                         strokeOpacity: 1.0,
                         strokeWeight: 4
                     }
@@ -1345,6 +1763,15 @@ const app = Vue.createApp({
                 this.directionsRendererVisualizacion = null;
             }
             this.mapaVisualizacion = null;
+            
+            // Limpiar mapa Mapbox si existe
+            if (this.mapaVisualizacionMapbox) {
+                this.mapaVisualizacionMapbox.remove();
+                this.mapaVisualizacionMapbox = null;
+            }
+            
+            // Resetear proveedor
+            this.proveedorMapaVisualizacion = 'google';
         },
 
 
@@ -1355,8 +1782,9 @@ const app = Vue.createApp({
             const ruta = this.rutas.find(r => r.id == id);
             if (!ruta) return;
 
+            const nombreRuta = ruta.nombre || 'Sin nombre';
             const confirmacion = await this.mostrarConfirmacion(
-                `¿Está seguro que desea eliminar la hoja de ruta #${ruta.id}?`,
+                `¿Está seguro que desea eliminar la hoja de ruta "${nombreRuta}"?`,
                 'Eliminar Hoja de Ruta'
             );
 
@@ -1477,6 +1905,684 @@ const app = Vue.createApp({
                     resolve(false);
                 });
             });
+        },
+
+        /**
+         * Abre el modal para visualizar todas las rutas activas
+         */
+        async abrirModalVisualizarRutas() {
+            try {
+                // Filtrar rutas activas
+                this.rutasActivas = this.rutas.filter(r => r.activa == 1);
+                
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('modalVisualizarRutas'));
+                modal.show();
+                
+                // Inicializar mapa después de que el modal se muestre
+                this.$nextTick(() => {
+                    setTimeout(async () => {
+                        await this.inicializarMapaRutasActivas();
+                    }, 300);
+                });
+                
+            } catch (error) {
+                console.error('Error al abrir visualización de rutas:', error);
+                this.mostrarMensaje('Error al cargar las rutas activas', 'error');
+            }
+        },
+
+        /**
+         * Inicializa el mapa para visualizar todas las rutas activas (con fallback a Mapbox)
+         */
+        async inicializarMapaRutasActivas() {
+            try {
+                const lat = -31.427;
+                const lng = -62.082;
+
+                this.mapaRutasActivas = new google.maps.Map(document.getElementById('mapaVisualizarRutas'), {
+                    center: { lat: lat, lng: lng },
+                    zoom: 13,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    styles: [
+                        {
+                            featureType: "poi",
+                            elementType: "labels",
+                            stylers: [{ visibility: "off" }]
+                        }
+                    ]
+                });
+
+                // Inicializar geocoder
+                this.geocoder = new google.maps.Geocoder();
+                
+                // Mostrar todas las rutas activas
+                await this.mostrarTodasLasRutasActivas();
+
+            } catch (error) {
+                console.error('Error al inicializar mapa Google Maps:', error);
+                console.log('Intentando fallback a Mapbox...');
+                
+                // FALLBACK AUTOMÁTICO
+                this.proveedorMapaRutasActivas = 'mapbox';
+                await this.$nextTick();
+                try {
+                    await this.inicializarMapaRutasActivasMapbox();
+                    await this.mostrarTodasLasRutasActivasMapbox();
+                    this.mostrarMensaje('Google Maps no disponible. Usando Mapbox como alternativa.', 'warning');
+                } catch (mapboxError) {
+                    console.error('Error al inicializar Mapbox:', mapboxError);
+                    this.mostrarMensaje('Error: No se pudo inicializar el mapa', 'error');
+                }
+            }
+        },
+
+        /**
+         * Muestra todas las rutas activas en el mapa
+         */
+        async mostrarTodasLasRutasActivas() {
+            // Limpiar marcadores y renderers anteriores
+            this.limpiarVisualizacionRutasActivas();
+            
+            for (const ruta of this.rutasActivas) {
+                try {
+                    // Obtener reclamos de esta ruta
+                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
+                    const reclamosRuta = response.data;
+                    
+                    const colorRuta = ruta.color || '#FF0000';
+                    
+                    // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
+                    const promesasCoordenadas = reclamosRuta.map(reclamo => 
+                        this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
+                    );
+                    
+                    const resultados = await Promise.all(promesasCoordenadas);
+                    
+                    // Agregar marcadores numerados para esta ruta
+                    for (const { reclamo, coords: coordenadas } of resultados) {
+                        if (coordenadas) {
+                            const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                            const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
+                            
+                            const marker = new google.maps.Marker({
+                                position: { lat: coordenadas.lat, lng: coordenadas.lng },
+                                map: this.mapaRutasActivas,
+                                title: `${ruta.nombre || 'Sin nombre'} - Pos. ${reclamo.posicion}`,
+                                icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad),
+                                zIndex: 1000
+                            });
+
+                            // Crear info window
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: `
+                                    <div style="min-width: 250px;">
+                                        <h6 style="margin-bottom: 8px; color: ${colorRuta};">
+                                            <strong>${ruta.nombre || 'Sin nombre'}</strong>
+                                        </h6>
+                                        <p style="margin-bottom: 4px;"><strong>Posición:</strong> ${reclamo.posicion}</p>
+                                        <p style="margin-bottom: 4px;"><strong>Reclamo:</strong> #${reclamo.municipalidad_id}</p>
+                                        <p style="margin-bottom: 4px;"><strong>Motivo:</strong> ${reclamo.municipalidad_motivo || 'No especificado'}</p>
+                                        <p style="margin-bottom: 4px;"><strong>Estado:</strong> ${reclamo.municipalidad_estado || 'No especificado'}</p>
+                                        <p style="margin-bottom: 4px;"><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
+                                    </div>
+                                `
+                            });
+
+                            marker.addListener('click', () => {
+                                if (this.infoWindowAbiertoRutasActivas) {
+                                    this.infoWindowAbiertoRutasActivas.close();
+                                }
+                                infoWindow.open(this.mapaRutasActivas, marker);
+                                this.infoWindowAbiertoRutasActivas = infoWindow;
+                            });
+
+                            marker._reclamo = reclamo;
+                            marker._ruta = ruta;
+                            this.marcadoresRutasActivas.push(marker);
+                        }
+                    }
+                    
+                    // Trazar la ruta con su color
+                    // OPTIMIZACIÓN: Reutilizar coordenadas ya obtenidas
+                    if (reclamosRuta.length > 1) {
+                        const coordenadas = resultados
+                            .filter(r => r.coords)
+                            .map(r => ({ lat: r.coords.lat, lng: r.coords.lng }));
+                        
+                        if (coordenadas.length > 1) {
+                            const directionsService = new google.maps.DirectionsService();
+                            const directionsRenderer = new google.maps.DirectionsRenderer({
+                                suppressMarkers: true,
+                                preserveViewport: true,
+                                polylineOptions: {
+                                    strokeColor: colorRuta,
+                                    strokeOpacity: 0.8,
+                                    strokeWeight: 4
+                                }
+                            });
+                            
+                            directionsRenderer.setMap(this.mapaRutasActivas);
+                            
+                            const origin = coordenadas[0];
+                            const destination = coordenadas[coordenadas.length - 1];
+                            const waypoints = coordenadas.slice(1, -1).map(coord => ({
+                                location: coord,
+                                stopover: true
+                            }));
+                            
+                            const request = {
+                                origin: origin,
+                                destination: destination,
+                                waypoints: waypoints,
+                                travelMode: google.maps.TravelMode.DRIVING,
+                                optimizeWaypoints: false
+                            };
+                            
+                            try {
+                                const result = await new Promise((resolve, reject) => {
+                                    directionsService.route(request, (result, status) => {
+                                        if (status === 'OK') {
+                                            resolve(result);
+                                        } else {
+                                            reject(new Error('Error al obtener direcciones: ' + status));
+                                        }
+                                    });
+                                });
+                                
+                                directionsRenderer.setDirections(result);
+                                this.directionsRenderersRutasActivas.push(directionsRenderer);
+                                
+                            } catch (error) {
+                                console.warn('Error al trazar ruta ' + ruta.id + ' por calles:', error);
+                            }
+                        }
+                    }
+                    
+                } catch (error) {
+                    console.warn('Error al cargar ruta ' + ruta.id + ':', error);
+                }
+            }
+        },
+
+        /**
+         * Centra el mapa en una ruta activa específica
+         */
+        async centrarEnRutaActiva(ruta) {
+            if (!this.mapaRutasActivas) return;
+            
+            // Buscar el primer marcador de esta ruta
+            const marcador = this.marcadoresRutasActivas.find(m => m._ruta && m._ruta.id === ruta.id);
+            
+            if (marcador) {
+                this.mapaRutasActivas.setCenter(marcador.getPosition());
+                this.mapaRutasActivas.setZoom(15);
+                
+                // Animación de rebote
+                marcador.setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(() => {
+                    marcador.setAnimation(null);
+                }, 1500);
+            }
+        },
+
+        /**
+         * Limpia la visualización de rutas activas
+         */
+        limpiarVisualizacionRutasActivas() {
+            // Cerrar info window si está abierto
+            if (this.infoWindowAbiertoRutasActivas) {
+                this.infoWindowAbiertoRutasActivas.close();
+                this.infoWindowAbiertoRutasActivas = null;
+            }
+            
+            // Limpiar marcadores
+            this.marcadoresRutasActivas.forEach(marker => {
+                if (marker) marker.setMap(null);
+            });
+            this.marcadoresRutasActivas = [];
+            
+            // Limpiar direction renderers
+            this.directionsRenderersRutasActivas.forEach(renderer => {
+                if (renderer) {
+                    renderer.setMap(null);
+                    renderer.setDirections({ routes: [] });
+                }
+            });
+            this.directionsRenderersRutasActivas = [];
+        },
+
+        /**
+         * Cierra el modal de visualización de rutas activas
+         */
+        cerrarVisualizacionRutas() {
+            this.limpiarVisualizacionRutasActivas();
+            this.rutasActivas = [];
+            this.mapaRutasActivas = null;
+            if (this.mapaRutasActivasMapbox) {
+                this.mapaRutasActivasMapbox.remove();
+                this.mapaRutasActivasMapbox = null;
+            }
+        },
+
+        /**
+         * Alterna entre Google Maps y Mapbox en vista previa
+         */
+        async alternarProveedorVistaPrevia() {
+            const nuevoProveedor = this.proveedorMapaVistaPrevia === 'google' ? 'mapbox' : 'google';
+            
+            this.proveedorMapaVistaPrevia = nuevoProveedor;
+            
+            // Esperar a que el DOM se actualice
+            await this.$nextTick();
+            
+            if (nuevoProveedor === 'mapbox') {
+                // Inicializar o actualizar mapa Mapbox
+                await this.inicializarMapaMapbox();
+                await this.mostrarVistaPreviaEnMapaMapbox();
+            } else {
+                // Ya tenemos el mapa de Google, solo asegurar que esté visible
+                if (this.mapa) {
+                    google.maps.event.trigger(this.mapa, 'resize');
+                }
+            }
+        },
+
+        /**
+         * Alterna entre Google Maps y Mapbox en visualización de ruta
+         */
+        async alternarProveedorVisualizacion() {
+            const nuevoProveedor = this.proveedorMapaVisualizacion === 'google' ? 'mapbox' : 'google';
+            
+            this.proveedorMapaVisualizacion = nuevoProveedor;
+            
+            await this.$nextTick();
+            
+            if (nuevoProveedor === 'mapbox') {
+                await this.inicializarMapaVisualizacionMapbox();
+                await this.mostrarRutaEnMapaMapbox();
+            } else {
+                if (this.mapaVisualizacion) {
+                    google.maps.event.trigger(this.mapaVisualizacion, 'resize');
+                }
+            }
+        },
+
+        /**
+         * Alterna entre Google Maps y Mapbox en visualización de rutas activas
+         */
+        async alternarProveedorRutasActivas() {
+            const nuevoProveedor = this.proveedorMapaRutasActivas === 'google' ? 'mapbox' : 'google';
+            
+            this.proveedorMapaRutasActivas = nuevoProveedor;
+            
+            await this.$nextTick();
+            
+            if (nuevoProveedor === 'mapbox') {
+                await this.inicializarMapaRutasActivasMapbox();
+                await this.mostrarTodasLasRutasActivasMapbox();
+            } else {
+                if (this.mapaRutasActivas) {
+                    google.maps.event.trigger(this.mapaRutasActivas, 'resize');
+                }
+            }
+        },
+
+        /**
+         * Inicializa el mapa Mapbox para vista previa
+         */
+        async inicializarMapaMapbox() {
+            if (this.mapaMapbox) {
+                this.mapaMapbox.remove();
+            }
+
+            mapboxgl.accessToken = this.mapboxToken;
+            
+            this.mapaMapbox = new mapboxgl.Map({
+                container: 'mapaCrearRutaMapbox',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-62.082, -31.427],
+                zoom: 13
+            });
+
+            await new Promise(resolve => this.mapaMapbox.on('load', resolve));
+        },
+
+        /**
+         * Inicializa el mapa Mapbox para visualización de ruta
+         */
+        async inicializarMapaVisualizacionMapbox() {
+            if (this.mapaVisualizacionMapbox) {
+                this.mapaVisualizacionMapbox.remove();
+            }
+
+            mapboxgl.accessToken = this.mapboxToken;
+            
+            this.mapaVisualizacionMapbox = new mapboxgl.Map({
+                container: 'mapaVerRutaMapbox',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-62.082, -31.427],
+                zoom: 13
+            });
+
+            await new Promise(resolve => this.mapaVisualizacionMapbox.on('load', resolve));
+        },
+
+        /**
+         * Inicializa el mapa Mapbox para visualización de rutas activas
+         */
+        async inicializarMapaRutasActivasMapbox() {
+            if (this.mapaRutasActivasMapbox) {
+                this.mapaRutasActivasMapbox.remove();
+            }
+
+            mapboxgl.accessToken = this.mapboxToken;
+            
+            this.mapaRutasActivasMapbox = new mapboxgl.Map({
+                container: 'mapaVisualizarRutasMapbox',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-62.082, -31.427],
+                zoom: 13
+            });
+
+            await new Promise(resolve => this.mapaRutasActivasMapbox.on('load', resolve));
+        },
+
+        /**
+         * Muestra la vista previa en Mapbox
+         */
+        async mostrarVistaPreviaEnMapaMapbox() {
+            if (!this.mapaMapbox) return;
+
+            // Limpiar capas y fuentes anteriores
+            if (this.mapaMapbox.getLayer('route')) this.mapaMapbox.removeLayer('route');
+            if (this.mapaMapbox.getSource('route')) this.mapaMapbox.removeSource('route');
+            
+            // Eliminar marcadores anteriores
+            const marcadoresAnteriores = document.querySelectorAll('#mapaCrearRutaMapbox .mapboxgl-marker');
+            marcadoresAnteriores.forEach(m => m.remove());
+
+            // Agregar marcadores de reclamos NO en ruta
+            const idsRutaPrevia = this.vistaPrevia.rutaOptimizada.map(r => r.id);
+            
+            for (const reclamo of this.reclamos) {
+                if (!idsRutaPrevia.includes(reclamo.id)) {
+                    const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
+                    
+                    if (coordenadas) {
+                        const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                        
+                        // Crear elemento del marcador
+                        const el = document.createElement('div');
+                        el.className = 'marker-mapbox-reclamo';
+                        el.innerHTML = `
+                            <svg width="28" height="32" viewBox="0 0 28 32">
+                                <path d="M14 2C10.13 2 7 5.13 7 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" 
+                                      fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1"/>
+                            </svg>
+                        `;
+                        el.style.cursor = 'pointer';
+                        
+                        const marker = new mapboxgl.Marker(el)
+                            .setLngLat([coordenadas.lng, coordenadas.lat])
+                            .addTo(this.mapaMapbox);
+                        
+                        // Popup para el marcador
+                        const popup = new mapboxgl.Popup({ offset: 25 })
+                            .setHTML(this.crearContenidoInfoWindow(reclamo));
+                        
+                        el.addEventListener('click', () => {
+                            if (this.modoEdicion) {
+                                this.agregarReclamoARuta(reclamo);
+                            } else {
+                                marker.setPopup(popup);
+                                marker.togglePopup();
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Agregar marcadores numerados para la ruta
+            for (let i = 0; i < this.vistaPrevia.rutaOptimizada.length; i++) {
+                const reclamo = this.vistaPrevia.rutaOptimizada[i];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
+                
+                if (coordenadas) {
+                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                    
+                    const el = document.createElement('div');
+                    el.className = 'marker-mapbox-ruta';
+                    el.innerHTML = `
+                        <svg width="32" height="32" viewBox="0 0 32 32">
+                            <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                            <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial" font-size="12" font-weight="bold">${i + 1}</text>
+                        </svg>
+                    `;
+                    
+                    const marker = new mapboxgl.Marker(el)
+                        .setLngLat([coordenadas.lng, coordenadas.lat])
+                        .addTo(this.mapaMapbox);
+                    
+                    const popup = new mapboxgl.Popup({ offset: 25 })
+                        .setHTML(this.crearContenidoInfoWindow({ ...reclamo, posicion: i + 1 }));
+                    
+                    marker.setPopup(popup);
+                }
+            }
+
+            // Trazar ruta en Mapbox
+            if (this.vistaPrevia.rutaOptimizada.length > 1) {
+                await this.trazarRutaMapbox(this.vistaPrevia.rutaOptimizada, this.mapaMapbox, this.nuevaRuta.color);
+            }
+        },
+
+        /**
+         * Muestra una ruta individual en Mapbox
+         */
+        async mostrarRutaEnMapaMapbox() {
+            if (!this.mapaVisualizacionMapbox) return;
+
+            // Limpiar capas anteriores
+            if (this.mapaVisualizacionMapbox.getLayer('route')) this.mapaVisualizacionMapbox.removeLayer('route');
+            if (this.mapaVisualizacionMapbox.getSource('route')) this.mapaVisualizacionMapbox.removeSource('route');
+            
+            const marcadoresAnteriores = document.querySelectorAll('#mapaVerRutaMapbox .mapboxgl-marker');
+            marcadoresAnteriores.forEach(m => m.remove());
+
+            // Agregar marcadores
+            for (const reclamo of this.reclamosRutaVisualizando) {
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
+                
+                if (coordenadas) {
+                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                    
+                    const el = document.createElement('div');
+                    el.innerHTML = `
+                        <svg width="32" height="32" viewBox="0 0 32 32">
+                            <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                            <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial" font-size="12" font-weight="bold">${reclamo.posicion}</text>
+                        </svg>
+                    `;
+                    
+                    const marker = new mapboxgl.Marker(el)
+                        .setLngLat([coordenadas.lng, coordenadas.lat])
+                        .setPopup(new mapboxgl.Popup().setHTML(this.crearContenidoInfoWindow(reclamo)))
+                        .addTo(this.mapaVisualizacionMapbox);
+                }
+            }
+
+            // Trazar ruta
+            const colorRuta = this.rutaVisualizando.color || '#FF0000';
+            await this.trazarRutaMapbox(this.reclamosRutaVisualizando, this.mapaVisualizacionMapbox, colorRuta);
+        },
+
+        /**
+         * Muestra todas las rutas activas en Mapbox
+         */
+        async mostrarTodasLasRutasActivasMapbox() {
+            if (!this.mapaRutasActivasMapbox) return;
+
+            // Limpiar capas anteriores
+            this.rutasActivas.forEach((ruta, idx) => {
+                if (this.mapaRutasActivasMapbox.getLayer(`route-${idx}`)) 
+                    this.mapaRutasActivasMapbox.removeLayer(`route-${idx}`);
+                if (this.mapaRutasActivasMapbox.getSource(`route-${idx}`)) 
+                    this.mapaRutasActivasMapbox.removeSource(`route-${idx}`);
+            });
+            
+            const marcadoresAnteriores = document.querySelectorAll('#mapaVisualizarRutasMapbox .mapboxgl-marker');
+            marcadoresAnteriores.forEach(m => m.remove());
+
+            // Procesar cada ruta
+            for (let rutaIdx = 0; rutaIdx < this.rutasActivas.length; rutaIdx++) {
+                const ruta = this.rutasActivas[rutaIdx];
+                
+                try {
+                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
+                    const reclamosRuta = response.data;
+                    const colorRuta = ruta.color || '#FF0000';
+
+                    // Agregar marcadores
+                    for (const reclamo of reclamosRuta) {
+                        const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
+                        
+                        if (coordenadas) {
+                            const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                            
+                            const el = document.createElement('div');
+                            el.innerHTML = `
+                                <svg width="28" height="28" viewBox="0 0 28 28">
+                                    <circle cx="14" cy="14" r="12" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                                    <text x="14" y="17" text-anchor="middle" fill="#FFFFFF" font-family="Arial" font-size="10" font-weight="bold">${reclamo.posicion}</text>
+                                </svg>
+                            `;
+                            
+                            const marker = new mapboxgl.Marker(el)
+                                .setLngLat([coordenadas.lng, coordenadas.lat])
+                                .setPopup(new mapboxgl.Popup().setHTML(`
+                                    <div style="min-width: 200px;">
+                                        <h6 style="color: ${colorRuta};"><strong>${ruta.nombre}</strong></h6>
+                                        <p><strong>Posición:</strong> ${reclamo.posicion}</p>
+                                        <p><strong>Reclamo:</strong> #${reclamo.municipalidad_id}</p>
+                                        <p><strong>Motivo:</strong> ${reclamo.municipalidad_motivo}</p>
+                                    </div>
+                                `))
+                                .addTo(this.mapaRutasActivasMapbox);
+                        }
+                    }
+
+                    // Trazar ruta
+                    await this.trazarRutaMapboxConId(reclamosRuta, this.mapaRutasActivasMapbox, colorRuta, `route-${rutaIdx}`);
+                    
+                } catch (error) {
+                    console.warn('Error al cargar ruta en Mapbox:', error);
+                }
+            }
+        },
+
+        /**
+         * Traza una ruta en Mapbox usando Directions API
+         */
+        async trazarRutaMapbox(reclamos, mapa, color) {
+            try {
+                const coordenadas = [];
+                for (const reclamo of reclamos) {
+                    const coords = await this.obtenerCoordenadasReclamo(reclamo);
+                    if (coords) {
+                        coordenadas.push([coords.lng, coords.lat]);
+                    }
+                }
+
+                if (coordenadas.length < 2) return;
+
+                // Construir URL de Mapbox Directions API
+                const coordinates = coordenadas.map(c => `${c[0]},${c[1]}`).join(';');
+                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?geometries=geojson&access_token=${this.mapboxToken}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.routes && data.routes[0]) {
+                    const route = data.routes[0].geometry;
+
+                    // Agregar ruta al mapa
+                    if (mapa.getSource('route')) {
+                        mapa.getSource('route').setData(route);
+                    } else {
+                        mapa.addSource('route', {
+                            type: 'geojson',
+                            data: route
+                        });
+
+                        mapa.addLayer({
+                            id: 'route',
+                            type: 'line',
+                            source: 'route',
+                            layout: {
+                                'line-join': 'round',
+                                'line-cap': 'round'
+                            },
+                            paint: {
+                                'line-color': color,
+                                'line-width': 4,
+                                'line-opacity': 0.8
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error al trazar ruta en Mapbox:', error);
+            }
+        },
+
+        /**
+         * Traza una ruta en Mapbox con ID personalizado (para múltiples rutas)
+         */
+        async trazarRutaMapboxConId(reclamos, mapa, color, routeId) {
+            try {
+                const coordenadas = [];
+                for (const reclamo of reclamos) {
+                    const coords = await this.obtenerCoordenadasReclamo(reclamo);
+                    if (coords) {
+                        coordenadas.push([coords.lng, coords.lat]);
+                    }
+                }
+
+                if (coordenadas.length < 2) return;
+
+                const coordinates = coordenadas.map(c => `${c[0]},${c[1]}`).join(';');
+                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?geometries=geojson&access_token=${this.mapboxToken}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.routes && data.routes[0]) {
+                    const route = data.routes[0].geometry;
+
+                    mapa.addSource(routeId, {
+                        type: 'geojson',
+                        data: route
+                    });
+
+                    mapa.addLayer({
+                        id: routeId,
+                        type: 'line',
+                        source: routeId,
+                        layout: {
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        },
+                        paint: {
+                            'line-color': color,
+                            'line-width': 4,
+                            'line-opacity': 0.8
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error al trazar ruta en Mapbox:', error);
+            }
         }
     },
 

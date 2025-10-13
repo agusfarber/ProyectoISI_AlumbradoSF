@@ -112,6 +112,13 @@ const app = Vue.createApp({
                     municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
                 };
 
+                // Actualizar prioridad según el nuevo estado
+                if (this.nuevoEstado === 'En ejecución') {
+                    datosActualizacion.prioridad = 'Alta';
+                } else if (this.nuevoEstado === 'Completado') {
+                    datosActualizacion.prioridad = null;
+                }
+
                 await axios.put(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id, datosActualizacion);
                 
                 // Actualizar el reclamo en la lista local
@@ -119,6 +126,13 @@ const app = Vue.createApp({
                 if (index !== -1) {
                     this.reclamos[index].municipalidad_estado = this.nuevoEstado;
                     this.reclamos[index].municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
+                    
+                    // También actualizar la prioridad en la lista local
+                    if (this.nuevoEstado === 'En ejecución') {
+                        this.reclamos[index].prioridad = 'Alta';
+                    } else if (this.nuevoEstado === 'Completado') {
+                        this.reclamos[index].prioridad = null;
+                    }
                 }
 
                 bootstrap.Modal.getInstance(document.getElementById('modalAcciones')).hide();
@@ -219,7 +233,6 @@ const app = Vue.createApp({
         getPriorityBadgeClass(prioridad) {
             switch (prioridad) {
                 case 'Alta': return 'bg-danger';
-                case 'Media': return 'bg-warning';
                 case 'Baja': return 'bg-success';
                 default: return 'bg-secondary';
             }
