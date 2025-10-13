@@ -40,7 +40,6 @@
                 <select id="filtroPrioridad" class="form-select" v-model="filtroPrioridad" @change="aplicarFiltros">
                     <option value="">Todas las prioridades</option>
                     <option value="Baja">Baja</option>
-                    <option value="Media">Media</option>
                     <option value="Alta">Alta</option>
                 </select>
             </div>
@@ -206,7 +205,6 @@
                                     <select class="form-control" v-model="reclamo.prioridad" required>
                                         <option value="" disabled>Seleccionar prioridad</option>
                                         <option value="Baja">Baja</option>
-                                        <option value="Media">Media</option>
                                         <option value="Alta">Alta</option>
                                     </select>
                                 </div>

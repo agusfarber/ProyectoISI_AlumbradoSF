@@ -21,6 +21,6 @@ class RutaModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['cantidadReclamos','activa','cuadrilla_id','tiempoEstimado','fecha'];
+  protected $allowedFields = ['nombre','cantidadReclamos','activa','cuadrilla_id','tiempoEstimado','fecha','color'];
 
 }

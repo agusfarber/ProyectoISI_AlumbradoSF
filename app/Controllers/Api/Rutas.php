@@ -15,8 +15,7 @@ Para hacer las hojas de ruta se tiene que tener en cuenta:
     * Para seleccionar el primer reclamo del recorrido en caso de que el usuario no lo haya especificado manualmente:
         * Se debe darles prioridad primero a reclamos de prioridad
             1-Alta
-            2-Media
-            3-Baja
+            2-Baja
         * Además, luego de haber pasado ese criterio, debe seleccionarse el reclamo que esté más cercano al tanque de agua de la ciudad de San Francisco, Córdoba. Sus coordenadas son: -31.426516, -62.110954
 
 
@@ -26,11 +25,11 @@ Puede haber casos en los que el usuario ingrese que quiere que la hoja de ruta t
 
 (esto para los reclamos que el algoritmo selecciona automáticamente en caso de que el usuario no los haya seleccionado manualmente antes)
 La hoja de ruta automática, para seleccionar que reclamos va a incluir debe tener en cuenta:
-* Debe priorizar primero los reclamos con prioridad alta, luego los de prioridad media y luego al final los de prioridad baja.
+* Debe priorizar primero los reclamos con prioridad alta, luego los de prioridad baja.
     Es decir, por ejemplo, si el usuario elije que la hoja de ruta tenga 10 reclamos:
         Si hay más de 10 reclamos con prioridad alta actualmente en el sistema, todos los reclamos de la hoja de ruta en este caso van a tener prioridad alta logicamente
-        Si hay 5 reclamos de prioridad alta, y hay muchos de prioridad media. El sistema seleccionará si o si los de prioridad alta, y 5 de prioridad media (en base a proximidad geográfica algunos van a ser mas convenientes que otros, 
-        en este caso debe seleccionar 5 de prioridad media que se encuentren más cercanos a los otros que se hayan seleccionado previamente y cercanos entre si también) para completar los 10 (cantidad que el usuario pidió que tenga la hoja de ruta)
+        Si hay 5 reclamos de prioridad alta, y hay muchos de prioridad baja. El sistema seleccionará si o si los de prioridad alta, y 5 de prioridad baja (en base a proximidad geográfica algunos van a ser mas convenientes que otros, 
+        en este caso debe seleccionar 5 de prioridad baja que se encuentren más cercanos a los otros que se hayan seleccionado previamente y cercanos entre si también) para completar los 10 (cantidad que el usuario pidió que tenga la hoja de ruta)
 
 * Luego el orden del recorrido de los reclamos que el algoritmo haya seleccionado. Debe ser en base a las proximidades geográficas de los mismos en base a sus coordenadas.
 
@@ -98,6 +97,8 @@ class Rutas extends ResourceController
         }
 
         // Establecer valores por defecto
+        $data['nombre'] = $data['nombre'] ?? 'Hoja de ruta';
+        $data['color'] = $data['color'] ?? '#FF6B35';
         $data['activa'] = 1;
         $data['cuadrilla_id'] = $data['cuadrilla_id'] ?? null;
         $data['tiempoEstimado'] = '00:00:00';
@@ -157,10 +158,13 @@ class Rutas extends ResourceController
             return $this->failValidationErrors('Faltan datos obligatorios (cantidadReclamos).');
         }
 
+        $nombre = $data['nombre'] ?? 'Hoja de ruta';
+        $color = $data['color'] ?? '#FF6B35';
         $cantidadReclamos = (int)$data['cantidadReclamos'];
         $cuadrillaId = $data['cuadrilla_id'] ?? null;
         $reclamosManuales = $data['reclamosManuales'] ?? [];
         $primerReclamoManual = $data['primerReclamoManual'] ?? null;
+        $modoManual = $data['modoManual'] ?? false;
 
         try {
             // Obtener todos los reclamos disponibles
@@ -169,29 +173,56 @@ class Rutas extends ResourceController
             
             $reclamos = $reclamoModel->findAll();
             
-            // Filtrar reclamos que no están en otras rutas activas
-            $reclamosDisponibles = $this->filtrarReclamosDisponibles($reclamos);
+            $rutaOptimizada = [];
             
-            if (count($reclamosDisponibles) < $cantidadReclamos) {
-                return $this->failValidationErrors('No hay suficientes reclamos disponibles. Disponibles: ' . count($reclamosDisponibles) . ', Solicitados: ' . $cantidadReclamos);
+            // Si es modo manual (ruta editada), usar los reclamos en el orden especificado
+            if ($modoManual && !empty($reclamosManuales)) {
+                // Obtener coordenadas solo para los reclamos seleccionados
+                $reclamosSeleccionados = [];
+                foreach ($reclamosManuales as $reclamoId) {
+                    $reclamo = array_filter($reclamos, function($r) use ($reclamoId) {
+                        return $r['id'] == $reclamoId;
+                    });
+                    
+                    if (!empty($reclamo)) {
+                        $reclamosSeleccionados[] = array_values($reclamo)[0];
+                    }
+                }
+                
+                // Obtener coordenadas
+                $reclamosConCoordenadas = $this->obtenerCoordenadasReclamos($reclamosSeleccionados, $direccionModel);
+                
+                // NO optimizar - mantener el orden exacto del usuario
+                $rutaOptimizada = $reclamosConCoordenadas;
+                
+            } else {
+                // Modo automático - algoritmo original
+                // Filtrar reclamos que no están en otras rutas activas
+                $reclamosDisponibles = $this->filtrarReclamosDisponibles($reclamos);
+                
+                if (count($reclamosDisponibles) < $cantidadReclamos) {
+                    return $this->failValidationErrors('No hay suficientes reclamos disponibles. Disponibles: ' . count($reclamosDisponibles) . ', Solicitados: ' . $cantidadReclamos);
+                }
+
+                // Obtener coordenadas para todos los reclamos
+                $reclamosConCoordenadas = $this->obtenerCoordenadasReclamos($reclamosDisponibles, $direccionModel);
+                
+                // Seleccionar reclamos para la ruta
+                $reclamosSeleccionados = $this->seleccionarReclamosParaRuta(
+                    $reclamosConCoordenadas, 
+                    $cantidadReclamos, 
+                    $reclamosManuales, 
+                    $primerReclamoManual
+                );
+
+                // Optimizar orden de la ruta
+                $rutaOptimizada = $this->optimizarOrdenRuta($reclamosSeleccionados);
             }
-
-            // Obtener coordenadas para todos los reclamos
-            $reclamosConCoordenadas = $this->obtenerCoordenadasReclamos($reclamosDisponibles, $direccionModel);
-            
-            // Seleccionar reclamos para la ruta
-            $reclamosSeleccionados = $this->seleccionarReclamosParaRuta(
-                $reclamosConCoordenadas, 
-                $cantidadReclamos, 
-                $reclamosManuales, 
-                $primerReclamoManual
-            );
-
-            // Optimizar orden de la ruta
-            $rutaOptimizada = $this->optimizarOrdenRuta($reclamosSeleccionados);
 
             // Crear la ruta en la base de datos
             $rutaData = [
+                'nombre' => $nombre,
+                'color' => $color,
                 'cantidadReclamos' => count($rutaOptimizada),
                 'activa' => 1,
                 'cuadrilla_id' => $cuadrillaId,
@@ -361,13 +392,12 @@ class Rutas extends ResourceController
             return !in_array($reclamo['id'], array_column($reclamosSeleccionados, 'id'));
         });
         
-        // Separar reclamos por prioridad (solo Alta y Baja, Media se trata como Baja)
+        // Separar reclamos por prioridad (solo Alta y Baja)
         $reclamosAlta = array_filter($reclamosDisponibles, function($r) {
             return ($r['prioridad'] ?? 'Baja') === 'Alta';
         });
         $reclamosBaja = array_filter($reclamosDisponibles, function($r) {
-            $prioridad = $r['prioridad'] ?? 'Baja';
-            return $prioridad === 'Baja' || $prioridad === 'Media'; // Media se trata como Baja
+            return ($r['prioridad'] ?? 'Baja') === 'Baja';
         });
         
         // Calcular cuántos reclamos necesitamos
@@ -385,10 +415,11 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Selecciona reclamos por prioridad (Alta primero, luego Baja)
-     * NUEVA LÓGICA:
+     * Selecciona reclamos por prioridad (solo Alta y Baja)
+     * LÓGICA:
      * 1. Si hay >= N Alta: Selecciona los N Alta que formen la ruta más corta (vecino más cercano desde tanque)
      * 2. Si hay < N Alta: Incluye todos Alta + los Baja más cercanos a esos Alta
+     * 3. Si no hay Alta: Selecciona solo Baja
      */
     private function seleccionarPorPrioridad($reclamosSeleccionados, $reclamosAlta, $reclamosBaja, $cantidadNecesaria)
     {

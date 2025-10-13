@@ -12,7 +12,8 @@ window.app = Vue.createApp({
             direcciones: [], // Cache de direcciones personalizadas
             ubicacionPersonalizada: null, // Para almacenar la ubicación personalizada actual
             filtroEstado: '', // Filtro por estado del reclamo (deprecated)
-            estadosSeleccionados: [] // Array de estados seleccionados para filtrado múltiple
+            estadosSeleccionados: [], // Array de estados seleccionados para filtrado múltiple
+            cacheCoordenadasReclamos: {} // OPTIMIZACIÓN: Cache de coordenadas por reclamo ID
         };
     },
     methods: {
@@ -87,75 +88,50 @@ window.app = Vue.createApp({
         },
 
         async obtenerCoordenadasReclamo(reclamo) {
-            // Primero verificar si existe una dirección personalizada
-            if (reclamo.municipalidad_domicilio && reclamo.municipalidad_numeroDomicilio) {
-                console.log(`Buscando dirección personalizada para: ${reclamo.municipalidad_domicilio} ${reclamo.municipalidad_numeroDomicilio}`);
-                
-                const direccionPersonalizada = await this.buscarDireccionPersonalizada(
-                    reclamo.municipalidad_domicilio, 
-                    reclamo.municipalidad_numeroDomicilio
-                );
-
-                if (direccionPersonalizada && direccionPersonalizada.latitud && direccionPersonalizada.longitud) {
-                    // Manejar diferentes formatos de coordenadas (decimal, string, etc.)
-                    let lat = direccionPersonalizada.latitud;
-                    let lng = direccionPersonalizada.longitud;
-                    
-                    // Convertir a número si es necesario
-                    if (typeof lat === 'string') {
-                        lat = parseFloat(lat);
-                    }
-                    if (typeof lng === 'string') {
-                        lng = parseFloat(lng);
-                    }
-                    
-                    console.log('🔍 Validando coordenadas:', {
-                        latOriginal: direccionPersonalizada.latitud,
-                        lngOriginal: direccionPersonalizada.longitud,
-                        latTipo: typeof direccionPersonalizada.latitud,
-                        lngTipo: typeof direccionPersonalizada.longitud,
-                        latConvertido: lat,
-                        lngConvertido: lng,
-                        latEsNaN: isNaN(lat),
-                        lngEsNaN: isNaN(lng)
-                    });
-                    
-                    // Validar que las coordenadas sean números válidos
-                    if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-                        console.log('✅ Usando coordenadas personalizadas:', {
-                            domicilio: reclamo.municipalidad_domicilio,
-                            numero: reclamo.municipalidad_numeroDomicilio,
-                            lat: lat,
-                            lng: lng,
-                            latOriginal: direccionPersonalizada.latitud,
-                            lngOriginal: direccionPersonalizada.longitud
-                        });
-                        return {
-                            lat: lat,
-                            lng: lng,
-                            esPersonalizada: true
-                        };
-                    } else {
-                        console.log('⚠️ Coordenadas personalizadas inválidas:', {
-                            lat: direccionPersonalizada.latitud,
-                            lng: direccionPersonalizada.longitud,
-                            latConvertido: lat,
-                            lngConvertido: lng,
-                            latEsNaN: isNaN(lat),
-                            lngEsNaN: isNaN(lng),
-                            latEsCero: lat === 0,
-                            lngEsCero: lng === 0
-                        });
-                    }
-                } else {
-                    console.log('❌ No se encontró dirección personalizada válida, usando Mapbox');
+            try {
+                // OPTIMIZACIÓN: Verificar si ya está en caché
+                if (this.cacheCoordenadasReclamos[reclamo.id]) {
+                    return this.cacheCoordenadasReclamos[reclamo.id];
                 }
-            } else {
-                console.log('⚠️ Reclamo sin domicilio completo, usando Mapbox');
-            }
+                
+                // Buscar dirección personalizada en datos pre-cargados (más rápido que hacer petición HTTP)
+                if (reclamo.municipalidad_domicilio && reclamo.municipalidad_numeroDomicilio) {
+                    const direccionPersonalizada = this.direcciones.find(dir => 
+                        dir.domicilio === reclamo.municipalidad_domicilio && 
+                        dir.numero_domicilio === reclamo.municipalidad_numeroDomicilio
+                    );
 
-            // Si no hay dirección personalizada, usar geocodificación de Mapbox
-            return await this.geocodificarDireccion(reclamo);
+                    if (direccionPersonalizada && direccionPersonalizada.latitud && direccionPersonalizada.longitud) {
+                        let lat = parseFloat(direccionPersonalizada.latitud);
+                        let lng = parseFloat(direccionPersonalizada.longitud);
+                        
+                        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                            const coordenadas = {
+                                lat: lat,
+                                lng: lng,
+                                esPersonalizada: true
+                            };
+                            // Guardar en caché
+                            this.cacheCoordenadasReclamos[reclamo.id] = coordenadas;
+                            return coordenadas;
+                        }
+                    }
+                }
+
+                // Si no hay dirección personalizada, usar geocodificación
+                const coordenadas = await this.geocodificarDireccion(reclamo);
+                
+                // Guardar en caché si se obtuvo resultado
+                if (coordenadas) {
+                    this.cacheCoordenadasReclamos[reclamo.id] = coordenadas;
+                }
+                
+                return coordenadas;
+
+            } catch (error) {
+                console.error('Error al obtener coordenadas del reclamo:', error);
+                return null;
+            }
         },
 
         async geocodificarDireccion(reclamo) {
@@ -212,10 +188,14 @@ window.app = Vue.createApp({
                 'Error de datos': 0
             };
 
+            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas para carga más rápida
+            const promesasCoordenadas = this.reclamos.map(reclamo => 
+                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
+            );
+            
+            const resultados = await Promise.all(promesasCoordenadas);
 
-            for (const reclamo of this.reclamos) {
-                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                
+            for (const { reclamo, coords: coordenadas } of resultados) {
                 if (coordenadas) {
                     // Contar estados
                     const estado = reclamo.municipalidad_estado || 'Recibido';
@@ -479,9 +459,15 @@ window.app = Vue.createApp({
                     modalEstado.hide();
                 }
                 
-                // Limpiar estado
+                // Limpiar estado y caché del reclamo afectado
+                const idReclamoAfectado = this.reclamoParaReubicar.id;
                 this.ubicacionPersonalizada = null;
                 this.reclamoParaReubicar = {};
+                
+                // Limpiar caché de coordenadas del reclamo para forzar recálculo
+                if (idReclamoAfectado) {
+                    delete this.cacheCoordenadasReclamos[idReclamoAfectado];
+                }
                 
                 // Recargar marcadores y tabla
                 await this.obtenerDirecciones();
@@ -606,6 +592,12 @@ window.app = Vue.createApp({
                 const modalConfirmacion = bootstrap.Modal.getInstance(document.getElementById('modalConfirmarReubicacion'));
                 if (modalConfirmacion) {
                     modalConfirmacion.hide();
+                }
+                
+                // Limpiar caché de coordenadas del reclamo para forzar recálculo
+                const idReclamoAfectado = this.reclamoParaReubicar.id;
+                if (idReclamoAfectado) {
+                    delete this.cacheCoordenadasReclamos[idReclamoAfectado];
                 }
                 
                 // Limpiar estado
@@ -831,6 +823,35 @@ window.app = Vue.createApp({
             const lat = -31.427;
             const lon = -62.082;
 
+            // Asegurarse de que el contenedor del mapa existe y tiene dimensiones
+            const contenedorMapa = document.getElementById('map');
+            if (!contenedorMapa) {
+                console.error('Contenedor del mapa no encontrado');
+                return;
+            }
+            
+            // Esperar a que el contenedor esté visible y tenga dimensiones (con timeout de seguridad)
+            await new Promise(resolve => {
+                const inicioEspera = Date.now();
+                const timeoutMax = 5000; // 5 segundos máximo
+                
+                const verificarDimensiones = () => {
+                    const rect = contenedorMapa.getBoundingClientRect();
+                    const tiempoTranscurrido = Date.now() - inicioEspera;
+                    
+                    if (rect.width > 0 && rect.height > 0) {
+                        console.log('✅ Contenedor del mapa listo');
+                        resolve();
+                    } else if (tiempoTranscurrido > timeoutMax) {
+                        console.warn('⚠️ Timeout esperando dimensiones del contenedor, inicializando de todas formas');
+                        resolve();
+                    } else {
+                        requestAnimationFrame(verificarDimensiones);
+                    }
+                };
+                verificarDimensiones();
+            });
+
             // Configurar el token de acceso de Mapbox
             mapboxgl.accessToken = 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw';
 
@@ -850,12 +871,7 @@ window.app = Vue.createApp({
             this.map.on('load', async () => {
                 console.log('Mapa de San Francisco cargado correctamente');
                 
-                // Ejecutar prueba de direcciones
-                await this.probarDirecciones();
-                
-                // Obtener datos y inicializar
-                await this.obtenerReclamos();
-                await this.obtenerDirecciones();
+                // Agregar marcadores y tabla (los datos ya están precargados)
                 await this.agregarMarcadoresReclamos();
                 this.inicializarTabla();
             });
@@ -1015,8 +1031,21 @@ window.app = Vue.createApp({
     },
     async mounted() {
         try {
-            await this.waitForMapbox();
-            this.iniciarMapaSF();
+            // Esperar a que Vue termine de renderizar completamente el DOM
+            await this.$nextTick();
+            
+            // Pequeño delay adicional para asegurar que el navegador termine de pintar
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // OPTIMIZACIÓN: Cargar datos en paralelo ANTES de inicializar el mapa
+            const [reclamos, direcciones] = await Promise.all([
+                this.obtenerReclamos(),
+                this.obtenerDirecciones(),
+                this.waitForMapbox()
+            ]);
+            
+            // Ahora que los datos están en memoria, inicializar el mapa
+            await this.iniciarMapaSF();
         } catch (e) {
             console.error(e);
             alert('Error: No se pudo cargar Mapbox');
