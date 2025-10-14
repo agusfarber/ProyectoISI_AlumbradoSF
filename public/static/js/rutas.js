@@ -55,7 +55,7 @@ const app = Vue.createApp({
             infoWindowAbiertoVisualizacion: null,
             infoWindowAbiertoVistaPrevia: null,
             
-            // Visualización de todas las rutas activas
+            // Visualización de todas las rutas (asignadas y no asignadas)
             rutasActivas: [],
             mapaRutasActivas: null,
             marcadoresRutasActivas: [],
@@ -187,12 +187,12 @@ const app = Vue.createApp({
                         className: 'text-start'
                     },
                     {
-                        data: 'activa',
+                        data: 'asignada',
                         className: 'text-start',
                         render: (data) => {
                             return data == 1 ? 
-                                '<span class="badge bg-success">Activa</span>' : 
-                                '<span class="badge bg-secondary">Inactiva</span>';
+                                '<span class="badge bg-success">Asignada</span>' : 
+                                '<span class="badge bg-secondary">No Asignada</span>';
                         }
                     },
                     {
@@ -354,10 +354,10 @@ const app = Vue.createApp({
                 return;
             }
             
-            // Verificar si el reclamo está en otra ruta activa
+            // Verificar si el reclamo está en otra ruta
             const estaEnOtraRuta = await this.verificarReclamoEnOtraRuta(reclamo.id);
             if (estaEnOtraRuta) {
-                this.mostrarMensaje('Este reclamo ya está en otra ruta activa', 'warning');
+                this.mostrarMensaje('Este reclamo ya está en otra hoja de ruta', 'warning');
                 return;
             }
             
@@ -377,13 +377,15 @@ const app = Vue.createApp({
         },
 
         /**
-         * Verifica si un reclamo está en otra ruta activa
+         * Verifica si un reclamo está en otra ruta (asignada o no asignada)
          */
         async verificarReclamoEnOtraRuta(reclamoId) {
             try {
-                const rutasActivas = this.rutas.filter(r => r.activa == 1);
+                // Verificar en TODAS las rutas (asignadas y no asignadas)
+                // Las rutas no asignadas son las que aún no se asignaron a una cuadrilla, pero los reclamos están reservados
+                const todasLasRutas = this.rutas;
                 
-                for (const ruta of rutasActivas) {
+                for (const ruta of todasLasRutas) {
                     const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
                     const reclamosRuta = response.data;
                     
@@ -831,7 +833,7 @@ const app = Vue.createApp({
             // Limpiar completamente la vista previa anterior primero
             this.limpiarVistaPreviaCompleto();
             
-            // PASO 1: Mostrar rutas activas existentes en gris (discretas)
+            // PASO 1: Mostrar todas las rutas existentes en gris (discretas)
             await this.mostrarRutasActivasEnVistaPrevia();
             
             // Primero agregar todos los reclamos que NO están en la ruta (puntiagudos)
@@ -951,12 +953,13 @@ const app = Vue.createApp({
         },
 
         /**
-         * Muestra las rutas activas existentes en gris (discretas) en la vista previa
+         * Muestra todas las rutas existentes (asignadas y no asignadas) en gris (discretas) en la vista previa
          */
         async mostrarRutasActivasEnVistaPrevia() {
             try {
-                // Obtener todas las rutas activas
-                const rutasActivas = this.rutas.filter(r => r.activa == 1);
+                // Obtener TODAS las rutas (asignadas y no asignadas)
+                // Las rutas no asignadas son las que aún no se asignaron a una cuadrilla, pero están reservadas
+                const rutasActivas = this.rutas;
                 
                 for (const ruta of rutasActivas) {
                     try {
@@ -978,7 +981,7 @@ const app = Vue.createApp({
                                 const marker = new google.maps.Marker({
                                     position: { lat: coordenadas.lat, lng: coordenadas.lng },
                                     map: this.mapa,
-                                    title: `Ruta Activa #${ruta.id} - Reclamo #${reclamo.municipalidad_id}`,
+                                    title: `Ruta #${ruta.id} - Reclamo #${reclamo.municipalidad_id}`,
                                     icon: {
                                         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                                             <svg width="22" height="22" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
@@ -994,15 +997,17 @@ const app = Vue.createApp({
                                 });
                                 
                                 // Info window discreto
+                                const estadoRuta = ruta.asignada == 1 ? 'Asignada' : 'No Asignada';
                                 const infoWindow = new google.maps.InfoWindow({
                                     content: `
                                         <div style="min-width: 200px; opacity: 0.9;">
                                             <h6 style="margin-bottom: 8px; color: #666;">
-                                                <strong>Ruta Activa #${ruta.id}</strong>
+                                                <strong>${ruta.nombre || 'Ruta #' + ruta.id}</strong>
+                                                <span class="badge bg-${ruta.asignada == 1 ? 'success' : 'secondary'} ms-1" style="font-size: 0.7rem;">${estadoRuta}</span>
                                             </h6>
                                             <p style="margin-bottom: 4px; font-size: 0.85rem;"><strong>Reclamo:</strong> #${reclamo.municipalidad_id}</p>
                                             <p style="margin-bottom: 4px; font-size: 0.85rem;"><strong>Posición:</strong> ${reclamo.posicion}</p>
-                                            <p style="margin-bottom: 0; font-size: 0.75rem; color: #999;">Esta es una ruta activa existente</p>
+                                            <p style="margin-bottom: 0; font-size: 0.75rem; color: #999;">Esta ruta ya está creada</p>
                                         </div>
                                     `
                                 });
@@ -1908,12 +1913,12 @@ const app = Vue.createApp({
         },
 
         /**
-         * Abre el modal para visualizar todas las rutas activas
+         * Abre el modal para visualizar todas las rutas (asignadas y no asignadas)
          */
         async abrirModalVisualizarRutas() {
             try {
-                // Filtrar rutas activas
-                this.rutasActivas = this.rutas.filter(r => r.activa == 1);
+                // Mostrar TODAS las rutas (asignadas y no asignadas)
+                this.rutasActivas = this.rutas;
                 
                 // Mostrar modal
                 const modal = new bootstrap.Modal(document.getElementById('modalVisualizarRutas'));
@@ -1928,12 +1933,12 @@ const app = Vue.createApp({
                 
             } catch (error) {
                 console.error('Error al abrir visualización de rutas:', error);
-                this.mostrarMensaje('Error al cargar las rutas activas', 'error');
+                this.mostrarMensaje('Error al cargar las rutas', 'error');
             }
         },
 
         /**
-         * Inicializa el mapa para visualizar todas las rutas activas (con fallback a Mapbox)
+         * Inicializa el mapa para visualizar todas las rutas (asignadas y no asignadas) (con fallback a Mapbox)
          */
         async inicializarMapaRutasActivas() {
             try {
@@ -1978,7 +1983,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Muestra todas las rutas activas en el mapa
+         * Muestra todas las rutas (asignadas y no asignadas) en el mapa
          */
         async mostrarTodasLasRutasActivas() {
             // Limpiar marcadores y renderers anteriores
@@ -2106,7 +2111,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Centra el mapa en una ruta activa específica
+         * Centra el mapa en una ruta específica
          */
         async centrarEnRutaActiva(ruta) {
             if (!this.mapaRutasActivas) return;
@@ -2127,7 +2132,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Limpia la visualización de rutas activas
+         * Limpia la visualización de todas las rutas
          */
         limpiarVisualizacionRutasActivas() {
             // Cerrar info window si está abierto
@@ -2153,7 +2158,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Cierra el modal de visualización de rutas activas
+         * Cierra el modal de visualización de todas las rutas
          */
         cerrarVisualizacionRutas() {
             this.limpiarVisualizacionRutasActivas();
@@ -2209,7 +2214,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Alterna entre Google Maps y Mapbox en visualización de rutas activas
+         * Alterna entre Google Maps y Mapbox en visualización de todas las rutas
          */
         async alternarProveedorRutasActivas() {
             const nuevoProveedor = this.proveedorMapaRutasActivas === 'google' ? 'mapbox' : 'google';
@@ -2269,7 +2274,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Inicializa el mapa Mapbox para visualización de rutas activas
+         * Inicializa el mapa Mapbox para visualización de todas las rutas
          */
         async inicializarMapaRutasActivasMapbox() {
             if (this.mapaRutasActivasMapbox) {
@@ -2418,7 +2423,7 @@ const app = Vue.createApp({
         },
 
         /**
-         * Muestra todas las rutas activas en Mapbox
+         * Muestra todas las rutas (asignadas y no asignadas) en Mapbox
          */
         async mostrarTodasLasRutasActivasMapbox() {
             if (!this.mapaRutasActivasMapbox) return;

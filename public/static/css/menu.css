@@ -46,10 +46,11 @@
   box-shadow: var(--shadow-medium);
   position: fixed;
   height: 100vh;
-  overflow-y: auto;
   z-index: 1000;
   transition: transform 0.3s ease;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
 }
 
 /* ========================================
@@ -94,6 +95,9 @@
 
 .sidebar-nav {
   padding: 1.5rem 0;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-nav .nav-item {
@@ -235,13 +239,8 @@
 .sidebar-footer {
   padding: 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  margin-top: auto;
   background: rgba(255, 255, 255, 0.05);
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
+  flex-shrink: 0;
 }
 
 .user-info {
@@ -405,6 +404,8 @@
 /* Sidebar más angosta (200px) */
 .sidebar {
   width: 200px; /* antes 280px */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Ajuste del contenido principal */
@@ -528,21 +529,25 @@
    PERSONALIZACIÓN DE SCROLLBAR
    ======================================== */
 
-.sidebar::-webkit-scrollbar {
+.sidebar::-webkit-scrollbar,
+.sidebar-nav::-webkit-scrollbar {
   width: 6px;
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar::-webkit-scrollbar-track,
+.sidebar-nav::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 3px;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
+.sidebar::-webkit-scrollbar-thumb,
+.sidebar-nav::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 3px;
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
+.sidebar::-webkit-scrollbar-thumb:hover,
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.5);
 }
 

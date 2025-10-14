@@ -235,8 +235,8 @@
                                     <label for="nuevoEstado" class="form-label">Nuevo Estado:</label>
                                     <select id="nuevoEstado" class="form-select" v-model="nuevoEstado" required>
                                         <option value="" disabled>Seleccionar nuevo estado</option>
-                                        <option value="Recibido">Recibido</option>
-                                        <option value="Asignado">Asignado</option>
+                                        <!--option value="Recibido">Recibido</option>
+                                        <option value="Asignado">Asignado</option-->
                                         <option value="En ejecución">En ejecución</option>
                                         <option value="Completado">Completado</option>
                                     </select>
