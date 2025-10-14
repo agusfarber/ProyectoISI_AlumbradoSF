@@ -99,7 +99,7 @@ class Rutas extends ResourceController
         // Establecer valores por defecto
         $data['nombre'] = $data['nombre'] ?? 'Hoja de ruta';
         $data['color'] = $data['color'] ?? '#FF6B35';
-        $data['activa'] = 1;
+        $data['asignada'] = 0; // No asignada hasta que se le asigne una cuadrilla
         $data['cuadrilla_id'] = $data['cuadrilla_id'] ?? null;
         $data['tiempoEstimado'] = '00:00:00';
         $data['fecha'] = date('Y-m-d H:i:s');
@@ -224,7 +224,7 @@ class Rutas extends ResourceController
                 'nombre' => $nombre,
                 'color' => $color,
                 'cantidadReclamos' => count($rutaOptimizada),
-                'activa' => 1,
+                'asignada' => 0, // No asignada hasta que se le asigne una cuadrilla
                 'cuadrilla_id' => $cuadrillaId,
                 'tiempoEstimado' => $this->calcularTiempoEstimado($rutaOptimizada),
                 'fecha' => date('Y-m-d H:i:s')
@@ -295,27 +295,26 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Filtra reclamos que no están en rutas activas Y que no están completados
+     * Filtra reclamos que no están en ninguna ruta (asignada o no asignada) Y que no están completados
      */
     private function filtrarReclamosDisponibles($reclamos)
     {
         $rutaReclamoModel = new Ruta_reclamoModel();
         
-        // Obtener IDs de reclamos que ya están en rutas activas
+        // Obtener IDs de reclamos que ya están en CUALQUIER ruta (asignada o no asignada)
+        // Una ruta no asignada significa que aún no se asignó a una cuadrilla, pero los reclamos están reservados
         $reclamosEnRutas = $rutaReclamoModel->select('reclamo_id')
-                                           ->join('ruta', 'ruta.id = ruta_reclamo.ruta_id')
-                                           ->where('ruta.activa', 1)
                                            ->findAll();
         
         $reclamosEnRutasIds = array_column($reclamosEnRutas, 'reclamo_id');
         
-        // Filtrar reclamos disponibles: NO en rutas activas Y NO completados
+        // Filtrar reclamos disponibles: NO en ninguna ruta Y NO completados
         return array_filter($reclamos, function($reclamo) use ($reclamosEnRutasIds) {
-            $estaEnRutaActiva = in_array($reclamo['id'], $reclamosEnRutasIds);
+            $estaEnRuta = in_array($reclamo['id'], $reclamosEnRutasIds);
             $estaCompletado = ($reclamo['municipalidad_estado'] ?? '') === 'Completado';
             
-            // Solo disponible si NO está en ruta activa Y NO está completado
-            return !$estaEnRutaActiva && !$estaCompletado;
+            // Solo disponible si NO está en ninguna ruta Y NO está completado
+            return !$estaEnRuta && !$estaCompletado;
         });
     }
 

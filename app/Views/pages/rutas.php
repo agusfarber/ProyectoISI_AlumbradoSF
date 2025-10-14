@@ -26,9 +26,9 @@
              <button class="btn btn-primary" @click="abrirModalCrearRuta">
                 <i class="bi bi-plus-circle text-white"></i> Nueva Hoja de Ruta
              </button>
-             <button class="btn btn-success" @click="abrirModalVisualizarRutas">
-                <i class="bi bi-map text-white"></i> Visualizar Rutas Activas
-             </button>
+            <button class="btn btn-success" @click="abrirModalVisualizarRutas">
+               <i class="bi bi-map text-white"></i> Visualizar Rutas
+            </button>
        </div>
     </div>
 
@@ -40,7 +40,7 @@
                   <th>Nombre</th>
                   <th>Cantidad de Reclamos</th>
                   <th>Tiempo Estimado</th>
-                  <th>Estado</th>
+  <th>Asignación</th>
                   <th>Fecha de Creación</th>
                   <th>Acciones</th>
               </tr>
@@ -71,7 +71,7 @@
                                       <p class='mb-0'><small><strong>Distancia:</strong> ${vistaPrevia.distanciaTotal} km</small></p>
                                   </div>
                               `">
-                          <i class="bi bi-info-circle"></i> Info
+                          <i class="bi bi-info-circle"></i>
                       </button>
                   </h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" @click="resetearModal"></button>
@@ -125,7 +125,7 @@
                           <ul class="mb-0 mt-2">
                               <li>Haga clic en los reclamos del mapa para <strong>agregarlos</strong> a la ruta</li>
                               <li>Use los botones de la lista para <strong>reordenar</strong> o <strong>eliminar</strong> reclamos</li>
-                              <li>Los cambios se reflejan en tiempo real en el mapa</li>
+                              
                           </ul>
                       </div>
                       
@@ -206,16 +206,16 @@
                           class="btn btn-primary" 
                           @click="mostrarVistaPrevia" 
                           :disabled="!puedeVerVistaPrevia">
-                      <i class="bi bi-eye"></i> Generar Vista Previa
+                      <i class="bi bi-eye text-white"></i> Generar Vista Previa
                   </button>
                   
-                  <!-- Botón para volver a configurar (cuando vista previa está activa) -->
+                  <!-- Botón para volver a configurar (cuando vista previa está activa) 
                   <button v-if="vistaPrevia.activa && !modoEdicion" 
                           type="button" 
                           class="btn btn-outline-secondary" 
                           @click="volverAConfigurar">
                       <i class="bi bi-arrow-left"></i> Cambiar Cantidad
-                  </button>
+                  </button-->
                   
                   <!-- Botón Editar Ruta (solo en vista previa, no en modo edición) -->
                   <button v-if="vistaPrevia.activa && !modoEdicion" 
@@ -239,7 +239,7 @@
                           class="btn btn-success" 
                           @click="crearRutaAutomatica" 
                           :disabled="!puedeGenerarRuta">
-                      <i class="bi bi-check-circle"></i> {{ modoEdicion ? 'Crear Ruta Editada' : 'Crear Ruta Automática' }}
+                      <i class="bi bi-check-circle text-white"></i> {{ modoEdicion ? 'Crear Ruta Personalizada' : 'Crear Ruta Automática' }}
                   </button>
               </div>
           </div>
@@ -253,8 +253,8 @@
               <div class="modal-header">
                   <h5 class="modal-title">
                       <i class="bi bi-map"></i> {{ rutaVisualizando.nombre || 'Hoja de Ruta' }}
-                      <span v-if="rutaVisualizando.activa == 1" class="badge bg-success ms-2">Activa</span>
-                      <span v-else class="badge bg-secondary ms-2">Inactiva</span>
+                      <span v-if="rutaVisualizando.asignada == 1" class="badge bg-success ms-2">Asignada</span>
+                      <span v-else class="badge bg-secondary ms-2">No Asignada</span>
                       <button type="button" 
                               class="btn btn-sm btn-outline-info ms-2" 
                               data-bs-toggle="popover"
@@ -266,10 +266,10 @@
                                       <p class='mb-1'><small><strong>Reclamos:</strong> ${rutaVisualizando.cantidadReclamos}</small></p>
                                       <p class='mb-1'><small><strong>Tiempo:</strong> ${rutaVisualizando.tiempoEstimado}</small></p>
                                       <p class='mb-1'><small><strong>Fecha:</strong> ${formatearFecha(rutaVisualizando.fecha)}</small></p>
-                                      <p class='mb-0'><small><strong>Estado:</strong> ${rutaVisualizando.activa == 1 ? 'Activa' : 'Inactiva'}</small></p>
+                                      <p class='mb-0'><small><strong>Asignación:</strong> ${rutaVisualizando.asignada == 1 ? 'Asignada' : 'No Asignada'}</small></p>
                                   </div>
                               `">
-                          <i class="bi bi-info-circle"></i> Info
+                          <i class="bi bi-info-circle"></i>
                       </button>
                   </h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarVisualizacion"></button>
@@ -329,14 +329,14 @@
       </div>
   </div>
 
-  <!-- Modal para visualizar todas las rutas activas -->
+  <!-- Modal para visualizar todas las rutas (activas e inactivas) -->
   <div class="modal fade" id="modalVisualizarRutas" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-xl">
           <div class="modal-content">
               <div class="modal-header">
                   <h5 class="modal-title">
-                      <i class="bi bi-map"></i> Rutas Activas
-                      <span class="badge bg-success ms-2">{{ rutasActivas.length }} Activa(s)</span>
+                      <i class="bi bi-map"></i> Todas las Hojas de Ruta
+                      <span class="badge bg-primary ms-2">{{ rutasActivas.length }} Ruta(s)</span>
                   </h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarVisualizacionRutas"></button>
               </div>
@@ -346,25 +346,29 @@
                       <div class="col-md-4">
                           <div class="card h-100">
                               <div class="card-header py-2">
-                                  <small class="mb-0"><strong>Hojas de Ruta Activas</strong></small>
+                                  <small class="mb-0"><strong>Todas las Hojas de Ruta</strong></small>
                               </div>
                               <div class="list-group list-group-flush" style="height: 500px; overflow-y: auto;">
                                   <div v-if="rutasActivas.length === 0" class="p-3 text-center text-muted">
                                       <i class="bi bi-info-circle" style="font-size: 2rem;"></i>
-                                      <p class="mt-2">No hay rutas activas</p>
+                                      <p class="mt-2">No hay rutas creadas</p>
                                   </div>
                                   <div v-for="ruta in rutasActivas" 
                                        :key="ruta.id" 
                                        class="list-group-item py-2 px-3"
                                        style="cursor: pointer;"
                                        @click="centrarEnRutaActiva(ruta)">
-                                      <div class="d-flex align-items-center gap-2">
-                                          <div :style="`width: 16px; height: 16px; border-radius: 50%; background-color: ${ruta.color || '#808080'}; border: 2px solid #dee2e6; flex-shrink: 0;`"></div>
-                                          <div style="font-size: 0.9rem;">
-                                              <strong>{{ ruta.nombre || 'Sin nombre' }}</strong>
-                                              <br>
-                                              <small class="text-muted">{{ ruta.cantidadReclamos }} reclamo(s)</small>
+                                      <div class="d-flex align-items-center justify-content-between gap-2">
+                                          <div class="d-flex align-items-center gap-2">
+                                              <div :style="`width: 16px; height: 16px; border-radius: 50%; background-color: ${ruta.color || '#808080'}; border: 2px solid #dee2e6; flex-shrink: 0;`"></div>
+                                              <div style="font-size: 0.9rem;">
+                                                  <strong>{{ ruta.nombre || 'Sin nombre' }}</strong>
+                                                  <br>
+                                                  <small class="text-muted">{{ ruta.cantidadReclamos }} reclamo(s)</small>
+                                              </div>
                                           </div>
+                                          <span v-if="ruta.asignada == 1" class="badge bg-success" style="font-size: 0.7rem;">Asignada</span>
+                                          <span v-else class="badge bg-secondary" style="font-size: 0.7rem;">No Asignada</span>
                                       </div>
                                   </div>
                               </div>
