@@ -34,7 +34,17 @@
     <?php if (isset($cssPageFile)) { ?>
     <link rel="stylesheet" href="<?= base_url($cssPageFile); ?>">
     <?php } ?>
+    
+    <?php
+    // Pasar el rol del usuario al JavaScript
+    $session = \Config\Services::session();
+    $userRole = $session->get('role');
+    ?>
+    <script>
+        // Variable global con el rol del usuario
+        window.USER_ROLE = '<?= $userRole ?>';
+    </script>
 </head>
 
-<body>
+<body data-user-role="<?= $userRole ?>">
   <div class="contenido" id="app">

@@ -17,20 +17,75 @@
  -->
 
  <div id="app" class="container-fluid">
-    
+   <style>
+       #tabla_rutas tbody tr {
+           cursor: pointer;
+           transition: background-color 0.2s ease;
+       }
+       #tabla_rutas tbody tr:hover {
+           background-color: #f8f9fa !important;
+       }
+       #tabla_rutas tbody tr.table-primary {
+           background-color: #0d6efd !important;
+           color: white;
+       }
+       #tabla_rutas tbody tr.table-primary:hover {
+           background-color: #0b5ed7 !important;
+       }
+       
+      /* Estilos para el selector de asignación moderno */
+      .asignacion-selector-container {
+          position: relative;
+          display: inline-block;
+          width: 100%;
+      }
+      
+      .asignacion-btn-moderno {
+          position: relative;
+      }
+      
+      .asignacion-btn-moderno::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+          transition: left 0.5s;
+          left: -100%;
+      }
+      
+      .asignacion-btn-moderno:hover::before {
+          left: 100%;
+      }
+      
+      /* Animaciones para estados */
+      @keyframes pulse {
+          0% { 
+              transform: scale(1);
+          }
+          50% { 
+              transform: scale(1.05);
+          }
+          100% { 
+              transform: scale(1);
+          }
+      }
+   </style>
     <div>
           Gestión de Hojas de Ruta
     </div>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-       <div class="d-flex gap-2">
-             <button class="btn btn-primary" @click="abrirModalCrearRuta">
-                <i class="bi bi-plus-circle text-white"></i> Nueva Hoja de Ruta
-             </button>
-            <button class="btn btn-success" @click="abrirModalVisualizarRutas">
-               <i class="bi bi-map text-white"></i> Visualizar Rutas
+   <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="d-flex gap-2">
+            <button class="btn btn-primary" @click="abrirModalCrearRuta">
+               <i class="bi bi-plus-circle text-white"></i> Nueva Hoja de Ruta
             </button>
-       </div>
-    </div>
+           <button class="btn btn-success" @click="abrirModalVisualizarRutas">
+              <i class="bi bi-map text-white"></i> Visualizar Rutas
+           </button>
+      </div>
+   </div>
 
   <!-- Tabla de hojas de ruta -->
   <div class="table-responsive">
@@ -40,9 +95,8 @@
                   <th>Nombre</th>
                   <th>Cantidad de Reclamos</th>
                   <th>Tiempo Estimado</th>
-  <th>Asignación</th>
+                  <th>Asignación</th>
                   <th>Fecha de Creación</th>
-                  <th>Acciones</th>
               </tr>
           </thead>
           <tbody>
@@ -250,29 +304,41 @@
   <div class="modal fade" id="modalVerRuta" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-xl">
           <div class="modal-content">
-              <div class="modal-header">
-                  <h5 class="modal-title">
-                      <i class="bi bi-map"></i> {{ rutaVisualizando.nombre || 'Hoja de Ruta' }}
-                      <span v-if="rutaVisualizando.asignada == 1" class="badge bg-success ms-2">Asignada</span>
-                      <span v-else class="badge bg-secondary ms-2">No Asignada</span>
+              <div class="modal-header d-flex justify-content-between align-items-center">
+                  <div class="d-flex align-items-center">
+                      <h5 class="modal-title mb-0">
+                          <i class="bi bi-map"></i> {{ rutaVisualizando.nombre || 'Hoja de Ruta' }}
+                          <span v-if="rutaVisualizando.asignada == 1" class="badge bg-success ms-2">Asignada</span>
+                          <span v-else class="badge bg-secondary ms-2">No Asignada</span>
+                          <button type="button" 
+                                  class="btn btn-sm btn-outline-info ms-2" 
+                                  data-bs-toggle="popover"
+                                  data-bs-placement="bottom"
+                                  data-bs-html="true"
+                                  :data-bs-content="`
+                                      <div class='text-start'>
+                                          <p class='mb-1'><small><strong>ID:</strong> ${rutaVisualizando.id}</small></p>
+                                          <p class='mb-1'><small><strong>Reclamos:</strong> ${rutaVisualizando.cantidadReclamos}</small></p>
+                                          <p class='mb-1'><small><strong>Tiempo:</strong> ${rutaVisualizando.tiempoEstimado}</small></p>
+                                          <p class='mb-1'><small><strong>Fecha:</strong> ${formatearFecha(rutaVisualizando.fecha)}</small></p>
+                                          <p class='mb-0'><small><strong>Asignación:</strong> ${rutaVisualizando.asignada == 1 ? 'Asignada' : 'No Asignada'}</small></p>
+                                      </div>
+                                  `">
+                              <i class="bi bi-info-circle"></i>
+                          </button>
+                      </h5>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
                       <button type="button" 
-                              class="btn btn-sm btn-outline-info ms-2" 
-                              data-bs-toggle="popover"
-                              data-bs-placement="bottom"
-                              data-bs-html="true"
-                              :data-bs-content="`
-                                  <div class='text-start'>
-                                      <p class='mb-1'><small><strong>ID:</strong> ${rutaVisualizando.id}</small></p>
-                                      <p class='mb-1'><small><strong>Reclamos:</strong> ${rutaVisualizando.cantidadReclamos}</small></p>
-                                      <p class='mb-1'><small><strong>Tiempo:</strong> ${rutaVisualizando.tiempoEstimado}</small></p>
-                                      <p class='mb-1'><small><strong>Fecha:</strong> ${formatearFecha(rutaVisualizando.fecha)}</small></p>
-                                      <p class='mb-0'><small><strong>Asignación:</strong> ${rutaVisualizando.asignada == 1 ? 'Asignada' : 'No Asignada'}</small></p>
-                                  </div>
-                              `">
-                          <i class="bi bi-info-circle"></i>
+                              class="btn btn-danger btn-sm" 
+                              @click="eliminarRutaDesdeVisualizacion(rutaVisualizando.id)"
+                              style="font-weight: 600; padding: 0.5rem 1rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3); transition: all 0.2s ease;"
+                              @mouseover="$event.target.style.transform = 'translateY(-2px)'; $event.target.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.4)'"
+                              @mouseout="$event.target.style.transform = 'translateY(0)'; $event.target.style.boxShadow = '0 2px 8px rgba(220, 53, 69, 0.3)'">
+                          <i class="bi bi-trash-fill" style="color: white;"></i> Eliminar Hoja de Ruta
                       </button>
-                  </h5>
-                  <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarVisualizacion"></button>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarVisualizacion"></button>
+                  </div>
               </div>
               <div class="modal-body">
                   <div class="row">
@@ -320,9 +386,54 @@
                       </div>
                   </div>
               </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- Modal para asignar ruta a cuadrilla -->
+  <div class="modal fade" id="modalAsignarRuta" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+              <div class="modal-header">
+                  <h5 class="modal-title">
+                      <i class="bi bi-people-fill"></i> Asignar Hoja de Ruta a Cuadrilla
+                  </h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarModalAsignar"></button>
+              </div>
+              <div class="modal-body">
+                  <div class="alert alert-info">
+                      <i class="bi bi-info-circle"></i>
+                      <strong>Ruta seleccionada:</strong> {{ rutaParaAsignar.nombre || 'Sin nombre' }}
+                      <br>
+                      <small>{{ rutaParaAsignar.cantidadReclamos }} reclamo(s) | {{ rutaParaAsignar.tiempoEstimado }}</small>
+                  </div>
+                  
+                  <div class="mb-3">
+                      <label for="selectCuadrilla" class="form-label"><strong>Seleccione una Cuadrilla</strong></label>
+                      <select id="selectCuadrilla" class="form-select" v-model="cuadrillaSeleccionadaParaAsignar" required>
+                          <option value="">-- Seleccione una cuadrilla --</option>
+                          <option v-for="cuadrilla in cuadrillasDisponibles" :key="cuadrilla.id" :value="cuadrilla.id">
+                              {{ cuadrilla.nombre }} - {{ cuadrilla.descripcion || 'Sin descripción' }}
+                          </option>
+                      </select>
+                  </div>
+                  
+                  <div v-if="rutaParaAsignar.asignada == 1" class="alert alert-warning">
+                      <i class="bi bi-exclamation-triangle"></i>
+                      Esta ruta ya está asignada a: <strong>{{ rutaParaAsignar.cuadrilla_nombre }}</strong>
+                      <br>
+                      <small>Al reasignar, se quitará de la cuadrilla anterior.</small>
+                  </div>
+              </div>
               <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="cerrarVisualizacion">
-                      Cerrar
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="cerrarModalAsignar">
+                      Cancelar
+                  </button>
+                  <button type="button" 
+                          class="btn btn-success" 
+                          @click="confirmarAsignacion" 
+                          :disabled="!cuadrillaSeleccionadaParaAsignar">
+                      <i class="bi bi-check-circle text-white"></i> Asignar Ruta
                   </button>
               </div>
           </div>
@@ -403,6 +514,186 @@
           </div>
       </div>
   </div>
+
+  <!-- Modal para administrar asignaciones de una ruta específica -->
+  <div class="modal fade" id="modalAdministrarAsignaciones" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+          <div class="modal-content" style="border-radius: 24px; overflow: hidden; border: none; box-shadow: 0 10px 40px rgba(6, 4, 75, 0.25);">
+              <!-- Header con diseño moderno -->
+              <div class="modal-header" style="background: linear-gradient(135deg, #3A3972 0%, #06044B 100%); color: white; border: none; padding: 2rem; position: relative; overflow: hidden;">
+                  <div style="position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: rgba(255, 255, 255, 0.05); border-radius: 50%; filter: blur(50px);"></div>
+                  <div style="position: absolute; bottom: -30px; left: -30px; width: 150px; height: 150px; background: rgba(255, 255, 255, 0.03); border-radius: 50%; filter: blur(40px);"></div>
+                  <h5 class="modal-title" style="font-weight: 800; display: flex; align-items: center; gap: 0.75rem; font-size: 1.5rem; z-index: 1; position: relative;">
+                      <div style="background: rgba(255, 255, 255, 0.15); padding: 0.5rem; border-radius: 12px; backdrop-filter: blur(10px);">
+                          <i class="bi bi-gear-fill" style="font-size: 1.5rem;"></i>
+                      </div>
+                      <span style="letter-spacing: 0.3px;">Administrar Hoja de Ruta</span>
+                  </h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" @click="cerrarModalAdministrarAsignaciones" style="z-index: 1; position: relative; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></button>
+              </div>
+              
+              <!-- Body con diseño mejorado -->
+              <div class="modal-body" style="padding: 2.5rem; background: linear-gradient(135deg, #FFFFFF 0%, #E0E0E9 100%); min-height: 400px;">
+                  <div v-if="rutaSeleccionadaAdmin">
+                      <!-- Panel de información de la ruta seleccionada con diseño mejorado -->
+                      <div class="mb-4 p-4" style="background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FE 100%); border-radius: 20px; box-shadow: 0 6px 24px rgba(6, 4, 75, 0.12); border: 1px solid rgba(110, 109, 153, 0.1); position: relative; overflow: hidden;">
+                          <!-- Decoración de fondo -->
+                          <div style="position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: radial-gradient(circle, rgba(58, 57, 114, 0.08) 0%, transparent 70%); border-radius: 50%;"></div>
+                          
+                          <!-- Header del panel con color de ruta prominente -->
+                          <div class="d-flex align-items-center gap-3 mb-4 pb-3" style="border-bottom: 2px solid rgba(110, 109, 153, 0.1); position: relative;">
+                              <div style="position: relative;">
+                                  <div :style="`width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, ${rutaSeleccionadaAdmin.color || '#808080'} 0%, ${rutaSeleccionadaAdmin.color || '#808080'}dd 100%); flex-shrink: 0; box-shadow: 0 4px 16px ${rutaSeleccionadaAdmin.color || '#808080'}40, inset 0 -2px 8px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center;`">
+                                      <i class="bi bi-map-fill" style="font-size: 1.5rem; color: white; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));"></i>
+                                  </div>
+                                  <div style="position: absolute; bottom: -4px; right: -4px; width: 20px; height: 20px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                                      <i class="bi" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'bi-check-circle-fill' : 'bi-clock-fill'" :style="`color: ${rutaSeleccionadaAdmin.asignada == 1 ? '#28a745' : '#6c757d'}; font-size: 0.9rem;`"></i>
+                                  </div>
+                              </div>
+                              <div class="flex-grow-1">
+                                  <h5 class="mb-2" style="font-weight: 800; color: #06044B; font-size: 1.4rem; letter-spacing: 0.2px; line-height: 1.2;">
+                                      {{ rutaSeleccionadaAdmin.nombre || 'Sin nombre' }}
+                                  </h5>
+                                  <div class="d-flex flex-wrap gap-3">
+                                      <div style="background: rgba(110, 109, 153, 0.08); padding: 0.35rem 0.75rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                          <i class="bi bi-file-earmark-text-fill" style="color: #6E6D99; font-size: 0.9rem;"></i>
+                                          <span style="color: #06044B; font-weight: 600; font-size: 0.85rem;">{{ rutaSeleccionadaAdmin.cantidadReclamos }} reclamos</span>
+                                      </div>
+                                      <div style="background: rgba(110, 109, 153, 0.08); padding: 0.35rem 0.75rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                          <i class="bi bi-clock-fill" style="color: #6E6D99; font-size: 0.9rem;"></i>
+                                          <span style="color: #06044B; font-weight: 600; font-size: 0.85rem;">{{ rutaSeleccionadaAdmin.tiempoEstimado }}</span>
+                                      </div>
+                                      <div style="background: rgba(110, 109, 153, 0.08); padding: 0.35rem 0.75rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                                          <i class="bi bi-calendar-check-fill" style="color: #6E6D99; font-size: 0.9rem;"></i>
+                                          <span style="color: #06044B; font-weight: 600; font-size: 0.85rem;">{{ formatearFecha(rutaSeleccionadaAdmin.fecha) }}</span>
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                          
+                          <!-- Estado de asignación mejorado -->
+                          <div class="alert mb-0" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'alert-success' : 'alert-secondary'" 
+                               style="border-radius: 14px; border: none; padding: 1rem 1.25rem; background: linear-gradient(135deg, rgba(40, 167, 69, 0.12) 0%, rgba(32, 201, 151, 0.08) 100%); box-shadow: 0 2px 8px rgba(40, 167, 69, 0.15);"
+                               :style="rutaSeleccionadaAdmin.asignada != 1 ? 'background: linear-gradient(135deg, rgba(108, 117, 125, 0.12) 0%, rgba(108, 117, 125, 0.08) 100%); box-shadow: 0 2px 8px rgba(108, 117, 125, 0.15);' : ''">
+                              <div class="d-flex align-items-center gap-3">
+                                  <div style="background: white; border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                      <i class="bi" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'bi-check-circle-fill' : 'bi-info-circle-fill'" 
+                                         :style="`font-size: 1.5rem; color: ${rutaSeleccionadaAdmin.asignada == 1 ? '#28a745' : '#6c757d'};`"></i>
+                                  </div>
+                                  <div class="flex-grow-1">
+                                      <strong v-if="rutaSeleccionadaAdmin.asignada == 1" style="color: #155724; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem;">
+                                          <span>Asignada a:</span>
+                                          <span style="background: rgba(40, 167, 69, 0.2); padding: 0.25rem 0.75rem; border-radius: 8px; font-weight: 700;">
+                                              <i class="bi bi-people-fill"></i> {{ rutaSeleccionadaAdmin.cuadrilla_nombre }}
+                                          </span>
+                                      </strong>
+                                      <strong v-else style="color: #383d41; font-size: 1.05rem;">
+                                          <i class="bi bi-info-circle"></i> Esta hoja de ruta aún no está asignada a ninguna cuadrilla
+                                      </strong>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <!-- Título de sección -->
+                      <div class="mb-3 px-1">
+                          <h6 style="color: #06044B; font-weight: 700; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;">
+                              <i class="bi bi-lightning-charge-fill"></i> Acciones Disponibles
+                          </h6>
+                      </div>
+
+                      <!-- Botones de acción mejorados -->
+                      <div class="d-flex flex-column gap-3">
+                          <!-- Asignar o Reasignar -->
+                          <button 
+                              class="btn btn-lg btn-accion-admin" 
+                              style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; border: none; font-weight: 700; padding: 1.25rem 1.5rem; border-radius: 16px; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.35); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; text-align: left;"
+                              @click="abrirModalAsignarRutaDesdeAdmin(rutaSeleccionadaAdmin.id)"
+                              @mouseover="$event.target.style.transform = 'translateY(-3px)'; $event.target.style.boxShadow = '0 8px 24px rgba(40, 167, 69, 0.45)'"
+                              @mouseout="$event.target.style.transform = 'translateY(0)'; $event.target.style.boxShadow = '0 4px 12px rgba(40, 167, 69, 0.35)'">
+                              <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);"></div>
+                              <div class="d-flex align-items-center gap-3" style="position: relative;">
+                                  <div style="background: rgba(255, 255, 255, 0.25); border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                      <i class="bi" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'bi-arrow-repeat' : 'bi-people-fill'" style="font-size: 1.5rem;"></i>
+                                  </div>
+                                  <div class="flex-grow-1">
+                                      <div style="font-size: 1.1rem; letter-spacing: 0.3px;">
+                                          {{ rutaSeleccionadaAdmin.asignada == 1 ? 'Reasignar a Otra Cuadrilla' : 'Asignar a Cuadrilla' }}
+                                      </div>
+                                      <small style="opacity: 0.9; font-weight: 500; font-size: 0.85rem;">
+                                          {{ rutaSeleccionadaAdmin.asignada == 1 ? 'Cambiar la cuadrilla asignada a esta ruta' : 'Asignar esta ruta a una cuadrilla de trabajo' }}
+                                      </small>
+                                  </div>
+                                  <i class="bi bi-chevron-right" style="font-size: 1.2rem; opacity: 0.7;"></i>
+                              </div>
+                          </button>
+
+                          <!-- Desasignar (solo si está asignada) -->
+                          <button 
+                              v-if="rutaSeleccionadaAdmin.asignada == 1"
+                              class="btn btn-lg btn-accion-admin" 
+                              style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; border: none; font-weight: 700; padding: 1.25rem 1.5rem; border-radius: 16px; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.35); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; text-align: left;"
+                              @click="desasignarRutaDesdeAdmin(rutaSeleccionadaAdmin.id)"
+                              @mouseover="$event.target.style.transform = 'translateY(-3px)'; $event.target.style.boxShadow = '0 8px 24px rgba(255, 193, 7, 0.45)'"
+                              @mouseout="$event.target.style.transform = 'translateY(0)'; $event.target.style.boxShadow = '0 4px 12px rgba(255, 193, 7, 0.35)'">
+                              <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);"></div>
+                              <div class="d-flex align-items-center gap-3" style="position: relative;">
+                                  <div style="background: rgba(255, 255, 255, 0.25); border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                      <i class="bi bi-x-circle-fill" style="font-size: 1.5rem;"></i>
+                                  </div>
+                                  <div class="flex-grow-1">
+                                      <div style="font-size: 1.1rem; letter-spacing: 0.3px;">Desasignar de Cuadrilla</div>
+                                      <small style="opacity: 0.9; font-weight: 500; font-size: 0.85rem;">Liberar esta ruta de su cuadrilla actual</small>
+                                  </div>
+                                  <i class="bi bi-chevron-right" style="font-size: 1.2rem; opacity: 0.7;"></i>
+                              </div>
+                          </button>
+
+                          <!-- Eliminar ruta -->
+                          <button 
+                              class="btn btn-lg btn-accion-admin" 
+                              style="background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); color: white; border: none; font-weight: 700; padding: 1.25rem 1.5rem; border-radius: 16px; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.35); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; text-align: left;"
+                              @click="eliminarRutaDesdeAdmin(rutaSeleccionadaAdmin.id)"
+                              @mouseover="$event.target.style.transform = 'translateY(-3px)'; $event.target.style.boxShadow = '0 8px 24px rgba(220, 53, 69, 0.45)'"
+                              @mouseout="$event.target.style.transform = 'translateY(0)'; $event.target.style.boxShadow = '0 4px 12px rgba(220, 53, 69, 0.35)'">
+                              <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);"></div>
+                              <div class="d-flex align-items-center gap-3" style="position: relative;">
+                                  <div style="background: rgba(255, 255, 255, 0.25); border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                      <i class="bi bi-trash-fill" style="font-size: 1.5rem;"></i>
+                                  </div>
+                                  <div class="flex-grow-1">
+                                      <div style="font-size: 1.1rem; letter-spacing: 0.3px;">Eliminar Hoja de Ruta</div>
+                                      <small style="opacity: 0.9; font-weight: 500; font-size: 0.85rem;">Esta acción no se puede deshacer</small>
+                                  </div>
+                                  <i class="bi bi-chevron-right" style="font-size: 1.2rem; opacity: 0.7;"></i>
+                              </div>
+                          </button>
+                      </div>
+                  </div>
+                  
+                  <!-- Estado sin ruta seleccionada mejorado -->
+                  <div v-else class="p-5 text-center" style="background: linear-gradient(135deg, #FFFFFF 0%, #F8F9FE 100%); border-radius: 20px; box-shadow: 0 6px 24px rgba(6, 4, 75, 0.12); border: 2px dashed rgba(110, 109, 153, 0.2);">
+                      <div style="background: linear-gradient(135deg, rgba(168, 168, 197, 0.15) 0%, rgba(110, 109, 153, 0.1) 100%); width: 96px; height: 96px; border-radius: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                          <i class="bi bi-info-circle" style="font-size: 3rem; color: #A8A8C5;"></i>
+                      </div>
+                      <p class="mt-3 mb-1" style="color: #06044B; font-size: 1.3rem; font-weight: 700;">No hay ruta seleccionada</p>
+                      <p class="mb-0" style="color: #6E6D99; font-size: 1rem; font-weight: 500;">Seleccione una ruta de la tabla para administrarla</p>
+                  </div>
+              </div>
+              
+              <!-- Footer mejorado -->
+              <div class="modal-footer" style="border: none; background: linear-gradient(135deg, #FFFFFF 0%, #E0E0E9 100%); padding: 1.5rem 2.5rem; border-top: 1px solid rgba(110, 109, 153, 0.1);">
+                  <button type="button" class="btn" data-bs-dismiss="modal" @click="cerrarModalAdministrarAsignaciones" 
+                          style="background: linear-gradient(135deg, #6E6D99 0%, #3A3972 100%); color: white; border: none; padding: 0.75rem 2rem; border-radius: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; box-shadow: 0 3px 10px rgba(6, 4, 75, 0.2); transition: all 0.3s ease; font-size: 0.9rem;"
+                          @mouseover="$event.target.style.transform = 'translateY(-2px)'; $event.target.style.boxShadow = '0 5px 16px rgba(6, 4, 75, 0.3)'"
+                          @mouseout="$event.target.style.transform = 'translateY(0)'; $event.target.style.boxShadow = '0 3px 10px rgba(6, 4, 75, 0.2)'">
+                      <i class="bi bi-x-circle-fill"></i> Cerrar
+                  </button>
+              </div>
+          </div>
+      </div>
+  </div>
+
 
 </div>
 </div>

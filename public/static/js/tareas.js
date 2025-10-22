@@ -2,6 +2,7 @@ const app = Vue.createApp({
     data() {
         return {
             reclamos: [],
+            rutas: [],
             reclamoSeleccionado: {},
             
             // Variables para filtros - Comentadas para HU futura
@@ -15,7 +16,16 @@ const app = Vue.createApp({
             
             // Variables para historial
             historialReclamo: [],
-            cargandoHistorial: false
+            cargandoHistorial: false,
+            
+            // Variables para el mapa
+            mapaRutas: null,
+            marcadoresRutas: [],
+            directionsRenderersRutas: [],
+            infoWindowAbierto: null,
+            
+            // Rol del usuario
+            userRole: window.USER_ROLE || '3'
         };
     },
 
@@ -30,21 +40,65 @@ const app = Vue.createApp({
         // Por ahora, mostrar todos los reclamos sin filtrar
         reclamosFiltrados() {
             return this.reclamos;
+        },
+        
+        totalReclamos() {
+            return this.reclamos.length;
+        },
+        
+        reclamosCompletados() {
+            return this.reclamos.filter(r => r.municipalidad_estado === 'Completado').length;
+        },
+        
+        reclamosPendientes() {
+            return this.totalReclamos - this.reclamosCompletados;
+        },
+        
+        // Verifica si el usuario es operario
+        esOperario() {
+            return this.userRole === '3';
         }
     },
 
     methods: {
         /**
-         * Obtiene los reclamos desde la API
+         * Obtiene los reclamos según el rol del usuario
          */
         async obtenerReclamos() {
             try {
-                const response = await axios.get(BASE_URL + 'api/reclamos');
-                this.reclamos = response.data;
-                console.log('Reclamos obtenidos:', this.reclamos);
+                // Si es operario (rol 3), usar endpoint filtrado
+                if (this.esOperario) {
+                    const response = await axios.get(BASE_URL + 'api/rutas/operario/mis-reclamos');
+                    this.reclamos = response.data;
+                    console.log('Reclamos de mi cuadrilla obtenidos:', this.reclamos);
+                } else {
+                    // Para supervisor y admin, obtener todos los reclamos
+                    const response = await axios.get(BASE_URL + 'api/reclamos');
+                    this.reclamos = response.data;
+                    console.log('Todos los reclamos obtenidos:', this.reclamos);
+                }
             } catch (error) {
                 console.error('Error al obtener reclamos:', error);
                 this.mostrarMensaje('Error al cargar los reclamos', 'error');
+            }
+        },
+        
+        /**
+         * Obtiene las rutas asignadas a la cuadrilla del operario (solo para operarios)
+         */
+        async obtenerRutasOperario() {
+            try {
+                // Solo obtener rutas si es operario
+                if (this.esOperario) {
+                    const response = await axios.get(BASE_URL + 'api/rutas/operario/mis-rutas');
+                    this.rutas = response.data;
+                    console.log('Rutas de mi cuadrilla obtenidas:', this.rutas);
+                } else {
+                    this.rutas = [];
+                }
+            } catch (error) {
+                console.error('Error al obtener rutas:', error);
+                this.mostrarMensaje('Error al cargar las rutas', 'error');
             }
         },
 
@@ -292,11 +346,217 @@ const app = Vue.createApp({
                     $(this).remove();
                 });
             }, 5000);
+        },
+
+        /**
+         * Obtiene los reclamos de una ruta específica
+         */
+        obtenerReclamosPorRuta(rutaId) {
+            return this.reclamos.filter(r => r.ruta_id == rutaId);
+        },
+
+        /**
+         * Abre el modal del mapa de rutas
+         */
+        async verMapaRutas() {
+            const modal = new bootstrap.Modal(document.getElementById('modalMapaRutas'));
+            modal.show();
+
+            // Esperar a que el modal se muestre completamente
+            await this.$nextTick();
+            
+            // Inicializar el mapa
+            setTimeout(() => {
+                this.inicializarMapaRutas();
+            }, 300);
+        },
+
+        /**
+         * Inicializa el mapa de Google Maps con las rutas
+         */
+        async inicializarMapaRutas() {
+            if (!this.mapaRutas) {
+                // Configurar el mapa centrado en San Francisco, Córdoba
+                const centro = { lat: -31.426516, lng: -62.110954 };
+                
+                this.mapaRutas = new google.maps.Map(document.getElementById('mapaRutasOperario'), {
+                    zoom: 13,
+                    center: centro,
+                    mapTypeId: 'roadmap'
+                });
+            }
+
+            // Limpiar marcadores y rutas anteriores
+            this.limpiarMapaRutas();
+
+            // Dibujar cada ruta con su color
+            for (const ruta of this.rutas) {
+                const reclamosRuta = this.obtenerReclamosPorRuta(ruta.id);
+                if (reclamosRuta.length > 0) {
+                    await this.dibujarRutaEnMapa(reclamosRuta, ruta.color || '#FF6B35');
+                }
+            }
+        },
+
+        /**
+         * Dibuja una ruta en el mapa con sus marcadores
+         */
+        async dibujarRutaEnMapa(reclamos, color) {
+            const waypoints = [];
+            const bounds = new google.maps.LatLngBounds();
+
+            // Agregar marcadores para cada reclamo
+            for (const reclamo of reclamos) {
+                if (reclamo.coordenadas) {
+                    const position = {
+                        lat: parseFloat(reclamo.coordenadas.lat),
+                        lng: parseFloat(reclamo.coordenadas.lng)
+                    };
+
+                    // Crear marcador
+                    const iconUrl = reclamo.municipalidad_estado === 'Completado'
+                        ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                        : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png';
+
+                    const marker = new google.maps.Marker({
+                        position: position,
+                        map: this.mapaRutas,
+                        title: `${reclamo.municipalidad_id} - ${reclamo.municipalidad_motivo}`,
+                        icon: iconUrl,
+                        label: {
+                            text: reclamo.posicion.toString(),
+                            color: 'white',
+                            fontWeight: 'bold'
+                        }
+                    });
+
+                    // Info window para el marcador
+                    const infoContent = `
+                        <div style="max-width: 250px;">
+                            <h6 class="mb-2"><strong>${reclamo.municipalidad_id}</strong></h6>
+                            <p class="mb-1"><small><strong>Posición:</strong> #${reclamo.posicion}</small></p>
+                            <p class="mb-1"><small><strong>Motivo:</strong> ${reclamo.municipalidad_motivo}</small></p>
+                            <p class="mb-1"><small><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio} ${reclamo.municipalidad_numeroDomicilio}</small></p>
+                            <p class="mb-1"><small><strong>Estado:</strong> <span class="badge ${reclamo.municipalidad_estado === 'Completado' ? 'bg-success' : 'bg-warning'}">${reclamo.municipalidad_estado}</span></small></p>
+                            ${reclamo.prioridad ? `<p class="mb-0"><small><strong>Prioridad:</strong> ${reclamo.prioridad}</small></p>` : ''}
+                        </div>
+                    `;
+
+                    const infowindow = new google.maps.InfoWindow({
+                        content: infoContent
+                    });
+
+                    marker.addListener('click', () => {
+                        if (this.infoWindowAbierto) {
+                            this.infoWindowAbierto.close();
+                        }
+                        infowindow.open(this.mapaRutas, marker);
+                        this.infoWindowAbierto = infowindow;
+                    });
+
+                    this.marcadoresRutas.push(marker);
+                    bounds.extend(position);
+
+                    // Agregar a waypoints para dibujar la ruta
+                    waypoints.push(position);
+                }
+            }
+
+            // Dibujar la ruta con Directions API
+            if (waypoints.length >= 2) {
+                const directionsService = new google.maps.DirectionsService();
+                const directionsRenderer = new google.maps.DirectionsRenderer({
+                    map: this.mapaRutas,
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: color,
+                        strokeWeight: 4,
+                        strokeOpacity: 0.7
+                    }
+                });
+
+                const origin = waypoints[0];
+                const destination = waypoints[waypoints.length - 1];
+                const intermediateWaypoints = waypoints.slice(1, -1).map(w => ({
+                    location: w,
+                    stopover: true
+                }));
+
+                try {
+                    const result = await directionsService.route({
+                        origin: origin,
+                        destination: destination,
+                        waypoints: intermediateWaypoints,
+                        travelMode: google.maps.TravelMode.DRIVING
+                    });
+
+                    directionsRenderer.setDirections(result);
+                    this.directionsRenderersRutas.push(directionsRenderer);
+                } catch (error) {
+                    console.error('Error al dibujar ruta:', error);
+                }
+            }
+
+            // Ajustar el mapa a los bounds
+            if (waypoints.length > 0) {
+                this.mapaRutas.fitBounds(bounds);
+            }
+        },
+
+        /**
+         * Centra el mapa en un reclamo específico
+         */
+        centrarEnReclamoMapa(reclamo) {
+            if (reclamo.coordenadas && this.mapaRutas) {
+                const position = {
+                    lat: parseFloat(reclamo.coordenadas.lat),
+                    lng: parseFloat(reclamo.coordenadas.lng)
+                };
+                
+                this.mapaRutas.setCenter(position);
+                this.mapaRutas.setZoom(16);
+
+                // Encontrar y abrir el info window correspondiente
+                const marker = this.marcadoresRutas.find(m => 
+                    m.getPosition().lat() === position.lat && 
+                    m.getPosition().lng() === position.lng
+                );
+
+                if (marker) {
+                    google.maps.event.trigger(marker, 'click');
+                }
+            }
+        },
+
+        /**
+         * Limpia marcadores y rutas del mapa
+         */
+        limpiarMapaRutas() {
+            // Limpiar marcadores
+            this.marcadoresRutas.forEach(marker => marker.setMap(null));
+            this.marcadoresRutas = [];
+
+            // Limpiar directions renderers
+            this.directionsRenderersRutas.forEach(renderer => renderer.setMap(null));
+            this.directionsRenderersRutas = [];
+
+            // Cerrar info windows
+            if (this.infoWindowAbierto) {
+                this.infoWindowAbierto.close();
+                this.infoWindowAbierto = null;
+            }
+        },
+
+        /**
+         * Cierra el modal del mapa
+         */
+        cerrarMapaRutas() {
+            this.limpiarMapaRutas();
         }
     },
 
-    mounted() {
-        this.obtenerReclamos();
+    async mounted() {
+        await this.obtenerReclamos();
+        await this.obtenerRutasOperario();
     }
 });
-

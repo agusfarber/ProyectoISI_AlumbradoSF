@@ -881,4 +881,215 @@ class Rutas extends ResourceController
         return round($distanciaTotal, 2);
     }
 
+    /**
+     * Asigna una hoja de ruta a una cuadrilla
+     */
+    public function asignarACuadrilla()
+    {
+        $data = $this->request->getJSON(true);
+        
+        // Validar datos obligatorios
+        if (empty($data['ruta_id']) || empty($data['cuadrilla_id'])) {
+            return $this->failValidationErrors('Faltan datos obligatorios (ruta_id, cuadrilla_id).');
+        }
+
+        $rutaId = $data['ruta_id'];
+        $cuadrillaId = $data['cuadrilla_id'];
+
+        try {
+            // Verificar que la ruta existe
+            $ruta = $this->model->find($rutaId);
+            if (!$ruta) {
+                return $this->failNotFound('Ruta no encontrada.');
+            }
+
+            // Verificar que la cuadrilla existe
+            $cuadrillaModel = new CuadrillaModel();
+            $cuadrilla = $cuadrillaModel->find($cuadrillaId);
+            if (!$cuadrilla) {
+                return $this->failNotFound('Cuadrilla no encontrada.');
+            }
+
+            // Actualizar la ruta para asignarla a la cuadrilla
+            $actualizado = $this->model->update($rutaId, [
+                'asignada' => 1,
+                'cuadrilla_id' => $cuadrillaId
+            ]);
+
+            if ($actualizado === false) {
+                return $this->failServerError('Error al asignar la ruta a la cuadrilla.');
+            }
+
+            // Obtener la ruta actualizada con información de la cuadrilla
+            $rutaActualizada = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
+                                         ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
+                                         ->find($rutaId);
+
+            return $this->respond([
+                'mensaje' => 'Hoja de ruta asignada exitosamente a la cuadrilla.',
+                'ruta' => $rutaActualizada
+            ]);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al asignar ruta: ' . $e->getMessage());
+            return $this->failServerError('Error interno al asignar la ruta: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Desasigna una hoja de ruta de una cuadrilla
+     */
+    public function desasignarDeCuadrilla($rutaId = null)
+    {
+        if (!$rutaId) {
+            return $this->failValidationErrors('ID de ruta requerido.');
+        }
+
+        try {
+            // Verificar que la ruta existe
+            $ruta = $this->model->find($rutaId);
+            if (!$ruta) {
+                return $this->failNotFound('Ruta no encontrada.');
+            }
+
+            // Actualizar la ruta para desasignarla
+            $actualizado = $this->model->update($rutaId, [
+                'asignada' => 0,
+                'cuadrilla_id' => null
+            ]);
+
+            if ($actualizado === false) {
+                return $this->failServerError('Error al desasignar la ruta.');
+            }
+
+            $rutaActualizada = $this->model->find($rutaId);
+
+            return $this->respond([
+                'mensaje' => 'Hoja de ruta desasignada exitosamente.',
+                'ruta' => $rutaActualizada
+            ]);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al desasignar ruta: ' . $e->getMessage());
+            return $this->failServerError('Error interno al desasignar la ruta: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Obtiene las rutas asignadas a la(s) cuadrilla(s) de un operario específico
+     * CORRECCIÓN: Ahora obtiene de TODAS las cuadrillas del operario (por robustez)
+     */
+    public function getRutasPorOperario()
+    {
+        $session = \Config\Services::session();
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        try {
+            // CORRECCIÓN: Obtener TODAS las cuadrillas del operario (en lugar de solo la primera)
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+
+            if (empty($asignaciones)) {
+                return $this->respond([]);
+            }
+
+            // Extraer IDs de todas las cuadrillas
+            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
+
+            // Obtener rutas asignadas a cualquiera de esas cuadrillas
+            $rutas = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
+                                ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
+                                ->whereIn('ruta.cuadrilla_id', $cuadrillaIds)
+                                ->where('ruta.asignada', 1)
+                                ->findAll();
+
+            return $this->respond($rutas);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener rutas del operario: ' . $e->getMessage());
+            return $this->failServerError('Error interno al obtener las rutas: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Obtiene los reclamos de las rutas asignadas a la(s) cuadrilla(s) del operario
+     * CORRECCIÓN: Ahora obtiene de TODAS las cuadrillas del operario (por robustez)
+     */
+    public function getReclamosPorOperario()
+    {
+        $session = \Config\Services::session();
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        try {
+            // CORRECCIÓN: Obtener TODAS las cuadrillas del operario (en lugar de solo la primera)
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+
+            if (empty($asignaciones)) {
+                return $this->respond([]);
+            }
+
+            // Extraer IDs de todas las cuadrillas
+            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
+
+            // Obtener rutas asignadas a cualquiera de esas cuadrillas
+            $rutas = $this->model->whereIn('cuadrilla_id', $cuadrillaIds)
+                                ->where('asignada', 1)
+                                ->findAll();
+
+            if (empty($rutas)) {
+                return $this->respond([]);
+            }
+
+            // Obtener todos los reclamos de esas rutas
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $reclamoModel = new ReclamoModel();
+            $direccionModel = new DireccionModel();
+
+            $todosLosReclamos = [];
+            $reclamosYaProcesados = []; // Para evitar duplicados si un reclamo está en múltiples rutas
+
+            foreach ($rutas as $ruta) {
+                $reclamosRuta = $rutaReclamoModel->where('ruta_id', $ruta['id'])
+                                                ->orderBy('posicion', 'ASC')
+                                                ->findAll();
+
+                foreach ($reclamosRuta as $rutaReclamo) {
+                    $reclamoId = $rutaReclamo['reclamo_id'];
+                    
+                    // Verificar si el reclamo existe antes de procesarlo
+                    $reclamo = $reclamoModel->find($reclamoId);
+                    
+                    if ($reclamo) {
+                        // Obtener coordenadas del reclamo
+                        $coordenadas = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
+                        $reclamo['coordenadas'] = $coordenadas;
+                        $reclamo['posicion'] = $rutaReclamo['posicion'];
+                        $reclamo['ruta_id'] = $ruta['id'];
+                        $reclamo['ruta_nombre'] = $ruta['nombre'];
+                        $reclamo['ruta_color'] = $ruta['color'];
+                        $todosLosReclamos[] = $reclamo;
+                        $reclamosYaProcesados[] = $reclamoId;
+                    } else {
+                        // Log si un reclamo no existe (posible inconsistencia de datos)
+                        log_message('warning', "Reclamo ID {$reclamoId} no encontrado pero está en ruta ID {$ruta['id']}");
+                    }
+                }
+            }
+
+            return $this->respond($todosLosReclamos);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener reclamos del operario: ' . $e->getMessage());
+            return $this->failServerError('Error interno al obtener los reclamos: ' . $e->getMessage());
+        }
+    }
 }

@@ -77,7 +77,22 @@ const app = Vue.createApp({
             mapaRutasActivasMapbox: null,
             
             // API Key de Mapbox
-            mapboxToken: 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw'
+            mapboxToken: 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw',
+            
+            // Asignación de rutas a cuadrillas
+            rutaParaAsignar: {},
+            cuadrillaSeleccionadaParaAsignar: '',
+            cuadrillasDisponibles: [],
+            
+            // Administración de asignaciones
+            rutaSeleccionadaAdmin: null,
+            
+            // Selección de ruta en tabla principal
+            rutaSeleccionada: '',
+            filaSeleccionada: null,
+            
+            // Control de event listeners
+            eventListenerConfigurado: false
         };
     },
 
@@ -111,6 +126,12 @@ const app = Vue.createApp({
             try {
                 const response = await axios.get(BASE_URL + 'api/rutas');
                 this.rutas = response.data;
+                
+                // Asegurarse de que las cuadrillas estén cargadas antes de inicializar la tabla
+                if (this.cuadrillasDisponibles.length === 0) {
+                    await this.obtenerCuadrillas();
+                }
+                
                 this.$nextTick(() => {
                     this.inicializarTabla();
                 });
@@ -160,6 +181,30 @@ const app = Vue.createApp({
                 this.tabla.destroy();
             }
 
+            // Guardar referencia al componente Vue para usar en las funciones render
+            const vueComponent = this;
+            console.log('Inicializando tabla con', this.rutas.length, 'rutas y', this.cuadrillasDisponibles.length, 'cuadrillas');
+
+            // Configurar event listener para botones de asignación (solo una vez)
+            if (!this.eventListenerConfigurado) {
+                $('#tabla_rutas tbody').on('click', '.asignacion-btn-moderno', async function(e) {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    
+                    const button = $(this);
+                    const rutaId = button.data('ruta-id');
+                    const rutaNombre = button.data('ruta-nombre');
+                    const cuadrillaActual = button.data('cuadrilla-actual');
+                    const cuadrillaIdActual = button.data('cuadrilla-id');
+                    
+                    console.log('Click en botón de asignación:', { rutaId, rutaNombre, cuadrillaActual, cuadrillaIdActual });
+                    
+                    // Abrir popup de asignación
+                    await vueComponent.abrirPopupAsignacion(rutaId, rutaNombre, cuadrillaActual, cuadrillaIdActual, button[0]);
+                });
+                this.eventListenerConfigurado = true;
+            }
+
             this.tabla = $('#tabla_rutas').DataTable({
                 data: this.rutas,
                 responsive: true,
@@ -171,9 +216,9 @@ const app = Vue.createApp({
                             const nombre = data || 'Sin nombre';
                             const color = row.color || '#808080';
                             return `
-                                <div class="d-flex align-items-center gap-2">
+                                <div class="d-flex align-items-center gap-2" style="cursor: pointer;" title="Click para ver en el mapa">
                                     <div style="width: 20px; height: 20px; border-radius: 50%; background-color: ${color}; border: 2px solid #dee2e6; flex-shrink: 0;"></div>
-                                    <span>${nombre}</span>
+                                    <span class="text-primary fw-bold">${nombre}</span>
                                 </div>
                             `;
                         }
@@ -189,44 +234,85 @@ const app = Vue.createApp({
                     {
                         data: 'asignada',
                         className: 'text-start',
-                        render: (data) => {
-                            return data == 1 ? 
-                                '<span class="badge bg-success">Asignada</span>' : 
-                                '<span class="badge bg-secondary">No Asignada</span>';
+                        render: (data, type, row) => {
+                            const cuadrillaId = row.cuadrilla_id || '';
+                            const cuadrillaNombre = row.cuadrilla_nombre || '';
+                            const isAsignada = data == 1 && cuadrillaNombre;
+                            
+                            // Determinar el estilo basado en el estado
+                            const buttonStyle = isAsignada 
+                                ? `background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                                   color: white;
+                                   border: none;
+                                   box-shadow: 0 3px 10px rgba(40, 167, 69, 0.3);`
+                                : `background: linear-gradient(135deg, #A8A8C5 0%, #6c757d 100%);
+                                   color: white;
+                                   border: none;
+                                   box-shadow: 0 3px 10px rgba(168, 168, 197, 0.3);`;
+                            
+                            // Icono y texto basado en el estado
+                            const icono = isAsignada ? '<i class="bi bi-people-fill"></i>' : '<i class="bi bi-person-plus-fill"></i>';
+                            const texto = isAsignada ? 'Cuadrilla asignada' : 'Sin asignar';
+                            
+                            return `
+                                <div class="asignacion-selector-container">
+                                    <button type="button" 
+                                            class="btn btn-sm asignacion-btn-moderno" 
+                                            data-ruta-id="${row.id}"
+                                            data-ruta-nombre="${(row.nombre || 'Sin nombre').replace(/"/g, '&quot;')}"
+                                            data-cuadrilla-actual="${cuadrillaNombre}"
+                                            data-cuadrilla-id="${cuadrillaId}"
+                                            style="${buttonStyle}
+                                                   padding: 0.5rem 1rem;
+                                                   border-radius: 12px;
+                                                   font-weight: 600;
+                                                   font-size: 0.75rem;
+                                                   transition: all 0.3s ease;
+                                                   display: flex;
+                                                   align-items: center;
+                                                   gap: 0.4rem;
+                                                   white-space: nowrap;
+                                                   text-transform: uppercase;
+                                                   letter-spacing: 0.3px;
+                                                   position: relative;
+                                                   overflow: hidden;
+                                                   cursor: pointer;"
+                                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(6, 4, 75, 0.4)';"
+                                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='${isAsignada ? '0 3px 10px rgba(40, 167, 69, 0.3)' : '0 3px 10px rgba(58, 57, 114, 0.3)'}';">
+                                        ${icono}
+                                        <span style="font-size: 0.7rem;">${texto}</span>
+                                        <i class="bi bi-chevron-down" style="font-size: 0.7rem; margin-left: 0.2rem;"></i>
+                                    </button>
+                                </div>
+                            `;
                         }
                     },
                     {
                         data: 'fecha',
                         className: 'text-start',
-                        render: (data) => this.formatearFecha(data)
-                    },
-                    {
-                        data: null,
-                        className: 'text-start',
-                        render: (data, type, row) => {
-                            return `
-                                <button class="btn btn-sm btn-info me-1 ver-ruta" data-id="${row.id}" title="Ver ruta en mapa">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger eliminar-ruta" data-id="${row.id}" title="Eliminar ruta">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            `;
-                        }
+                        render: (data) => vueComponent.formatearFecha(data)
                     }
                 ],
                 order: [[4, 'desc']]
             });
 
-            // Eventos de la tabla
-            $('#tabla_rutas tbody').off('click', '.ver-ruta').on('click', '.ver-ruta', (e) => {
-                const id = $(e.currentTarget).data('id');
-                this.verRuta(id);
-            });
-
-            $('#tabla_rutas tbody').off('click', '.eliminar-ruta').on('click', '.eliminar-ruta', (e) => {
-                const id = $(e.currentTarget).data('id');
-                this.eliminarRuta(id);
+            // Configurar eventos para clic en fila
+            $('#tabla_rutas tbody').off('click', 'tr').on('click', 'tr', (e) => {
+                // Evitar acción si se hace clic en un botón o en el selector de asignación
+                if ($(e.target).closest('button').length > 0 || 
+                    $(e.target).closest('.asignacion-selector-container').length > 0 ||
+                    $(e.target).hasClass('asignacion-btn-moderno')) {
+                    return;
+                }
+                
+                const row = this.tabla.row(e.currentTarget);
+                const data = row.data();
+                if (data) {
+                    // Si se hace click en el nombre (primera columna), abrir modal de visualización
+                    if ($(e.target).closest('td').index() === 0 || $(e.target).hasClass('text-primary')) {
+                        this.verRuta(data.id);
+                    }
+                }
             });
         },
 
@@ -1806,6 +1892,122 @@ const app = Vue.createApp({
         },
 
         /**
+         * Elimina una ruta desde el modal de visualización
+         */
+        async eliminarRutaDesdeVisualizacion(rutaId) {
+            const ruta = this.rutas.find(r => r.id == rutaId);
+            if (!ruta) {
+                this.mostrarMensaje('Ruta no encontrada', 'error');
+                return;
+            }
+
+            const nombreRuta = ruta.nombre || 'Sin nombre';
+            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Esta acción eliminará también todas las asignaciones de reclamos y no se puede deshacer.`;
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Hoja de Ruta');
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                console.log('Eliminando ruta ID:', rutaId);
+                await axios.delete(BASE_URL + 'api/rutas/' + rutaId);
+                
+                // Cerrar el modal de visualización
+                const modalVisualizacion = bootstrap.Modal.getInstance(document.getElementById('modalVerRuta'));
+                if (modalVisualizacion) {
+                    modalVisualizacion.hide();
+                }
+                
+                // Limpiar datos de visualización
+                this.cerrarVisualizacion();
+                
+                // Recargar rutas
+                await this.obtenerRutas();
+                
+                this.mostrarMensaje('Hoja de ruta eliminada correctamente', 'success');
+            } catch (error) {
+                console.error('Error al eliminar ruta:', error);
+                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.message || error.message), 'error');
+            }
+        },
+
+        /**
+         * Selecciona una ruta al hacer clic en una fila de la tabla
+         */
+        seleccionarRutaPorFila(rutaId, filaElement) {
+            console.log('Seleccionando ruta por fila:', rutaId);
+            
+            // Remover selección anterior
+            $('#tabla_rutas tbody tr').removeClass('table-primary');
+            
+            // Agregar selección visual a la fila actual
+            $(filaElement).addClass('table-primary');
+            
+            // Actualizar el estado
+            this.rutaSeleccionada = rutaId;
+            this.filaSeleccionada = filaElement;
+            
+            console.log('Ruta seleccionada:', rutaId);
+            console.log('Estado de rutaSeleccionada:', this.rutaSeleccionada);
+            
+            // Forzar actualización de la vista
+            this.$forceUpdate();
+        },
+
+        /**
+         * Limpia la selección de ruta
+         */
+        limpiarSeleccion() {
+            this.rutaSeleccionada = '';
+            this.filaSeleccionada = null;
+            $('#tabla_rutas tbody tr').removeClass('table-primary');
+            this.$forceUpdate();
+        },
+
+        /**
+         * Elimina una ruta desde el modal de administración
+         */
+        async eliminarRutaDesdeAdmin(rutaId) {
+            const ruta = this.rutas.find(r => r.id == rutaId);
+            if (!ruta) {
+                this.mostrarMensaje('Ruta no encontrada', 'error');
+                return;
+            }
+
+            const nombreRuta = ruta.nombre || 'Sin nombre';
+            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Esta acción eliminará también todas las asignaciones de reclamos y no se puede deshacer.`;
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Hoja de Ruta');
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                console.log('Eliminando ruta ID:', rutaId);
+                await axios.delete(BASE_URL + 'api/rutas/' + rutaId);
+                
+                // Cerrar el modal de administración
+                const modalAdmin = bootstrap.Modal.getInstance(document.getElementById('modalAdministrarAsignaciones'));
+                if (modalAdmin) {
+                    modalAdmin.hide();
+                }
+                
+                // Limpiar selección
+                this.rutaSeleccionadaAdmin = null;
+                this.limpiarSeleccion();
+                
+                // Recargar rutas
+                await this.obtenerRutas();
+                
+                this.mostrarMensaje('Hoja de ruta eliminada correctamente', 'success');
+            } catch (error) {
+                console.error('Error al eliminar ruta:', error);
+                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.message || error.message), 'error');
+            }
+        },
+
+        /**
          * Formatea una fecha
          */
         formatearFecha(fecha) {
@@ -2588,12 +2790,654 @@ const app = Vue.createApp({
             } catch (error) {
                 console.error('Error al trazar ruta en Mapbox:', error);
             }
+        },
+
+        /**
+         * Obtiene todas las cuadrillas disponibles
+         */
+        async obtenerCuadrillas() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/cuadrillas');
+                this.cuadrillasDisponibles = response.data;
+                console.log('Cuadrillas cargadas:', this.cuadrillasDisponibles.length, this.cuadrillasDisponibles);
+            } catch (error) {
+                console.error('Error al obtener cuadrillas:', error);
+                this.mostrarMensaje('Error al obtener las cuadrillas', 'error');
+            }
+        },
+
+        /**
+         * Abre el modal para asignar una ruta a una cuadrilla
+         */
+        async abrirModalAsignarRuta(rutaId) {
+            try {
+                // Obtener información de la ruta
+                const ruta = this.rutas.find(r => r.id == rutaId);
+                if (!ruta) {
+                    this.mostrarMensaje('Ruta no encontrada', 'error');
+                    return;
+                }
+
+                this.rutaParaAsignar = ruta;
+                this.cuadrillaSeleccionadaParaAsignar = ruta.cuadrilla_id || '';
+
+                // Cargar cuadrillas si no están cargadas
+                if (this.cuadrillasDisponibles.length === 0) {
+                    await this.obtenerCuadrillas();
+                }
+
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('modalAsignarRuta'));
+                modal.show();
+            } catch (error) {
+                console.error('Error al abrir modal de asignación:', error);
+                this.mostrarMensaje('Error al abrir el modal', 'error');
+            }
+        },
+
+        /**
+         * Confirma la asignación de la ruta a la cuadrilla seleccionada
+         */
+        async confirmarAsignacion() {
+            if (!this.cuadrillaSeleccionadaParaAsignar) {
+                this.mostrarMensaje('Debe seleccionar una cuadrilla', 'warning');
+                return;
+            }
+
+            try {
+                const cuadrilla = this.cuadrillasDisponibles.find(c => c.id == this.cuadrillaSeleccionadaParaAsignar);
+                const nombreCuadrilla = cuadrilla ? cuadrilla.nombre : 'la cuadrilla seleccionada';
+
+                const mensajeConfirmacion = `¿Está seguro que desea asignar la hoja de ruta "${this.rutaParaAsignar.nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
+                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Asignar Hoja de Ruta');
+
+                if (!confirmacion) return;
+
+                const response = await axios.post(BASE_URL + 'api/rutas/asignar', {
+                    ruta_id: this.rutaParaAsignar.id,
+                    cuadrilla_id: this.cuadrillaSeleccionadaParaAsignar
+                });
+
+                if (response.data) {
+                    this.mostrarMensaje('Hoja de ruta asignada correctamente', 'success');
+                    
+                    // Cerrar modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('modalAsignarRuta'));
+                    if (modal) modal.hide();
+
+                    // Recargar rutas
+                    await this.obtenerRutas();
+                }
+            } catch (error) {
+                console.error('Error al asignar ruta:', error);
+                this.mostrarMensaje('Error al asignar la hoja de ruta', 'error');
+            }
+        },
+
+        /**
+         * Desasigna una ruta de su cuadrilla
+         */
+        async desasignarRuta(rutaId) {
+            try {
+                const ruta = this.rutas.find(r => r.id == rutaId);
+                if (!ruta) {
+                    this.mostrarMensaje('Ruta no encontrada', 'error');
+                    return;
+                }
+
+                const mensajeConfirmacion = `¿Está seguro que desea desasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre || 'actual'}"? La ruta quedará sin asignar.`;
+                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Desasignar Hoja de Ruta');
+
+                if (!confirmacion) return;
+
+                const response = await axios.post(BASE_URL + `api/rutas/desasignar/${rutaId}`);
+
+                if (response.data) {
+                    this.mostrarMensaje('Hoja de ruta desasignada correctamente', 'success');
+                    
+                    // Recargar rutas
+                    await this.obtenerRutas();
+                }
+            } catch (error) {
+                console.error('Error al desasignar ruta:', error);
+                this.mostrarMensaje('Error al desasignar la hoja de ruta', 'error');
+            }
+        },
+
+        /**
+         * Cierra el modal de asignación
+         */
+        cerrarModalAsignar() {
+            this.rutaParaAsignar = {};
+            this.cuadrillaSeleccionadaParaAsignar = '';
+        },
+
+        /**
+         * Abre un popup moderno para seleccionar la asignación de cuadrilla
+         */
+        async abrirPopupAsignacion(rutaId, rutaNombre, cuadrillaActual, cuadrillaIdActual, buttonElement) {
+            try {
+                // Cargar cuadrillas si no están cargadas
+                if (this.cuadrillasDisponibles.length === 0) {
+                    await this.obtenerCuadrillas();
+                }
+
+                // Cerrar cualquier popup anterior
+                $('.popup-asignacion-overlay').remove();
+
+                // Obtener la posición del botón
+                const buttonOffset = $(buttonElement).offset();
+                const buttonHeight = $(buttonElement).outerHeight();
+                const buttonWidth = $(buttonElement).outerWidth();
+                
+                // Calcular posición del popup (ajustar si está cerca del borde)
+                const windowWidth = $(window).width();
+                const windowHeight = $(window).height();
+                const popupWidth = 450; // Ancho aumentado para incluir filtro
+                const popupMaxHeight = 500;
+                
+                let topPos = buttonOffset.top + buttonHeight + 10;
+                let leftPos = buttonOffset.left;
+                
+                // Ajustar si se sale por la derecha
+                if (leftPos + popupWidth > windowWidth - 20) {
+                    leftPos = windowWidth - popupWidth - 20;
+                }
+                
+                // Ajustar si se sale por abajo
+                if (topPos + popupMaxHeight > windowHeight - 20) {
+                    topPos = buttonOffset.top - popupMaxHeight - 10;
+                    if (topPos < 20) {
+                        topPos = 20;
+                    }
+                }
+
+                console.log('Posición del popup:', { topPos, leftPos, buttonOffset, windowWidth, windowHeight });
+
+                // Crear el HTML del popup
+                let popupHTML = `
+                    <div class="popup-asignacion-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9998; background: rgba(6, 4, 75, 0.3); backdrop-filter: blur(2px);">
+                        <div class="popup-asignacion-content" style="position: absolute; 
+                             top: ${topPos}px; 
+                             left: ${leftPos}px;
+                             width: ${popupWidth}px;
+                             background: white;
+                             border-radius: 16px;
+                             box-shadow: 0 10px 40px rgba(6, 4, 75, 0.3);
+                             z-index: 9999;
+                             animation: popupSlideIn 0.3s ease;
+                             overflow: hidden;
+                             border: 1px solid rgba(110, 109, 153, 0.2);">
+                            
+                            <!-- Header del popup -->
+                            <div style="background: linear-gradient(135deg, #3A3972 0%, #06044B 100%); 
+                                        padding: 1rem 1.25rem;
+                                        color: white;
+                                        font-weight: 700;
+                                        font-size: 0.9rem;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        letter-spacing: 0.3px;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="bi bi-people-fill" style="font-size: 1.1rem; color: white;"></i>
+                                    <span>Asignar Cuadrilla</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    ${cuadrillaActual ? `
+                                        <button class="btn-desasignar-header" 
+                                                data-cuadrilla-id="" 
+                                                data-ruta-id="${rutaId}"
+                                                style="background: rgba(220, 53, 69, 0.9); 
+                                                       border: none; 
+                                                       color: white; 
+                                                       padding: 0.4rem 0.8rem;
+                                                       border-radius: 8px; 
+                                                       display: flex; 
+                                                       align-items: center; 
+                                                       gap: 0.4rem;
+                                                       cursor: pointer;
+                                                       transition: all 0.2s ease;
+                                                       font-size: 0.8rem;
+                                                       font-weight: 600;"
+                                                onmouseover="this.style.background='rgba(220, 53, 69, 1)'; this.style.transform='scale(1.05)';"
+                                                onmouseout="this.style.background='rgba(220, 53, 69, 0.9)'; this.style.transform='scale(1)';">
+                                            <i class="bi bi-x-circle-fill" style="color: white;"></i>
+                                            <span>Desasignar</span>
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn-close-popup" style="background: rgba(255,255,255,0.2); 
+                                                                           border: none; 
+                                                                           color: white; 
+                                                                           width: 24px; 
+                                                                           height: 24px; 
+                                                                           border-radius: 50%; 
+                                                                           display: flex; 
+                                                                           align-items: center; 
+                                                                           justify-content: center; 
+                                                                           cursor: pointer;
+                                                                           transition: all 0.2s ease;"
+                                            onmouseover="this.style.background='rgba(255,255,255,0.3)'; this.style.transform='rotate(90deg)';"
+                                            onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.transform='rotate(0deg)';">
+                                        <i class="bi bi-x-lg" style="font-size: 0.85rem; color: white;"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Información de la ruta -->
+                            <div style="padding: 1rem 1.25rem; background: linear-gradient(135deg, #F8F9FE 0%, #FFFFFF 100%); border-bottom: 1px solid rgba(110, 109, 153, 0.1);">
+                                <div style="font-size: 0.75rem; color: #6E6D99; font-weight: 600; margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    Hoja de Ruta
+                                </div>
+                                <div style="font-size: 0.9rem; color: #06044B; font-weight: 700;">
+                                    ${rutaNombre}
+                                </div>
+                                ${cuadrillaActual ? `
+                                    <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(40, 167, 69, 0.1); border-radius: 8px; display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="bi bi-check-circle-fill" style="color: #28a745; font-size: 0.9rem;"></i>
+                                        <span style="font-size: 0.75rem; color: #155724; font-weight: 600;">Asignada a: ${cuadrillaActual}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+
+                            <!-- Filtro de búsqueda -->
+                            <div style="padding: 1rem 1.25rem; background: white; border-bottom: 1px solid rgba(110, 109, 153, 0.1);">
+                                <div style="position: relative;">
+                                    <i class="bi bi-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6E6D99; font-size: 0.9rem;"></i>
+                                    <input type="text" 
+                                           class="input-filtro-cuadrillas" 
+                                           placeholder="Buscar cuadrilla..."
+                                           style="width: 100%;
+                                                  padding: 0.6rem 0.75rem 0.6rem 2.5rem;
+                                                  border: 2px solid rgba(110, 109, 153, 0.2);
+                                                  border-radius: 10px;
+                                                  font-size: 0.85rem;
+                                                  color: #06044B;
+                                                  transition: all 0.2s ease;
+                                                  outline: none;"
+                                           onfocus="this.style.borderColor='#3A3972'; this.style.boxShadow='0 0 0 3px rgba(58, 57, 114, 0.1)';"
+                                           onblur="this.style.borderColor='rgba(110, 109, 153, 0.2)'; this.style.boxShadow='none';">
+                                </div>
+                            </div>
+
+                            <!-- Lista de cuadrillas -->
+                            <div class="lista-cuadrillas-container" style="max-height: 300px; overflow-y: auto; padding: 0.5rem;">
+                                ${this.cuadrillasDisponibles.map(cuadrilla => `
+                                    <button class="btn-cuadrilla-option ${cuadrilla.id == cuadrillaIdActual ? 'cuadrilla-actual' : ''}" 
+                                            data-cuadrilla-id="${cuadrilla.id}" 
+                                            data-ruta-id="${rutaId}"
+                                            data-nombre="${cuadrilla.nombre.toLowerCase()}"
+                                            data-descripcion="${(cuadrilla.descripcion || '').toLowerCase()}"
+                                            style="width: 100%;
+                                                   padding: 0.75rem 1rem;
+                                                   margin: 0.25rem 0;
+                                                   border: 2px solid ${cuadrilla.id == cuadrillaIdActual ? '#28a745' : 'rgba(110, 109, 153, 0.2)'};
+                                                   background: ${cuadrilla.id == cuadrillaIdActual ? 'linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%)' : 'white'};
+                                                   border-radius: 10px;
+                                                   display: flex;
+                                                   align-items: center;
+                                                   gap: 0.75rem;
+                                                   cursor: pointer;
+                                                   transition: all 0.2s ease;
+                                                   font-weight: 600;
+                                                   color: ${cuadrilla.id == cuadrillaIdActual ? '#155724' : '#06044B'};"
+                                            onmouseover="if(!this.classList.contains('cuadrilla-actual')) { this.style.background='linear-gradient(135deg, #F8F9FE 0%, #E0E0E9 100%)'; this.style.transform='translateX(4px)'; this.style.borderColor='#3A3972'; }"
+                                            onmouseout="if(!this.classList.contains('cuadrilla-actual')) { this.style.background='white'; this.style.transform='translateX(0)'; this.style.borderColor='rgba(110, 109, 153, 0.2)'; }">
+                                        <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #6E6D99 0%, #3A3972 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                                            ${cuadrilla.id == cuadrillaIdActual ? '<i class="bi bi-check-circle-fill" style="color: white;"></i>' : '<i class="bi bi-people-fill" style="color: white;"></i>'}
+                                        </div>
+                                        <div style="flex: 1; text-align: left;">
+                                            <div style="font-size: 0.85rem; font-weight: 700;">${cuadrilla.nombre}</div>
+                                            <div style="font-size: 0.7rem; opacity: 0.7;">${cuadrilla.descripcion || 'Sin descripción'}</div>
+                                        </div>
+                                        ${cuadrilla.id == cuadrillaIdActual ? '<i class="bi bi-check-lg" style="font-size: 1.2rem; color: #28a745;"></i>' : ''}
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <style>
+                        @keyframes popupSlideIn {
+                            from {
+                                opacity: 0;
+                                transform: translateY(-10px);
+                            }
+                            to {
+                                opacity: 1;
+                                transform: translateY(0);
+                            }
+                        }
+                        
+                        .popup-asignacion-content::-webkit-scrollbar {
+                            width: 6px;
+                        }
+                        
+                        .popup-asignacion-content::-webkit-scrollbar-track {
+                            background: rgba(110, 109, 153, 0.1);
+                            border-radius: 3px;
+                        }
+                        
+                        .popup-asignacion-content::-webkit-scrollbar-thumb {
+                            background: rgba(110, 109, 153, 0.3);
+                            border-radius: 3px;
+                        }
+                        
+                        .popup-asignacion-content::-webkit-scrollbar-thumb:hover {
+                            background: rgba(110, 109, 153, 0.5);
+                        }
+                    </style>
+                `;
+
+                // Agregar el popup al body
+                $('body').append(popupHTML);
+
+                // Cerrar al hacer clic en el overlay
+                $('.popup-asignacion-overlay').on('click', function(e) {
+                    if (e.target === this) {
+                        $(this).remove();
+                    }
+                });
+
+                // Cerrar al hacer clic en el botón de cerrar
+                $('.btn-close-popup').on('click', function() {
+                    $('.popup-asignacion-overlay').remove();
+                });
+
+                // Manejar clic en botón de desasignar del header
+                const vueComponent = this;
+                $('.btn-desasignar-header').on('click', async function() {
+                    const cuadrillaId = $(this).data('cuadrilla-id');
+                    const rutaId = $(this).data('ruta-id');
+                    
+                    // Cerrar el popup
+                    $('.popup-asignacion-overlay').remove();
+                    
+                    // Llamar a la función de cambio de asignación (desasignar)
+                    await vueComponent.cambiarAsignacionRuta(rutaId, cuadrillaId);
+                });
+
+                // Manejar clic en opciones de cuadrilla
+                $('.btn-cuadrilla-option').on('click', async function() {
+                    const cuadrillaId = $(this).data('cuadrilla-id');
+                    const rutaId = $(this).data('ruta-id');
+                    
+                    // Cerrar el popup
+                    $('.popup-asignacion-overlay').remove();
+                    
+                    // Llamar a la función de cambio de asignación
+                    await vueComponent.cambiarAsignacionRuta(rutaId, cuadrillaId);
+                });
+
+                // Funcionalidad del filtro de búsqueda
+                $('.input-filtro-cuadrillas').on('input', function() {
+                    const filtroTexto = $(this).val().toLowerCase().trim();
+                    
+                    $('.btn-cuadrilla-option').each(function() {
+                        const nombreCuadrilla = $(this).data('nombre') || '';
+                        const descripcionCuadrilla = $(this).data('descripcion') || '';
+                        
+                        // Mostrar u ocultar según el filtro
+                        if (nombreCuadrilla.includes(filtroTexto) || descripcionCuadrilla.includes(filtroTexto)) {
+                            $(this).show();
+                        } else {
+                            $(this).hide();
+                        }
+                    });
+                    
+                    // Mostrar mensaje si no hay resultados
+                    const cuadrillasVisibles = $('.btn-cuadrilla-option:visible').length;
+                    if (cuadrillasVisibles === 0 && filtroTexto !== '') {
+                        if ($('.no-resultados-filtro').length === 0) {
+                            $('.lista-cuadrillas-container').append(`
+                                <div class="no-resultados-filtro" style="padding: 2rem 1rem; text-align: center; color: #6E6D99;">
+                                    <i class="bi bi-search" style="font-size: 2rem; opacity: 0.5;"></i>
+                                    <p style="margin-top: 0.5rem; font-size: 0.85rem;">No se encontraron cuadrillas</p>
+                                </div>
+                            `);
+                        }
+                    } else {
+                        $('.no-resultados-filtro').remove();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error al abrir popup de asignación:', error);
+                this.mostrarMensaje('Error al abrir el selector de cuadrillas', 'error');
+            }
+        },
+
+        /**
+         * Cambia la asignación de una ruta directamente desde el selector de la tabla
+         */
+        async cambiarAsignacionRuta(rutaId, cuadrillaId) {
+            try {
+                const ruta = this.rutas.find(r => r.id == rutaId);
+                if (!ruta) {
+                    this.mostrarMensaje('Ruta no encontrada', 'error');
+                    return;
+                }
+
+                // Si cuadrillaId está vacío, desasignar
+                if (!cuadrillaId || cuadrillaId === '') {
+                    // Verificar si la ruta está asignada
+                    if (ruta.asignada != 1) {
+                        this.mostrarMensaje('La ruta ya está sin asignar', 'info');
+                        return;
+                    }
+
+                    const mensajeConfirmacion = `¿Desea desasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre}"?`;
+                    const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Desasignar Hoja de Ruta');
+
+                    if (!confirmacion) {
+                        // Recargar la tabla para restaurar el valor anterior
+                        await this.obtenerRutas();
+                        return;
+                    }
+
+                    const response = await axios.post(BASE_URL + `api/rutas/desasignar/${rutaId}`);
+
+                    if (response.data) {
+                        this.mostrarMensaje('✓ Hoja de ruta desasignada correctamente', 'success');
+                        await this.obtenerRutas();
+                        
+                        // Aplicar animación de éxito al botón
+                        this.$nextTick(() => {
+                            const button = $(`.asignacion-btn-moderno[data-ruta-id="${rutaId}"]`);
+                            button.css({
+                                'animation': 'pulse 0.5s ease',
+                                'transform': 'scale(1.05)'
+                            });
+                            setTimeout(() => {
+                                button.css({
+                                    'animation': '',
+                                    'transform': ''
+                                });
+                            }, 500);
+                        });
+                    }
+                } else {
+                    // Asignar o reasignar
+                    const cuadrilla = this.cuadrillasDisponibles.find(c => c.id == cuadrillaId);
+                    const nombreCuadrilla = cuadrilla ? cuadrilla.nombre : 'la cuadrilla seleccionada';
+
+                    let mensajeConfirmacion;
+                    let tituloConfirmacion;
+
+                    if (ruta.asignada == 1 && ruta.cuadrilla_nombre) {
+                        // Reasignar
+                        mensajeConfirmacion = `¿Desea reasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
+                        tituloConfirmacion = 'Reasignar Hoja de Ruta';
+                    } else {
+                        // Asignar por primera vez
+                        mensajeConfirmacion = `¿Desea asignar la hoja de ruta "${ruta.nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
+                        tituloConfirmacion = 'Asignar Hoja de Ruta';
+                    }
+
+                    const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, tituloConfirmacion);
+
+                    if (!confirmacion) {
+                        // Recargar la tabla para restaurar el valor anterior
+                        await this.obtenerRutas();
+                        return;
+                    }
+
+                    const response = await axios.post(BASE_URL + 'api/rutas/asignar', {
+                        ruta_id: rutaId,
+                        cuadrilla_id: cuadrillaId
+                    });
+
+                    if (response.data) {
+                        const mensaje = ruta.asignada == 1 ? '✓ Hoja de ruta reasignada correctamente' : '✓ Hoja de ruta asignada correctamente';
+                        this.mostrarMensaje(mensaje, 'success');
+                        await this.obtenerRutas();
+                        
+                        // Aplicar animación de éxito al botón
+                        this.$nextTick(() => {
+                            const button = $(`.asignacion-btn-moderno[data-ruta-id="${rutaId}"]`);
+                            button.css({
+                                'animation': 'pulse 0.5s ease',
+                                'transform': 'scale(1.05)'
+                            });
+                            setTimeout(() => {
+                                button.css({
+                                    'animation': '',
+                                    'transform': ''
+                                });
+                            }, 500);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error al cambiar asignación de ruta:', error);
+                this.mostrarMensaje('Error al cambiar la asignación de la hoja de ruta', 'error');
+                // Recargar la tabla para restaurar el estado correcto
+                await this.obtenerRutas();
+            }
+        },
+
+        /**
+         * Abre el modal para administrar todas las asignaciones
+         */
+        async abrirModalAdministrarAsignaciones() {
+            try {
+                // Verificar si hay una ruta seleccionada
+                if (!this.rutaSeleccionada || this.rutaSeleccionada === '' || this.rutaSeleccionada === null) {
+                    this.mostrarMensaje('Debe seleccionar una hoja de ruta antes de administrar asignaciones', 'warning');
+                    return;
+                }
+                
+                // Cargar cuadrillas si no están cargadas
+                if (this.cuadrillasDisponibles.length === 0) {
+                    await this.obtenerCuadrillas();
+                }
+
+                // Seleccionar automáticamente la ruta que se seleccionó en la tabla principal
+                const rutaSeleccionada = this.rutas.find(r => r.id == this.rutaSeleccionada);
+                if (rutaSeleccionada) {
+                    this.rutaSeleccionadaAdmin = rutaSeleccionada;
+                }
+
+                // Mostrar modal
+                const modal = new bootstrap.Modal(document.getElementById('modalAdministrarAsignaciones'));
+                modal.show();
+            } catch (error) {
+                console.error('Error al abrir modal de administración:', error);
+                this.mostrarMensaje('Error al abrir el modal de administración', 'error');
+            }
+        },
+
+        /**
+         * Cierra el modal de administrar asignaciones
+         */
+        cerrarModalAdministrarAsignaciones() {
+            this.rutaSeleccionadaAdmin = null;
+        },
+
+        /**
+         * Abre el modal de asignar ruta desde el modal de administración
+         */
+        async abrirModalAsignarRutaDesdeAdmin(rutaId) {
+            // Cerrar el modal de administración
+            const modalAdmin = bootstrap.Modal.getInstance(document.getElementById('modalAdministrarAsignaciones'));
+            if (modalAdmin) {
+                modalAdmin.hide();
+            }
+
+            // Abrir el modal de asignación
+            await this.abrirModalAsignarRuta(rutaId);
+
+            // Cuando se cierre el modal de asignación, reabrir el de administración
+            const modalAsignar = document.getElementById('modalAsignarRuta');
+            const handleClose = async () => {
+                // Recargar las rutas para reflejar los cambios
+                await this.obtenerRutas();
+                
+                // Actualizar la ruta seleccionada si aún existe
+                if (this.rutaSeleccionadaAdmin) {
+                    const rutaActualizada = this.rutas.find(r => r.id === this.rutaSeleccionadaAdmin.id);
+                    if (rutaActualizada) {
+                        this.rutaSeleccionadaAdmin = rutaActualizada;
+                    }
+                }
+                
+                // Reabrir el modal de administración
+                const modalAdminReabrir = new bootstrap.Modal(document.getElementById('modalAdministrarAsignaciones'));
+                modalAdminReabrir.show();
+                
+                // Remover este listener
+                modalAsignar.removeEventListener('hidden.bs.modal', handleClose);
+            };
+            
+            modalAsignar.addEventListener('hidden.bs.modal', handleClose);
+        },
+
+        /**
+         * Desasigna una ruta desde el modal de administración
+         */
+        async desasignarRutaDesdeAdmin(rutaId) {
+            const ruta = this.rutas.find(r => r.id == rutaId);
+            if (!ruta) {
+                this.mostrarMensaje('Ruta no encontrada', 'error');
+                return;
+            }
+
+            const nombreRuta = ruta.nombre || 'Sin nombre';
+            const confirmacion = await this.mostrarConfirmacion(
+                `¿Está seguro de que desea desasignar la hoja de ruta "${nombreRuta}" de la cuadrilla "${ruta.cuadrilla_nombre}"?`,
+                'Desasignar Hoja de Ruta'
+            );
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                await axios.delete(BASE_URL + 'api/rutas/' + rutaId + '/desasignar');
+                
+                // Recargar las rutas
+                await this.obtenerRutas();
+                
+                // Actualizar la ruta seleccionada en el modal
+                if (this.rutaSeleccionadaAdmin && this.rutaSeleccionadaAdmin.id === rutaId) {
+                    const rutaActualizada = this.rutas.find(r => r.id === rutaId);
+                    if (rutaActualizada) {
+                        this.rutaSeleccionadaAdmin = rutaActualizada;
+                    }
+                }
+                
+                this.mostrarMensaje('Hoja de ruta desasignada correctamente', 'success');
+            } catch (error) {
+                console.error('Error al desasignar ruta:', error);
+                this.mostrarMensaje('Error al desasignar la hoja de ruta: ' + (error.response?.data?.message || error.message), 'error');
+            }
         }
     },
 
     async mounted() {
-        await this.obtenerRutas();
+        // Cargar cuadrillas primero antes de inicializar la tabla
+        await this.obtenerCuadrillas();
         await this.obtenerReclamos();
+        await this.obtenerRutas();
     }
 });
-

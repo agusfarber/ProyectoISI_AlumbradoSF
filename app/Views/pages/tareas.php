@@ -1,6 +1,29 @@
 <div id="app" class="container-fluid">
     <div>Gestión de Tareas</div>
-    <br>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <p class="text-muted mb-0" v-if="esOperario">Reclamos de mi cuadrilla</p>
+            <p class="text-muted mb-0" v-else>Todos los reclamos</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" @click="verMapaRutas" v-if="esOperario && rutas.length > 0">
+                <i class="bi bi-map text-white"></i> Ver Mapa de Rutas
+            </button>
+        </div>
+    </div>
+
+    <!-- Información de las rutas asignadas (solo para operarios) -->
+    <div v-if="esOperario && rutas.length > 0" class="alert alert-info mb-3">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle me-2" style="font-size: 1.5rem;"></i>
+            <div>
+                <strong>{{ rutas.length }} ruta(s) asignada(s) a mi cuadrilla</strong>
+                <br>
+                <small>{{ totalReclamos }} reclamo(s) en total | {{ reclamosCompletados }} completado(s) | {{ reclamosPendientes }} pendiente(s)</small>
+            </div>
+        </div>
+    </div>
+
     <!-- Panel de filtros comentado - HU para más adelante -->
     <!--
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -60,6 +83,14 @@
     <div class="row" v-if="reclamos.length > 0">
         <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-2" v-for="reclamo in reclamosFiltrados" :key="reclamo.id">
             <div class="card h-100 reclamo-card" :class="getCardClass(reclamo)" @click="verDetalles(reclamo)">
+                <!-- Indicador de ruta (solo para operarios) -->
+                <div v-if="esOperario && reclamo.ruta_nombre" class="card-header py-1 px-2" :style="`background-color: ${reclamo.ruta_color || '#808080'}; color: white;`">
+                    <small class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-map"></i> {{ reclamo.ruta_nombre || 'Ruta' }}</span>
+                        <span class="badge bg-light text-dark">#{{ reclamo.posicion }}</span>
+                    </small>
+                </div>
+                
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <h6 class="card-title mb-0 text-primary fw-bold">
@@ -69,6 +100,7 @@
                             {{ reclamo.municipalidad_estado }}
                         </span>
                     </div>
+                    
                     
                     <div class="mb-1">
                         <small class="text-dark">
@@ -83,15 +115,20 @@
                             {{ reclamo.municipalidad_motivo }}
                         </small>
                     </div>
+
+                    <div class="mb-1" v-if="reclamo.prioridad">
+                        <small class="text-dark">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Prioridad: <strong>{{ reclamo.prioridad }}</strong>
+                        </small>
+                    </div>
                 </div>
                 
                 <!-- Acciones rápidas -->
                 <div class="card-footer bg-transparent">
-                    <div class="d-flex gap-1">
-                        <button class="btn btn-sm btn-primary flex-fill" @click.stop="cambiarEstado(reclamo)" title="Acciones">
-                            Acciones
-                        </button>
-                    </div>
+                    <button class="btn btn-sm btn-primary w-100" @click.stop="cambiarEstado(reclamo)" title="Acciones">
+                        <i class="bi bi-pencil-square text-white"></i> Acciones
+                    </button>
                 </div>
             </div>
         </div>
@@ -189,6 +226,89 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Mapa de Rutas -->
+    <div class="modal fade" id="modalMapaRutas" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-map"></i> Mis Rutas Asignadas
+                        <span class="badge bg-primary ms-2">{{ rutas.length }} ruta(s)</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarMapaRutas"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Panel de información a la izquierda -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-header py-2">
+                                    <small class="mb-0"><strong>Rutas y Reclamos</strong></small>
+                                </div>
+                                <div class="list-group list-group-flush" style="height: 500px; overflow-y: auto;">
+                                    <div v-for="ruta in rutas" :key="ruta.id" class="mb-2">
+                                        <!-- Encabezado de ruta -->
+                                        <div class="list-group-item py-2 px-3" :style="`background-color: ${ruta.color}20; border-left: 4px solid ${ruta.color};`">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <div :style="`width: 16px; height: 16px; border-radius: 50%; background-color: ${ruta.color}; border: 2px solid #dee2e6;`"></div>
+                                                    <strong>{{ ruta.nombre }}</strong>
+                                                </div>
+                                                <span class="badge bg-secondary">{{ ruta.cantidadReclamos }} reclamos</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Reclamos de esta ruta -->
+                                        <div v-for="reclamo in obtenerReclamosPorRuta(ruta.id)" 
+                                             :key="reclamo.id"
+                                             class="list-group-item py-1 px-3"
+                                             style="cursor: pointer;"
+                                             @click="centrarEnReclamoMapa(reclamo)">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge" :class="reclamo.municipalidad_estado === 'Completado' ? 'bg-success' : 'bg-secondary'" style="font-size: 0.7rem;">
+                                                    {{ reclamo.posicion }}
+                                                </span>
+                                                <div style="font-size: 0.85rem;">
+                                                    <strong>{{ reclamo.municipalidad_id }}</strong>
+                                                    <br>
+                                                    <small class="text-muted" style="font-size: 0.75rem;">{{ reclamo.municipalidad_motivo }}</small>
+                                                    <br>
+                                                    <small :class="reclamo.municipalidad_estado === 'Completado' ? 'text-success' : 'text-warning'">
+                                                        <i class="bi" :class="reclamo.municipalidad_estado === 'Completado' ? 'bi-check-circle' : 'bi-clock'"></i>
+                                                        {{ reclamo.municipalidad_estado }}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mapa a la derecha -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-geo-alt"></i> Visualización de Rutas
+                                    </h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div id="mapaRutasOperario" style="width: 100%; height: 500px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="cerrarMapaRutas">
+                        Cerrar
+                    </button>
                 </div>
             </div>
         </div>
