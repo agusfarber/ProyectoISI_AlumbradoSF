@@ -203,6 +203,11 @@ class Cuadrillas extends ResourceController
 
             // Luego asignar los operarios a la cuadrilla
             foreach ($data['operarios'] as $operarioId) {
+                // CORRECCIÓN: Eliminar las asignaciones previas del operario en OTRAS cuadrillas
+                // para asegurar que un operario solo esté en una cuadrilla a la vez
+                $cuadrillaOperariosModel->where('usuario_id', $operarioId)->delete();
+                
+                // Ahora insertar la nueva asignación
                 $cuadrillaOperariosModel->insert([
                     'cuadrilla_id' => $data['cuadrillaId'],
                     'usuario_id' => $operarioId

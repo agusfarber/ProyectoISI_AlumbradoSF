@@ -56,10 +56,11 @@ $routes->get('api/operarios', 'Api\\Usuarios::operarios');
 $routes->post('api/rutas/generar', 'Api\\Rutas::generarRuta');
 $routes->post('api/rutas/vista-previa', 'Api\\Rutas::vistaPreviaRuta');
 $routes->get('api/rutas/(:num)/reclamos', 'Api\\Rutas::getReclamosRuta/$1');
+$routes->post('api/rutas/asignar', 'Api\\Rutas::asignarACuadrilla');
+$routes->post('api/rutas/desasignar/(:num)', 'Api\\Rutas::desasignarDeCuadrilla/$1');
+$routes->get('api/rutas/operario/mis-rutas', 'Api\\Rutas::getRutasPorOperario');
+$routes->get('api/rutas/operario/mis-reclamos', 'Api\\Rutas::getReclamosPorOperario');
 $routes->resource('api/rutas');
-
-
-
 
 
 // Autenticación y configuración de páginas
@@ -73,13 +74,6 @@ $routes->get('auth/update-passwords', 'Auth::updatePasswords');
 // FIN ENDPOINTS -----------------------------------------------------
 
 
-
-
-
-
 if (is_file(APPPATH . 'Config/' . ENVIRONMENT . '/Routes.php')) {
     require APPPATH . 'Config/' . ENVIRONMENT . '/Routes.php';
 }
-
-
-

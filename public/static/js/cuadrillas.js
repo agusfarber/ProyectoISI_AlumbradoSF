@@ -295,33 +295,17 @@ const app = Vue.createApp({
                     });
                 }
                 
-                // Actualizar la cuadrilla en la lista local inmediatamente
-                if (!esNuevo) {
-                    // Para edición, actualizar la cuadrilla existente en la lista
-                    const index = this.cuadrillas.findIndex(c => c.id == this.cuadrilla.id);
-                    if (index !== -1) {
-                        // Actualizar los datos de la cuadrilla en la lista incluyendo operarios
-                        this.cuadrillas[index] = { 
-                            ...this.cuadrillas[index], 
-                            ...datosLimpios,
-                            operarios: this.cuadrilla.operarios || []
-                        };
-                        // Refrescar la tabla inmediatamente
-                        this.$nextTick(() => {
-                            this.inicializarTabla();
-                        });
-                    }
-                } else {
-                    // Para nueva cuadrilla, recargar todas las cuadrillas
-                    await this.obtenerCuadrillas();
-                }
-                
+                // Cerrar modal antes de recargar para evitar conflictos
                 bootstrap.Modal.getInstance(document.getElementById('modalCuadrilla')).hide();
                 
                 // Limpiar formulario
                 this.cuadrilla = { nombre: '', descripcion: '' };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
+                
+                // Recargar todas las cuadrillas para actualizar automáticamente
+                // las otras cuadrillas que perdieron operarios
+                await this.obtenerCuadrillas();
                 
                 // Mostrar mensaje de éxito
                 this.mostrarMensaje('Cuadrilla guardada correctamente', 'success');
