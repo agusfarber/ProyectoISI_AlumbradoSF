@@ -948,8 +948,15 @@ const app = Vue.createApp({
                                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                                     <svg width="28" height="32" viewBox="0 0 28 32" xmlns="http://www.w3.org/2000/svg">
                                         ${tienePrioridadAlta ? `
-                                        <circle cx="14" cy="14" r="0" fill="${colorPrioridad}" opacity="0.3">
-                                            <animate attributeName="r" values="0;12;0" dur="1.5s" repeatCount="indefinite"/>
+                                        <!-- Pulso exterior rojo oscuro más grande y lento -->
+                                        <circle cx="14" cy="14" r="0" fill="#B71C1C" opacity="0.7">
+                                            <animate attributeName="r" values="0;20;0" dur="2.5s" repeatCount="indefinite"/>
+                                            <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite"/>
+                                        </circle>
+                                        <!-- Pulso interior rojo más intenso -->
+                                        <circle cx="14" cy="14" r="0" fill="#C62828" opacity="0.9">
+                                            <animate attributeName="r" values="0;15;0" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
+                                            <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
                                         </circle>
                                         ` : ''}
                                         <path d="M14 2C10.13 2 7 5.13 7 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" 
@@ -1401,14 +1408,23 @@ const app = Vue.createApp({
             const tienePrioridadAlta = colorPrioridad !== null;
             
             if (tienePrioridadAlta) {
-                // Con animación de pulso para prioridad Alta
+                // Con animación de pulso doble más grande y lenta con rojo oscuro para prioridad Alta
                 return {
                     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                         <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="20" cy="20" r="0" fill="${colorPrioridad}" opacity="0.3">
-                                <animate attributeName="r" values="0;18;0" dur="1.5s" repeatCount="indefinite"/>
+                            <!-- Pulso exterior rojo oscuro grande y lento -->
+                            <circle cx="20" cy="20" r="0" fill="#B71C1C" opacity="0.7">
+                                <animate attributeName="r" values="0;24;0" dur="2.5s" repeatCount="indefinite"/>
+                                <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite"/>
                             </circle>
+                            <!-- Pulso medio rojo intenso con retardo -->
+                            <circle cx="20" cy="20" r="0" fill="#C62828" opacity="0.9">
+                                <animate attributeName="r" values="0;19;0" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
+                                <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
+                            </circle>
+                            <!-- Círculo principal del marcador -->
                             <circle cx="20" cy="20" r="15" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                            <!-- Número -->
                             <text x="20" y="25" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">${numero}</text>
                         </svg>
                     `)}`,

@@ -920,6 +920,27 @@ class Rutas extends ResourceController
                 return $this->failServerError('Error al asignar la ruta a la cuadrilla.');
             }
 
+            // Actualizar el estado de los reclamos de "Recibido" a "Asignado"
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $reclamoModel = new ReclamoModel();
+            
+            // Obtener todos los reclamos de esta ruta
+            $reclamosRuta = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
+            $reclamosActualizados = 0;
+            
+            foreach ($reclamosRuta as $rutaReclamo) {
+                // Obtener el reclamo
+                $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
+                
+                // Si el estado es "Recibido", cambiarlo a "Asignado"
+                if ($reclamo && $reclamo['municipalidad_estado'] === 'Recibido') {
+                    $reclamoModel->update($rutaReclamo['reclamo_id'], [
+                        'municipalidad_estado' => 'Asignado'
+                    ]);
+                    $reclamosActualizados++;
+                }
+            }
+
             // Obtener la ruta actualizada con información de la cuadrilla
             $rutaActualizada = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
                                          ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
@@ -927,7 +948,8 @@ class Rutas extends ResourceController
 
             return $this->respond([
                 'mensaje' => 'Hoja de ruta asignada exitosamente a la cuadrilla.',
-                'ruta' => $rutaActualizada
+                'ruta' => $rutaActualizada,
+                'reclamos_actualizados' => $reclamosActualizados
             ]);
 
         } catch (\Exception $e) {
@@ -962,11 +984,33 @@ class Rutas extends ResourceController
                 return $this->failServerError('Error al desasignar la ruta.');
             }
 
+            // Actualizar el estado de los reclamos de "Asignado" a "Recibido"
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $reclamoModel = new ReclamoModel();
+            
+            // Obtener todos los reclamos de esta ruta
+            $reclamosRuta = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
+            $reclamosActualizados = 0;
+            
+            foreach ($reclamosRuta as $rutaReclamo) {
+                // Obtener el reclamo
+                $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
+                
+                // Si el estado es "Asignado", cambiarlo a "Recibido"
+                if ($reclamo && $reclamo['municipalidad_estado'] === 'Asignado') {
+                    $reclamoModel->update($rutaReclamo['reclamo_id'], [
+                        'municipalidad_estado' => 'Recibido'
+                    ]);
+                    $reclamosActualizados++;
+                }
+            }
+
             $rutaActualizada = $this->model->find($rutaId);
 
             return $this->respond([
                 'mensaje' => 'Hoja de ruta desasignada exitosamente.',
-                'ruta' => $rutaActualizada
+                'ruta' => $rutaActualizada,
+                'reclamos_actualizados' => $reclamosActualizados
             ]);
 
         } catch (\Exception $e) {
