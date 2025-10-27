@@ -6,6 +6,9 @@
             <p class="text-muted mb-0" v-else>Todos los reclamos</p>
         </div>
         <div>
+            <button class="btn btn-success me-2" @click="abrirModalAñadirReclamos" v-if="esOperario && rutas.length > 0">
+                <i class="bi bi-plus-circle text-white"></i> Añadir Reclamos
+            </button>
             <button class="btn btn-primary" @click="verMapaRutas" v-if="esOperario && rutas.length > 0">
                 <i class="bi bi-map text-white"></i> Ver Mapa de Rutas
             </button>
@@ -250,7 +253,7 @@
                                 <div class="card-header py-2">
                                     <small class="mb-0"><strong>Rutas y Reclamos</strong></small>
                                 </div>
-                                <div class="list-group list-group-flush" style="height: 500px; overflow-y: auto;">
+                                <div class="list-group list-group-flush rutas-reclamos-scroll">
                                     <div v-for="ruta in rutas" :key="ruta.id" class="mb-2">
                                         <!-- Encabezado de ruta -->
                                         <div class="list-group-item py-2 px-3" :style="`background-color: ${ruta.color}20; border-left: 4px solid ${ruta.color};`">
@@ -266,11 +269,12 @@
                                         <!-- Reclamos de esta ruta -->
                                         <div v-for="reclamo in obtenerReclamosPorRuta(ruta.id)" 
                                              :key="reclamo.id"
-                                             class="list-group-item py-1 px-3"
-                                             style="cursor: pointer;"
+                                             class="list-group-item py-1 px-3 reclamo-lista-item"
                                              @click="centrarEnReclamoMapa(reclamo)">
                                             <div class="d-flex align-items-center gap-2">
-                                                <span class="badge" :class="reclamo.municipalidad_estado === 'Completado' ? 'bg-success' : 'bg-secondary'" style="font-size: 0.7rem;">
+                                                <span class="badge" 
+                                                      :class="getEstadoBadgeClass(reclamo.municipalidad_estado)" 
+                                                      style="font-size: 0.7rem;">
                                                     {{ reclamo.posicion }}
                                                 </span>
                                                 <div style="font-size: 0.85rem;">
@@ -278,8 +282,10 @@
                                                     <br>
                                                     <small class="text-muted" style="font-size: 0.75rem;">{{ reclamo.municipalidad_motivo }}</small>
                                                     <br>
-                                                    <small :class="reclamo.municipalidad_estado === 'Completado' ? 'text-success' : 'text-warning'">
-                                                        <i class="bi" :class="reclamo.municipalidad_estado === 'Completado' ? 'bi-check-circle' : 'bi-clock'"></i>
+                                                    <small :class="getEstadoTextClass(reclamo.municipalidad_estado)">
+                                                        <i class="bi" :class="reclamo.municipalidad_estado === 'Completado' ? 'bi-check-circle' : 
+                                                                           reclamo.municipalidad_estado === 'En ejecución' ? 'bi-clock' : 
+                                                                           reclamo.municipalidad_estado === 'Asignado' ? 'bi-exclamation-triangle' : 'bi-clock'"></i>
                                                         {{ reclamo.municipalidad_estado }}
                                                     </small>
                                                 </div>
@@ -297,9 +303,14 @@
                                     <h6 class="mb-0">
                                         <i class="bi bi-geo-alt"></i> Visualización de Rutas
                                     </h6>
+                                    <button class="btn btn-sm btn-success" @click="alternarProveedorMapaRutas">
+                                        <i class="bi bi-arrow-repeat text-white"></i> 
+                                        {{ proveedorMapaRutas === 'google' ? 'Cambiar a Mapbox' : 'Cambiar a Google Maps' }}
+                                    </button>
                                 </div>
                                 <div class="card-body p-0">
-                                    <div id="mapaRutasOperario" style="width: 100%; height: 500px;"></div>
+                                    <div id="mapaRutasOperario" v-show="proveedorMapaRutas === 'google'" style="width: 100%; height: 500px;"></div>
+                                    <div id="mapaRutasOperarioMapbox" v-show="proveedorMapaRutas === 'mapbox'" style="width: 100%; height: 500px;"></div>
                                 </div>
                             </div>
                         </div>
@@ -415,6 +426,200 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                     <button type="button" class="btn btn-primary" @click="guardarCambioEstado" v-if="nuevoEstado">
                         <i class="bi bi-check-circle me-1 text-white"></i>Guardar Cambio de Estado
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Añadir Reclamos a Hoja de Ruta -->
+    <div class="modal fade" id="modalAñadirReclamos" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle"></i> Añadir Reclamos a Mi Hoja de Ruta
+                        <span class="badge bg-success ms-2">{{ reclamosRecibidosFiltrados.length }} reclamo(s) recibido(s)</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarModalAñadirReclamos"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Filtro de búsqueda -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       placeholder="Buscar por ID, motivo, domicilio o prioridad..." 
+                                       v-model="filtroBusquedaReclamos"
+                                       @input="filtrarReclamosRecibidos">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de reclamos recibidos -->
+                    <div class="row" v-if="reclamosRecibidosFiltrados.length > 0">
+                        <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-2" 
+                             v-for="reclamo in reclamosRecibidosFiltrados" 
+                             :key="reclamo.id">
+                            <div class="card h-100 reclamo-card border-secondary" 
+                                 @click="verDetallesReclamoRecibido(reclamo)">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-1">
+                                        <h6 class="card-title mb-0 text-primary fw-bold">
+                                            {{ reclamo.municipalidad_id }}
+                                        </h6>
+                                        <span class="badge bg-secondary">
+                                            {{ reclamo.municipalidad_estado }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="mb-1">
+                                        <small class="text-dark">
+                                            <i class="bi bi-geo-alt me-1"></i>
+                                            {{ reclamo.municipalidad_domicilio }} {{ reclamo.municipalidad_numeroDomicilio }}
+                                        </small>
+                                    </div>
+                                    
+                                    <div class="mb-1">
+                                        <small class="text-dark">
+                                            <i class="bi bi-tag me-1"></i>
+                                            {{ reclamo.municipalidad_motivo }}
+                                        </small>
+                                    </div>
+
+                                    <div class="mb-1" v-if="reclamo.prioridad">
+                                        <small class="text-dark">
+                                            <i class="bi bi-exclamation-triangle me-1"></i>
+                                            Prioridad: <strong>{{ reclamo.prioridad }}</strong>
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Botón para añadir a la ruta -->
+                                <div class="card-footer bg-transparent">
+                                    <button class="btn btn-sm btn-success w-100" 
+                                            @click.stop="añadirReclamoARuta(reclamo)" 
+                                            :disabled="añadiendoReclamo === reclamo.id"
+                                            title="Añadir a mi hoja de ruta">
+                                        <span v-if="añadiendoReclamo === reclamo.id" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                        <i v-else class="bi bi-plus-circle text-white"></i> 
+                                        {{ añadiendoReclamo === reclamo.id ? 'Añadiendo...' : 'Añadir' }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mensaje cuando no hay reclamos -->
+                    <div v-else class="text-center py-5">
+                        <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
+                        <h4 class="text-muted mt-3">No hay reclamos recibidos</h4>
+                        <p class="text-muted" v-if="filtroBusquedaReclamos">
+                            No se encontraron reclamos que coincidan con la búsqueda "{{ filtroBusquedaReclamos }}".
+                        </p>
+                        <p class="text-muted" v-else>
+                            No hay reclamos con estado "Recibido" disponibles para añadir a la hoja de ruta.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalles Reclamo Recibido (dentro del modal de añadir) -->
+    <div class="modal fade" id="modalDetallesReclamoRecibido" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalles del Reclamo</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" @click="cerrarModalDetallesReclamoRecibido"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold">ID Municipalidad:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_id }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Tipo:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_tipo }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Motivo:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_motivo }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Fecha de Inicio:</label>
+                                <p>{{ formatearFecha(reclamoRecibidoSeleccionado.municipalidad_fechaInicio) }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Fecha de Modificación:</label>
+                                <p>{{ formatearFecha(reclamoRecibidoSeleccionado.municipalidad_fechaModificacion) }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold">Recepción:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_recepcion }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Estado:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_estado }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Prioridad:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.prioridad || 'No especificado' }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Teléfono:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_telefono || 'No especificado' }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Domicilio:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_domicilio || 'No especificado' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold">Número Domicilio:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_numeroDomicilio || 'No especificado' }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Entre Calle Uno:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_entreCalleUno || 'No especificado' }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold">Entre Calle Dos:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_entreCalleDos || 'No especificado' }}</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold">Ciudadano:</label>
+                                <p>{{ reclamoRecibidoSeleccionado.municipalidad_ciudadano || 'No especificado' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Descripción:</label>
+                        <p>{{ reclamoRecibidoSeleccionado.municipalidad_descripcion || 'No especificado' }}</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" @click="añadirReclamoARuta(reclamoRecibidoSeleccionado)" :disabled="añadiendoReclamo === reclamoRecibidoSeleccionado.id">
+                        <span v-if="añadiendoReclamo === reclamoRecibidoSeleccionado.id" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <i v-else class="bi bi-plus-circle text-white"></i> 
+                        {{ añadiendoReclamo === reclamoRecibidoSeleccionado.id ? 'Añadiendo...' : 'Añadir a Mi Hoja de Ruta' }}
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="cerrarModalDetallesReclamoRecibido">
+                        Cerrar
                     </button>
                 </div>
             </div>

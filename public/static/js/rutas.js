@@ -1563,13 +1563,21 @@ const app = Vue.createApp({
          */
         async verRuta(id) {
             try {
+                // Limpiar datos anteriores
+                this.reclamosRutaVisualizando = [];
+                this.rutaVisualizando = {};
+                
                 // Obtener datos de la ruta
                 const responseRuta = await axios.get(BASE_URL + 'api/rutas/' + id);
                 this.rutaVisualizando = responseRuta.data;
                 
                 // Obtener reclamos de la ruta
                 const responseReclamos = await axios.get(BASE_URL + 'api/rutas/' + id + '/reclamos');
-                this.reclamosRutaVisualizando = responseReclamos.data;
+                // Filtrar duplicados por ID para evitar reclamos repetidos
+                const reclamosUnicos = responseReclamos.data.filter((reclamo, index, self) => 
+                    index === self.findIndex(r => r.id === reclamo.id)
+                );
+                this.reclamosRutaVisualizando = reclamosUnicos;
                 
                 // Abrir modal
                 const modal = new bootstrap.Modal(document.getElementById('modalVerRuta'));
@@ -1809,19 +1817,85 @@ const app = Vue.createApp({
         },
 
         /**
-         * Centra el mapa en un reclamo específico
+         * Centra el mapa en un reclamo específico (funciona en ambos modales)
          */
         centrarEnReclamo(reclamo) {
-            const marker = this.marcadoresVisualizacion.find(m => m._reclamo.id === reclamo.id);
-            if (marker) {
-                this.mapaVisualizacion.setCenter(marker.getPosition());
-                this.mapaVisualizacion.setZoom(16);
+            // Buscar en marcadores de visualización individual
+            let marker = this.marcadoresVisualizacion.find(m => m._reclamo.id === reclamo.id);
+            let mapa = this.mapaVisualizacion;
+            let infoWindowAbierto = this.infoWindowAbiertoVisualizacion;
+            
+            // Si no se encuentra, buscar en marcadores de todas las rutas
+            if (!marker) {
+                marker = this.marcadoresRutasActivas.find(m => m._reclamo.id === reclamo.id);
+                mapa = this.mapaRutasActivas;
+                infoWindowAbierto = this.infoWindowAbiertoRutasActivas;
+            }
+            
+            if (marker && mapa) {
+                // Cerrar cualquier info window abierto anteriormente
+                if (infoWindowAbierto) {
+                    infoWindowAbierto.close();
+                }
                 
-                // Animación de rebote
+                mapa.setCenter(marker.getPosition());
+                mapa.setZoom(16);
+                
+                // Detener cualquier animación previa
+                marker.setAnimation(null);
+                
+                // Aplicar animación de rebote
                 marker.setAnimation(google.maps.Animation.BOUNCE);
+                
+                // Detener la animación después de 1.5 segundos
                 setTimeout(() => {
                     marker.setAnimation(null);
                 }, 1500);
+                
+                // Abrir el info window del marcador
+                if (marker._infoWindow) {
+                    marker._infoWindow.open(mapa, marker);
+                    
+                    // Actualizar la referencia del info window abierto
+                    if (mapa === this.mapaVisualizacion) {
+                        this.infoWindowAbiertoVisualizacion = marker._infoWindow;
+                    } else if (mapa === this.mapaRutasActivas) {
+                        this.infoWindowAbiertoRutasActivas = marker._infoWindow;
+                    }
+                }
+            }
+        },
+
+        /**
+         * Centra el mapa en un reclamo específico del modal de todas las rutas
+         */
+        centrarEnReclamoRutasActivas(reclamo) {
+            const marker = this.marcadoresRutasActivas.find(m => m._reclamo.id === reclamo.id);
+            if (marker) {
+                // Cerrar cualquier info window abierto anteriormente
+                if (this.infoWindowAbiertoRutasActivas) {
+                    this.infoWindowAbiertoRutasActivas.close();
+                }
+                
+                this.mapaRutasActivas.setCenter(marker.getPosition());
+                this.mapaRutasActivas.setZoom(16);
+                
+                // Detener cualquier animación previa
+                marker.setAnimation(null);
+                
+                // Aplicar animación de rebote
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+                
+                // Detener la animación después de 1.5 segundos
+                setTimeout(() => {
+                    marker.setAnimation(null);
+                }, 1500);
+                
+                // Abrir el info window del marcador
+                if (marker._infoWindow) {
+                    marker._infoWindow.open(this.mapaRutasActivas, marker);
+                    this.infoWindowAbiertoRutasActivas = marker._infoWindow;
+                }
             }
         },
 
@@ -2262,6 +2336,7 @@ const app = Vue.createApp({
 
                             marker._reclamo = reclamo;
                             marker._ruta = ruta;
+                            marker._infoWindow = infoWindow;
                             this.marcadoresRutasActivas.push(marker);
                         }
                     }
@@ -2334,18 +2409,35 @@ const app = Vue.createApp({
         async centrarEnRutaActiva(ruta) {
             if (!this.mapaRutasActivas) return;
             
-            // Buscar el primer marcador de esta ruta
-            const marcador = this.marcadoresRutasActivas.find(m => m._ruta && m._ruta.id === ruta.id);
+            // Buscar todos los marcadores de esta ruta
+            const marcadoresRuta = this.marcadoresRutasActivas.filter(m => m._ruta && m._ruta.id === ruta.id);
             
-            if (marcador) {
-                this.mapaRutasActivas.setCenter(marcador.getPosition());
-                this.mapaRutasActivas.setZoom(15);
+            if (marcadoresRuta.length > 0) {
+                // Crear bounds para centrar el mapa en todos los marcadores de la ruta
+                const bounds = new google.maps.LatLngBounds();
                 
-                // Animación de rebote
-                marcador.setAnimation(google.maps.Animation.BOUNCE);
-                setTimeout(() => {
+                // Agregar todas las posiciones de los marcadores al bounds
+                marcadoresRuta.forEach(marcador => {
+                    bounds.extend(marcador.getPosition());
+                });
+                
+                // Centrar el mapa en todos los marcadores de la ruta
+                this.mapaRutasActivas.fitBounds(bounds);
+                
+                // Aplicar animación de rebote a todos los marcadores de la ruta
+                marcadoresRuta.forEach(marcador => {
+                    // Detener cualquier animación previa
                     marcador.setAnimation(null);
-                }, 1500);
+                    
+                    // Aplicar animación de rebote
+                    marcador.setAnimation(google.maps.Animation.BOUNCE);
+                    
+                    // Detener la animación después de 2 segundos
+                    setTimeout(() => {
+                        marcador.setAnimation(null);
+                    }, 2000);
+                });
+                
             }
         },
 
@@ -2469,6 +2561,10 @@ const app = Vue.createApp({
             });
 
             await new Promise(resolve => this.mapaMapbox.on('load', resolve));
+            
+            // Ocultar POI (Points of Interest) para que solo se vean los reclamos
+            this.mapaMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
+            this.mapaMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
         },
 
         /**
@@ -2489,6 +2585,10 @@ const app = Vue.createApp({
             });
 
             await new Promise(resolve => this.mapaVisualizacionMapbox.on('load', resolve));
+            
+            // Ocultar POI (Points of Interest) para que solo se vean los reclamos
+            this.mapaVisualizacionMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
+            this.mapaVisualizacionMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
         },
 
         /**
@@ -2509,6 +2609,10 @@ const app = Vue.createApp({
             });
 
             await new Promise(resolve => this.mapaRutasActivasMapbox.on('load', resolve));
+            
+            // Ocultar POI (Points of Interest) para que solo se vean los reclamos
+            this.mapaRutasActivasMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
+            this.mapaRutasActivasMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
         },
 
         /**
@@ -2901,11 +3005,6 @@ const app = Vue.createApp({
                     return;
                 }
 
-                const mensajeConfirmacion = `¿Está seguro que desea desasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre || 'actual'}"? La ruta quedará sin asignar.`;
-                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Desasignar Hoja de Ruta');
-
-                if (!confirmacion) return;
-
                 const response = await axios.post(BASE_URL + `api/rutas/desasignar/${rutaId}`);
 
                 if (response.data) {
@@ -3242,19 +3341,10 @@ const app = Vue.createApp({
                         return;
                     }
 
-                    const mensajeConfirmacion = `¿Desea desasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre}"?`;
-                    const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Desasignar Hoja de Ruta');
-
-                    if (!confirmacion) {
-                        // Recargar la tabla para restaurar el valor anterior
-                        await this.obtenerRutas();
-                        return;
-                    }
-
                     const response = await axios.post(BASE_URL + `api/rutas/desasignar/${rutaId}`);
 
                     if (response.data) {
-                        this.mostrarMensaje('✓ Hoja de ruta desasignada correctamente', 'success');
+                        this.mostrarMensaje('Hoja de ruta desasignada correctamente', 'success');
                         await this.obtenerRutas();
                         
                         // Aplicar animación de éxito al botón
@@ -3277,34 +3367,13 @@ const app = Vue.createApp({
                     const cuadrilla = this.cuadrillasDisponibles.find(c => c.id == cuadrillaId);
                     const nombreCuadrilla = cuadrilla ? cuadrilla.nombre : 'la cuadrilla seleccionada';
 
-                    let mensajeConfirmacion;
-                    let tituloConfirmacion;
-
-                    if (ruta.asignada == 1 && ruta.cuadrilla_nombre) {
-                        // Reasignar
-                        mensajeConfirmacion = `¿Desea reasignar la hoja de ruta "${ruta.nombre}" de la cuadrilla "${ruta.cuadrilla_nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
-                        tituloConfirmacion = 'Reasignar Hoja de Ruta';
-                    } else {
-                        // Asignar por primera vez
-                        mensajeConfirmacion = `¿Desea asignar la hoja de ruta "${ruta.nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
-                        tituloConfirmacion = 'Asignar Hoja de Ruta';
-                    }
-
-                    const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, tituloConfirmacion);
-
-                    if (!confirmacion) {
-                        // Recargar la tabla para restaurar el valor anterior
-                        await this.obtenerRutas();
-                        return;
-                    }
-
                     const response = await axios.post(BASE_URL + 'api/rutas/asignar', {
                         ruta_id: rutaId,
                         cuadrilla_id: cuadrillaId
                     });
 
                     if (response.data) {
-                        const mensaje = ruta.asignada == 1 ? '✓ Hoja de ruta reasignada correctamente' : '✓ Hoja de ruta asignada correctamente';
+                        const mensaje = ruta.asignada == 1 ? 'Hoja de ruta reasignada correctamente' : 'Hoja de ruta asignada correctamente';
                         this.mostrarMensaje(mensaje, 'success');
                         await this.obtenerRutas();
                         
