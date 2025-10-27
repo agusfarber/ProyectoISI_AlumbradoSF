@@ -1136,4 +1136,150 @@ class Rutas extends ResourceController
             return $this->failServerError('Error interno al obtener los reclamos: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Obtiene todos los reclamos con estado "Recibido" para que el operario pueda añadirlos a su hoja de ruta
+     */
+    public function getReclamosRecibidos()
+    {
+        $session = \Config\Services::session();
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        try {
+            $reclamoModel = new ReclamoModel();
+            $direccionModel = new DireccionModel();
+            
+            // Obtener todos los reclamos con estado "Recibido"
+            $reclamosRecibidos = $reclamoModel->where('municipalidad_estado', 'Recibido')->findAll();
+            
+            // Obtener coordenadas para cada reclamo
+            $reclamosConCoordenadas = [];
+            foreach ($reclamosRecibidos as $reclamo) {
+                $coordenadas = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
+                $reclamo['coordenadas'] = $coordenadas;
+                $reclamosConCoordenadas[] = $reclamo;
+            }
+
+            return $this->respond($reclamosConCoordenadas);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener reclamos recibidos: ' . $e->getMessage());
+            return $this->failServerError('Error interno al obtener los reclamos recibidos: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Añade un reclamo específico a una ruta asignada al operario
+     */
+    public function añadirReclamoARuta()
+    {
+        $session = \Config\Services::session();
+        $userId = $session->get('user_id');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        $data = $this->request->getJSON(true);
+        
+        // Validar datos obligatorios
+        if (empty($data['reclamo_id']) || empty($data['ruta_id'])) {
+            return $this->failValidationErrors('Faltan datos obligatorios (reclamo_id, ruta_id).');
+        }
+
+        $reclamoId = $data['reclamo_id'];
+        $rutaId = $data['ruta_id'];
+
+        try {
+            // Verificar que el operario tiene acceso a esta ruta
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+
+            if (empty($asignaciones)) {
+                return $this->failForbidden('Operario no tiene cuadrillas asignadas.');
+            }
+
+            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
+
+            // Verificar que la ruta pertenece a una de las cuadrillas del operario
+            $ruta = $this->model->whereIn('cuadrilla_id', $cuadrillaIds)
+                               ->where('id', $rutaId)
+                               ->where('asignada', 1)
+                               ->first();
+
+            if (!$ruta) {
+                return $this->failForbidden('No tiene permisos para modificar esta ruta.');
+            }
+
+            // Verificar que el reclamo existe y tiene estado "Recibido"
+            $reclamoModel = new ReclamoModel();
+            $reclamo = $reclamoModel->find($reclamoId);
+            
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            if ($reclamo['municipalidad_estado'] !== 'Recibido') {
+                return $this->failValidationErrors('El reclamo debe tener estado "Recibido" para ser añadido a la ruta.');
+            }
+
+            // Verificar que el reclamo no esté ya en esta ruta
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $reclamoEnRuta = $rutaReclamoModel->where('ruta_id', $rutaId)
+                                            ->where('reclamo_id', $reclamoId)
+                                            ->first();
+
+            if ($reclamoEnRuta) {
+                return $this->failValidationErrors('El reclamo ya está en esta ruta.');
+            }
+
+            // Obtener la siguiente posición en la ruta
+            $ultimaPosicion = $rutaReclamoModel->where('ruta_id', $rutaId)
+                                             ->orderBy('posicion', 'DESC')
+                                             ->first();
+
+            $nuevaPosicion = $ultimaPosicion ? $ultimaPosicion['posicion'] + 1 : 1;
+
+            // Añadir el reclamo a la ruta
+            $rutaReclamoModel->insert([
+                'ruta_id' => $rutaId,
+                'reclamo_id' => $reclamoId,
+                'posicion' => $nuevaPosicion
+            ]);
+
+            // Cambiar el estado del reclamo de "Recibido" a "Asignado"
+            $reclamoModel->update($reclamoId, [
+                'municipalidad_estado' => 'Asignado',
+                'municipalidad_fechaModificacion' => date('Y-m-d H:i:s')
+            ]);
+
+            // Actualizar la cantidad de reclamos en la ruta
+            $this->model->update($rutaId, [
+                'cantidadReclamos' => $nuevaPosicion
+            ]);
+
+            // Obtener el reclamo actualizado con información de la ruta
+            $reclamoActualizado = $reclamoModel->find($reclamoId);
+            $direccionModel = new DireccionModel();
+            $coordenadas = $this->obtenerCoordenadasReclamo($reclamoActualizado, $direccionModel);
+            $reclamoActualizado['coordenadas'] = $coordenadas;
+            $reclamoActualizado['posicion'] = $nuevaPosicion;
+            $reclamoActualizado['ruta_id'] = $rutaId;
+            $reclamoActualizado['ruta_nombre'] = $ruta['nombre'];
+            $reclamoActualizado['ruta_color'] = $ruta['color'];
+
+            return $this->respondCreated([
+                'mensaje' => 'Reclamo añadido exitosamente a la hoja de ruta.',
+                'reclamo' => $reclamoActualizado
+            ]);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al añadir reclamo a ruta: ' . $e->getMessage());
+            return $this->failServerError('Error interno al añadir el reclamo a la ruta: ' . $e->getMessage());
+        }
+    }
 }

@@ -60,6 +60,8 @@ $routes->post('api/rutas/asignar', 'Api\\Rutas::asignarACuadrilla');
 $routes->post('api/rutas/desasignar/(:num)', 'Api\\Rutas::desasignarDeCuadrilla/$1');
 $routes->get('api/rutas/operario/mis-rutas', 'Api\\Rutas::getRutasPorOperario');
 $routes->get('api/rutas/operario/mis-reclamos', 'Api\\Rutas::getReclamosPorOperario');
+$routes->get('api/rutas/operario/reclamos-recibidos', 'Api\\Rutas::getReclamosRecibidos');
+$routes->post('api/rutas/operario/add-reclamo', 'Api\\Rutas::añadirReclamoARuta');
 $routes->resource('api/rutas');
 
 
