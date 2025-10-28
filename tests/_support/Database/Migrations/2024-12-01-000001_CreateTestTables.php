@@ -179,10 +179,83 @@ class CreateTestTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('reclamo');
+
+        // Crear tabla ruta para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'nombre' => [
+                'type' => 'VARCHAR',
+                'constraint' => 200,
+            ],
+            'color' => [
+                'type' => 'VARCHAR',
+                'constraint' => 20,
+            ],
+            'cantidadReclamos' => [
+                'type' => 'INT',
+                'constraint' => 11,
+            ],
+            'asignada' => [
+                'type' => 'TINYINT',
+                'constraint' => 1,
+                'default' => 0,
+            ],
+            'cuadrilla_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+            ],
+            'tiempoEstimado' => [
+                'type' => 'TIME',
+                'null' => true,
+            ],
+            'fecha' => [
+                'type' => 'DATETIME',
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('cuadrilla_id', 'cuadrilla', 'id', 'SET NULL', 'CASCADE');
+        $this->forge->createTable('ruta');
+
+        // Crear tabla ruta_reclamo para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'ruta_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'reclamo_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'posicion' => [
+                'type' => 'INT',
+                'constraint' => 11,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('ruta_id', 'ruta', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->createTable('ruta_reclamo');
     }
 
     public function down()
     {
+        $this->forge->dropTable('ruta_reclamo');
+        $this->forge->dropTable('ruta');
         $this->forge->dropTable('reclamo');
         $this->forge->dropTable('cuadrilla_operarios');
         $this->forge->dropTable('cuadrilla');
