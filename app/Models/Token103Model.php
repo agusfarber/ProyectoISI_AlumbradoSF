@@ -11,12 +11,8 @@ class Token103Model extends Model
   protected $useAutoIncrement = true;
 
   protected $allowedFields = [
-    'client_id',
-    'client_secret',
-    'access_token',
-    'token_type',
-    'expires_in',
-    'fecha_generacion'
+    'username',
+    'password'
   ];
 
   protected $useTimestamps = true;

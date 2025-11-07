@@ -124,7 +124,7 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="fw-bold">Recepción:</label>
-                                <p>{{ reclamoSeleccionado.municipalidad_recepcion }}</p>
+                                <p>{{ reclamoSeleccionado.municipalidad_recepcion || 'No especificado' }}</p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>

@@ -1,6 +1,6 @@
 <div id="app" class="container-fluid">
     
-    <div>Gestión de Tokens de Acceso</div>
+    <div>Gestión de Credenciales Basic Auth</div>
     <br>
 
     <div class="row mb-4">
@@ -14,38 +14,32 @@
                 <div class="card-body">
                     <form @submit.prevent="guardarCredenciales">
                         <div class="mb-3">
-                            <label for="client_id" class="form-label">Client ID</label>
+                            <label for="username" class="form-label">Username</label>
                             <input 
                                 type="text" 
-                                id="client_id" 
+                                id="username" 
                                 class="form-control" 
-                                v-model="credenciales.client_id" 
-                                placeholder="Ingrese el Client ID"
+                                v-model="credenciales.username" 
+                                @input="generarTokenBase64"
+                                placeholder="Ingrese el username"
                                 required
                             >
                         </div>
                         <div class="mb-3">
-                            <label for="client_secret" class="form-label">Client Secret</label>
+                            <label for="password" class="form-label">Password</label>
                             <input 
                                 type="password" 
-                                id="client_secret" 
+                                id="password" 
                                 class="form-control" 
-                                v-model="credenciales.client_secret" 
-                                placeholder="Ingrese el Client Secret"
+                                v-model="credenciales.password" 
+                                @input="generarTokenBase64"
+                                placeholder="Ingrese el password"
                                 required
                             >
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-save"></i> Guardar Credenciales
-                            </button>
-                            <button 
-                                type="button" 
-                                class="btn btn-success" 
-                                @click="generarToken"
-                                :disabled="!credencialesGuardadas"
-                            >
-                                <i class="bi bi-key"></i> Generar Token
                             </button>
                         </div>
                     </form>
@@ -61,41 +55,33 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div v-if="tokenActual.access_token" class="alert alert-success">
-                        <h6><i class="bi bi-check-circle"></i> Token Activo</h6>
+                    <div v-if="credencialesGuardadas && tokenBase64" class="alert alert-success">
+                        <h6><i class="bi bi-check-circle"></i> Credenciales Configuradas</h6>
                         <small class="text-muted">
-                            Generado: {{ formatearFecha(tokenActual.fecha_generacion) }}
+                            Token Basic Auth generado automáticamente
                         </small>
                     </div>
                     <div v-else class="alert alert-warning">
-                        <h6><i class="bi bi-exclamation-triangle"></i> Sin Token Activo</h6>
-                        <small class="text-muted">Configure las credenciales y genere un token</small>
+                        <h6><i class="bi bi-exclamation-triangle"></i> Sin Credenciales</h6>
+                        <small class="text-muted">Configure el username y password para generar el token</small>
                     </div>
                     
-                    <div v-if="tokenActual.access_token" class="mt-3">
+                    <div v-if="credencialesGuardadas" class="mt-3">
                         <div class="mb-2">
-                            <label class="form-label fw-bold">Client ID:</label>
-                            <p class="text-break">{{ tokenActual.client_id }}</p>
+                            <label class="form-label fw-bold">Username:</label>
+                            <p class="text-break">{{ tokenActual.username }}</p>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label fw-bold">Client Secret:</label>
-                            <p class="text-break">{{ tokenActual.client_secret }}</p>
+                            <label class="form-label fw-bold">Password:</label>
+                            <p class="text-break">{{ tokenActual.password ? '••••••••••' : '' }}</p>
                         </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Tipo de Token:</label>
-                            <p class="mb-1">{{ tokenActual.token_type || 'Bearer' }}</p>
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Expira en:</label>
-                            <p class="mb-1">{{ tokenActual.expires_in || 'N/A' }} segundos</p>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Access Token:</label>
-                            <div class="input-group">
+                        <div class="mb-3" v-if="tokenBase64">
+                            <label class="form-label fw-bold">Token Basic Auth (Base64):</label>
+                            <div class="input-group position-relative">
                                 <input 
                                     type="text" 
                                     class="form-control" 
-                                    :value="tokenActual.access_token" 
+                                    :value="tokenBase64" 
                                     readonly
                                     id="tokenInput"
                                 >
@@ -103,7 +89,7 @@
                                 <span 
                                     v-if="mensajeCopiadoVisible" 
                                     class="text-success small-text" 
-                                    style="position: absolute; top: -25px; right: 5px;"
+                                    style="position: absolute; top: -25px; right: 5px; z-index: 10;"
                                 >
                                     Copiado
                                 </span>
@@ -117,7 +103,7 @@
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
-                            <small class="text-muted">Haga clic en el botón para copiar el token</small>
+                            <small class="text-muted">Haga clic en el botón para copiar el token. Use como: Authorization: Basic {token}</small>
                         </div>
                     </div>
                 </div>

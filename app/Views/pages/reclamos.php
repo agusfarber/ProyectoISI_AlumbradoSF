@@ -11,12 +11,43 @@
             <button class="btn btn-outline-secondary mb-3" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
                 <i class="bi bi-funnel"></i> Filtros
             </button>
-            <button class="btn btn-success mb-3" data-bs-toggle="collapse" data-bs-target="#sincronizacionPanel">
-                <i class="bi bi-arrow-repeat text-white"></i> Sincronizar con Sistema 103
+            <button class="btn btn-outline-primary mb-3" data-bs-toggle="collapse" data-bs-target="#sincronizacionAvanzadaPanel">
+                <i class="bi bi-sliders"></i> Opciones Avanzadas de Sincronización
             </button>
         </div>
     </div>
 
+    <!-- Sincronización Rápida de Pendientes (visible siempre) -->
+    <div class="alert mb-3" :class="sincronizando ? 'alert-primary' : 'alert-info'">
+        <!-- Mostrar botón cuando NO está sincronizando -->
+        <div v-if="!sincronizando" class="d-flex align-items-center justify-content-between">
+            <div>
+                <h6 class="mb-1"><i class="bi bi-lightning-charge"></i> Sincronización Rápida</h6>
+                <small>Sincroniza automáticamente todos los reclamos pendientes desde el último guardado hasta hoy</small>
+            </div>
+            <button class="btn btn-success btn-lg" @click="sincronizarReclamosHoy" :disabled="!tokenDisponible">
+                <i class="bi bi-arrow-repeat text-white"></i> Sincronizar Pendientes
+            </button>
+        </div>
+        
+        <!-- Mostrar progreso cuando SÍ está sincronizando -->
+        <div v-else class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-3" role="status">
+                    <span class="visually-hidden">Procesando...</span>
+                </div>
+                <div>
+                    <strong>Procesando reclamos:</strong>
+                    <span class="ms-2 badge bg-primary fs-6">{{ progresoActual }} / {{ progresoTotal }}</span>
+                </div>
+            </div>
+            <button class="btn btn-danger" @click="detenerSincronizacionEnCurso" :disabled="detenerSincronizacion">
+                <i class="bi bi-stop-circle text-white"></i> 
+                <span v-if="!detenerSincronizacion">Detener Sincronización</span>
+                <span v-else>Deteniendo...</span>
+            </button>
+        </div>
+    </div>
 
     <!-- Panel de Filtros colapsable -->
     <div class="collapse mb-3" id="filtrosPanel">
@@ -61,17 +92,18 @@
         </div>
     </div>
 
-    <!-- Panel de Sincronización colapsable -->
-    <div class="collapse mb-3" id="sincronizacionPanel">
+    <!-- Panel de Opciones Avanzadas de Sincronización colapsable -->
+    <div class="collapse mb-3" id="sincronizacionAvanzadaPanel">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-arrow-repeat"></i> Sincronización con Sistema 103</h6>
+                <h6 class="mb-0"><i class="bi bi-sliders"></i> Opciones Avanzadas de Sincronización</h6>
             </div>
             <div class="card-body">
                 <div class="row">
                     <!-- Sincronización masiva por fechas -->
                     <div class="col-md-6">
-                        <h6>Sincronizar Reclamos por Rango de Fechas</h6>
+                        <h6><i class="bi bi-calendar-range"></i> Sincronizar por Rango de Fechas</h6>
+                        <p class="text-muted small">Sincroniza reclamos en un período específico</p>
                         <div class="mb-3">
                             <label for="syncFechaDesde" class="form-label">Fecha Desde</label>
                             <input type="date" id="syncFechaDesde" class="form-control" v-model="syncFechaDesde">
@@ -80,30 +112,31 @@
                             <label for="syncFechaHasta" class="form-label">Fecha Hasta</label>
                             <input type="date" id="syncFechaHasta" class="form-control" v-model="syncFechaHasta">
                         </div>
-                        <button class="btn btn-primary" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible">
-                            <i class="bi bi-download text-white"></i> Sincronizar Reclamos
+                        <button class="btn btn-primary w-100" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible || sincronizando">
+                            <i class="bi bi-download text-white"></i> Sincronizar por Fechas
                         </button>
                     </div>
 
                     <!-- Sincronización de reclamo específico -->
                     <div class="col-md-6">
-                        <h6>Sincronizar Reclamo Específico</h6>
+                        <h6><i class="bi bi-search"></i> Sincronizar Reclamo Específico</h6>
+                        <p class="text-muted small">Busca y sincroniza un reclamo por su número</p>
                         <div class="mb-3">
                             <label for="numeroReclamo" class="form-label">Número de Reclamo</label>
                             <input type="number" id="numeroReclamo" class="form-control" v-model="numeroReclamo" placeholder="Ej: 12345">
                         </div>
-                        <button class="btn btn-info" @click="sincronizarReclamoEspecifico" :disabled="!tokenDisponible || !numeroReclamo">
-                            <i class="bi bi-search"></i> Buscar y Sincronizar
+                        <button class="btn btn-info w-100" @click="sincronizarReclamoEspecifico" :disabled="!tokenDisponible || !numeroReclamo || sincronizando">
+                            <i class="bi bi-search text-white"></i> Buscar y Sincronizar
                         </button>
                     </div>
                 </div>
 
                 <!-- Estado del token -->
-                <div class="mt-3">
-                    <div v-if="tokenDisponible" class="alert alert-success">
+                <div class="mt-4">
+                    <div v-if="tokenDisponible" class="alert alert-success mb-0">
                         <i class="bi bi-check-circle"></i> Token disponible para sincronización
                     </div>
-                    <div v-else class="alert alert-warning">
+                    <div v-else class="alert alert-warning mb-0">
                         <i class="bi bi-exclamation-triangle"></i> No hay token disponible.
                         <a href="/token103" class="alert-link">Configure un token en la página de Tokens</a>
                     </div>
@@ -121,9 +154,7 @@
                     <th>Motivo</th>
                     <th>Fecha de Inicio</th>
                     <th>Fecha de Modificación</th>
-                    <th>Recepción</th>
                     <th>Estado</th>
-                    <th>Prioridad</th> <!-- ¡Columna 'Prioridad' en el encabezado! -->
                     <th>Domicilio</th>
                     <th>Número</th>
                     <!--th>Acciones</th-->
@@ -289,7 +320,7 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="fw-bold">Recepción:</label>
-                                <p>{{ reclamoSeleccionado.municipalidad_recepcion }}</p>
+                                <p>{{ reclamoSeleccionado.municipalidad_recepcion || 'No especificado' }}</p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
