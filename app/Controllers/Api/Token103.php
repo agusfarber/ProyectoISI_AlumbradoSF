@@ -51,7 +51,7 @@ class Token103 extends ResourceController
     }
 
     /**
-     * Crea un nuevo token o credenciales
+     * Crea nuevas credenciales Basic Auth
      */
     public function create()
     {
@@ -59,46 +59,33 @@ class Token103 extends ResourceController
             $data = $this->request->getJSON(true);
 
             // Validar datos obligatorios
-            if (empty($data['client_id']) || empty($data['client_secret'])) {
-                return $this->failValidationErrors('Client ID y Client Secret son obligatorios');
+            if (empty($data['username']) || empty($data['password'])) {
+                return $this->failValidationErrors('Username y Password son obligatorios');
             }
 
-            // Si se proporciona un access_token, validar que también venga token_type y expires_in
-            if (!empty($data['access_token'])) {
-                if (empty($data['token_type'])) {
-                    $data['token_type'] = 'Bearer';
-                }
-                if (empty($data['expires_in'])) {
-                    $data['expires_in'] = 3600;
-                }
-                if (empty($data['fecha_generacion'])) {
-                    $data['fecha_generacion'] = date('Y-m-d H:i:s');
-                }
-            }
-
-            // Insertar token
+            // Insertar credenciales
             $tokenId = $this->model->insert($data);
 
             if ($tokenId === false) {
-                return $this->failServerError('Error al guardar el token');
+                return $this->failServerError('Error al guardar las credenciales');
             }
 
             $tokenCreado = $this->model->find($tokenId);
             return $this->respondCreated($tokenCreado);
 
         } catch (\Exception $e) {
-            return $this->failServerError('Error al crear el token: ' . $e->getMessage());
+            return $this->failServerError('Error al crear las credenciales: ' . $e->getMessage());
         }
     }
 
     /**
-     * Actualiza un token existente
+     * Actualiza credenciales existentes
      */
     public function update($id = null)
     {
         try {
             if (!$id) {
-                return $this->failValidationErrors('ID de token requerido');
+                return $this->failValidationErrors('ID de credenciales requerido');
             }
 
             $data = $this->request->getJSON(true);
@@ -107,112 +94,77 @@ class Token103 extends ResourceController
                 return $this->failValidationErrors('No se proporcionaron datos para actualizar');
             }
 
-            // Verificar que el token existe
+            // Verificar que las credenciales existen
             $tokenExistente = $this->model->find($id);
             if (!$tokenExistente) {
-                return $this->failNotFound('Token no encontrado');
+                return $this->failNotFound('Credenciales no encontradas');
             }
 
-            // Si se está actualizando el access_token, asegurar que vengan los campos relacionados
-            if (!empty($data['access_token'])) {
-                if (empty($data['token_type'])) {
-                    $data['token_type'] = 'Bearer';
-                }
-                if (empty($data['expires_in'])) {
-                    $data['expires_in'] = 3600;
-                }
-                if (empty($data['fecha_generacion'])) {
-                    $data['fecha_generacion'] = date('Y-m-d H:i:s');
-                }
-            }
-
-            // Actualizar token
+            // Actualizar credenciales
             $actualizado = $this->model->update($id, $data);
 
             if ($actualizado === false) {
-                return $this->failServerError('Error al actualizar el token');
+                return $this->failServerError('Error al actualizar las credenciales');
             }
 
             $tokenActualizado = $this->model->find($id);
             return $this->respond($tokenActualizado);
 
         } catch (\Exception $e) {
-            return $this->failServerError('Error al actualizar el token: ' . $e->getMessage());
+            return $this->failServerError('Error al actualizar las credenciales: ' . $e->getMessage());
         }
     }
 
     /**
-     * Elimina un token
+     * Elimina credenciales
      */
     public function delete($id = null)
     {
         try {
             if (!$id) {
-                return $this->failValidationErrors('ID de token requerido');
+                return $this->failValidationErrors('ID de credenciales requerido');
             }
 
-            // Verificar que el token existe
+            // Verificar que las credenciales existen
             $token = $this->model->find($id);
             if (!$token) {
-                return $this->failNotFound('Token no encontrado');
+                return $this->failNotFound('Credenciales no encontradas');
             }
 
-            // Eliminar token
+            // Eliminar credenciales
             $this->model->delete($id);
-            return $this->respondDeleted(['mensaje' => 'Token eliminado con éxito']);
+            return $this->respondDeleted(['mensaje' => 'Credenciales eliminadas con éxito']);
 
         } catch (\Exception $e) {
-            return $this->failServerError('Error al eliminar el token: ' . $e->getMessage());
+            return $this->failServerError('Error al eliminar las credenciales: ' . $e->getMessage());
         }
     }
 
     /**
-     * Endpoint personalizado para generar token desde credenciales externas
+     * Genera el token Basic Auth codificado en base64
      */
-    public function generarTokenExterno()
+    public function generarTokenBasicAuth()
     {
         try {
-            $data = $this->request->getJSON(true);
+            // Obtener las credenciales guardadas (la más reciente)
+            $credenciales = $this->model->orderBy('id', 'DESC')->first();
 
-            // Validar datos obligatorios
-            if (empty($data['client_id']) || empty($data['client_secret'])) {
-                return $this->failValidationErrors('Client ID y Client Secret son obligatorios');
+            if (!$credenciales) {
+                return $this->failNotFound('No hay credenciales guardadas. Debe guardar username y password primero.');
             }
 
-            // Verificar si ya existen credenciales con este client_id
-            $tokenExistente = $this->model->where('client_id', $data['client_id'])->first();
+            // Generar el token Basic Auth: "username:password" codificado en base64
+            $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
+            $tokenBase64 = base64_encode($credencialesString);
 
-            if ($tokenExistente) {
-                // Actualizar credenciales existentes
-                $datosActualizados = [
-                    'client_secret' => $data['client_secret']
-                ];
-
-                $this->model->update($tokenExistente['id'], $datosActualizados);
-                $tokenActualizado = $this->model->find($tokenExistente['id']);
-
-                return $this->respond([
-                    'mensaje' => 'Credenciales actualizadas',
-                    'token' => $tokenActualizado
-                ]);
-            } else {
-                // Crear nuevas credenciales
-                $nuevasCredenciales = [
-                    'client_id' => $data['client_id'],
-                    'client_secret' => $data['client_secret']
-                ];
-
-                $tokenId = $this->model->insert($nuevasCredenciales);
-                $tokenCreado = $this->model->find($tokenId);
-
-                return $this->respondCreated([
-                    'mensaje' => 'Credenciales creadas',
-                    'token' => $tokenCreado
-                ]);
-            }
+            return $this->respond([
+                'mensaje' => 'Token Basic Auth generado exitosamente',
+                'token_base64' => $tokenBase64,
+                'authorization_header' => 'Basic ' . $tokenBase64
+            ]);
 
         } catch (\Exception $e) {
-            return $this->failServerError('Error al procesar las credenciales: ' . $e->getMessage());
+            return $this->failServerError('Error al generar el token: ' . $e->getMessage());
         }
     }
 }

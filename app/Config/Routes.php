@@ -44,6 +44,11 @@ $routes->resource('api/materiales');
 // Endpoint Token103
 $routes->resource('api/token103');
 $routes->post('api/token103/generar-externo', 'Api\\Token103::generarTokenExterno');
+// Endpoint Sincronización de Reclamos (proxy para evitar CORS)
+$routes->get('api/sincronizacion/reclamos/pendientes', 'Api\\ReclamosSincronizacion::sincronizarHoy');
+$routes->post('api/sincronizacion/reclamos/procesar-uno', 'Api\\ReclamosSincronizacion::procesarUno');
+$routes->get('api/sincronizacion/reclamos', 'Api\\ReclamosSincronizacion::sincronizarPorFechas');
+$routes->get('api/sincronizacion/reclamos/(:segment)', 'Api\\ReclamosSincronizacion::sincronizarEspecifico/$1');
 // Endpoint Direcciones
 $routes->get('api/direcciones/buscar', 'Api\\Direcciones::buscarPorDomicilio');
 $routes->resource('api/direcciones');

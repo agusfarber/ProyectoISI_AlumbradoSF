@@ -2,37 +2,40 @@ const app = Vue.createApp({
     data() {
         return {
             credenciales: {
-                client_id: '',
-                client_secret: ''
+                username: '',
+                password: ''
             },
             tokenActual: {}, // Ahora solo un objeto
+            tokenBase64: '', // Token Basic Auth en base64
             credencialesGuardadas: false,
-            mensajeCopiadoVisible: false,
-            apiUrl: 'https://0d681142-41d3-4c17-a854-13e8da718ead.mock.pstmn.io'
+            mensajeCopiadoVisible: false
         };
     },
 
     methods: {
         /**
-         * Obtiene el token más reciente desde la API local
+         * Obtiene las credenciales más recientes desde la API local
          */
         async obtenerTokenUnico() {
             try {
                 const urlTokens = BASE_URL + 'api/token103';
                 const response = await axios.get(urlTokens);
 
-                // Si existe al menos un token, usa el último
+                // Si existe al menos una credencial, usa la última
                 if (response.data.length > 0) {
                     this.tokenActual = response.data[response.data.length - 1];
                     this.credencialesGuardadas = true;
-                    this.credenciales.client_id = this.tokenActual.client_id;
-                    this.credenciales.client_secret = this.tokenActual.client_secret;
+                    this.credenciales.username = this.tokenActual.username;
+                    this.credenciales.password = this.tokenActual.password;
+                    // Generar el token base64 automáticamente
+                    this.generarTokenBase64();
                 } else {
-                    this.tokenActual = {}; // No hay token, vaciar el objeto
+                    this.tokenActual = {}; // No hay credenciales, vaciar el objeto
                     this.credencialesGuardadas = false;
+                    this.tokenBase64 = '';
                 }
             } catch (error) {
-                console.error('Error al obtener tokens:', error);
+                console.error('Error al obtener credenciales:', error);
             }
         },
 
@@ -40,6 +43,12 @@ const app = Vue.createApp({
          * Guarda o actualiza las credenciales
          */
         async guardarCredenciales() {
+            // Validar campos
+            if (!this.credenciales.username || !this.credenciales.password) {
+                this.mostrarMensaje('Debe ingresar username y password', 'warning');
+                return;
+            }
+
             // Confirmación antes de guardar
             const mensajeConfirmacion = `¿Está seguro que desea guardar las credenciales?`;
             const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Guardar Credenciales');
@@ -52,15 +61,15 @@ const app = Vue.createApp({
                 const url = BASE_URL + 'api/token103';
 
                 if (this.tokenActual.id) {
-                    // Si ya existe un token, actualiza las credenciales
+                    // Si ya existe, actualiza las credenciales
                     await axios.put(url + '/' + this.tokenActual.id, this.credenciales);
                 } else {
-                    // Si no, crea un nuevo registro (solo con credenciales)
+                    // Si no, crea un nuevo registro
                     await axios.post(url, this.credenciales);
                 }
 
                 this.credencialesGuardadas = true;
-                this.obtenerTokenUnico(); // Recargar el token para actualizar la vista
+                await this.obtenerTokenUnico(); // Recargar las credenciales para actualizar la vista
 
                 // Mensaje de éxito personalizado
                 this.mostrarMensaje('Credenciales guardadas correctamente', 'success');
@@ -72,69 +81,29 @@ const app = Vue.createApp({
         },
 
         /**
-         * Genera un nuevo token llamando a la API externa
+         * Genera el token Basic Auth en base64 localmente
          */
-        async generarToken() {
-            if (!this.credencialesGuardadas) {
-                // Mensaje de advertencia personalizado
-                this.mostrarMensaje('Debe guardar las credenciales antes de generar un token', 'warning');
+        generarTokenBase64() {
+            if (!this.credenciales.username || !this.credenciales.password) {
+                this.tokenBase64 = '';
                 return;
             }
-
-            // Confirmación antes de generar token
-            const mensajeConfirmacion = `¿Está seguro que desea generar un nuevo token?`;
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Generar Token');
             
-            if (!confirmacion) {
-                return;
-            }
-
-            // Mensaje de progreso personalizado
-            this.mostrarMensaje('Generando token... Por favor espere', 'info');
-
-            try {
-                const response = await axios.post(this.apiUrl + '/generarToken', this.credenciales);
-
-                // Crear fecha en zona horaria de Argentina
-                const fechaArgentina = new Date().toLocaleString('sv-SE', {
-                    timeZone: 'America/Argentina/Buenos_Aires'
-                });
-
-                const tokenData = {
-                    client_id: this.credenciales.client_id,
-                    client_secret: this.credenciales.client_secret,
-                    access_token: response.data.access_token,
-                    token_type: response.data.token_type || 'Bearer',
-                    expires_in: response.data.expires_in || 3600,
-                    fecha_generacion: fechaArgentina
-                };
-
-                if (this.tokenActual.id) {
-                    // Actualiza el token existente con el nuevo access_token
-                    await axios.put(BASE_URL + 'api/token103/' + this.tokenActual.id, tokenData);
-                } else {
-                    // Si por alguna razón no había token, crea uno nuevo
-                    await axios.post(BASE_URL + 'api/token103', tokenData);
-                }
-
-                // Mensaje de éxito personalizado
-                this.mostrarMensaje('Token generado y guardado correctamente', 'success');
-
-                this.obtenerTokenUnico(); // Recargar los datos para mostrar el nuevo token
-
-            } catch (error) {
-                console.error('Error al generar token:', error);
-                // Mensaje de error personalizado
-                this.mostrarMensaje('Error al generar el token. Verifique las credenciales y la conexión', 'error');
-            }
+            // Generar token Basic Auth: "username:password" codificado en base64
+            const credencialesString = this.credenciales.username + ':' + this.credenciales.password;
+            this.tokenBase64 = btoa(credencialesString);
         },
 
         /**
-         * Copia el token al portapapeles y cambia el ícono del botón
+         * Copia el token al portapapeles
          */
         copiarToken() {
-            const tokenInput = document.getElementById('tokenInput');
+            if (!this.tokenBase64) {
+                this.mostrarMensaje('No hay token para copiar', 'warning');
+                return;
+            }
 
+            const tokenInput = document.getElementById('tokenInput');
             tokenInput.select();
             tokenInput.setSelectionRange(0, 99999);
 

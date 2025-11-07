@@ -33,8 +33,11 @@ const app = Vue.createApp({
             syncFechaDesde: '',
             syncFechaHasta: '',
             numeroReclamo: '',
-            // URL de la API externa
-            apiUrl: 'https://0d681142-41d3-4c17-a854-13e8da718ead.mock.pstmn.io'
+            // Variables para progreso
+            sincronizando: false,
+            progresoActual: 0,
+            progresoTotal: 0,
+            detenerSincronizacion: false
         };
     },
 
@@ -101,17 +104,9 @@ const app = Vue.createApp({
                         render: (data) => this.formatearFecha(data)
                     },
                     { 
-                        data: 'municipalidad_recepcion',
-                        className: 'text-start'
-                    },
-                    { 
                         data: 'municipalidad_estado',
                         className: 'text-start'
                     },
-                    { 
-                        data: 'prioridad',
-                        className: 'text-start'
-                    }, // Columna de prioridad, ahora simplemente 'prioridad'
                     { 
                         data: 'municipalidad_domicilio',
                         className: 'text-start'
@@ -427,15 +422,15 @@ const app = Vue.createApp({
         },
 
         /**
-         * Obtiene el token actual para la sincronización
+         * Verifica si hay credenciales guardadas para la sincronización
          */
         async obtenerTokenActual() {
             try {
                 const response = await axios.get(BASE_URL + 'api/token103');
                 if (response.data && response.data.length > 0) {
-                    const ultimoToken = response.data[response.data.length - 1];
-                    if (ultimoToken.access_token) {
-                        this.tokenActual = ultimoToken;
+                    const ultimasCredenciales = response.data[response.data.length - 1];
+                    if (ultimasCredenciales.username && ultimasCredenciales.password) {
+                        this.tokenActual = ultimasCredenciales;
                         this.tokenDisponible = true;
                     } else {
                         this.tokenDisponible = false;
@@ -444,8 +439,68 @@ const app = Vue.createApp({
                     this.tokenDisponible = false;
                 }
             } catch (error) {
-                console.error('Error al obtener token:', error);
+                console.error('Error al obtener credenciales:', error);
                 this.tokenDisponible = false;
+            }
+        },
+
+        /**
+         * Sincroniza reclamos desde el último guardado hasta hoy
+         */
+        async sincronizarReclamosHoy() {
+            if (!this.tokenDisponible || !this.tokenActual) {
+                this.mostrarMensaje('Token no disponible: Debe configurar un token válido para sincronizar', 'warning');
+                return;
+            }
+
+            // Confirmación antes de sincronizar
+            const mensajeConfirmacion = `¿Está seguro que desea sincronizar todos los reclamos pendientes desde el último hasta hoy?`;
+            
+            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Sincronizar Reclamos Pendientes');
+            
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                // Obtener reclamos del backend (sin guardarlos aún)
+                const response = await axios.get(BASE_URL + 'api/sincronizacion/reclamos/pendientes');
+
+                console.log('Respuesta del backend:', response.data);
+
+                if (!response.data.success) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+
+                const resultado = response.data;
+                const reclamosParaProcesar = resultado.reclamos || [];
+
+                // Mostrar si hay reclamos omitidos (ya existentes)
+                if (resultado.reclamos_omitidos > 0) {
+                    console.log(`Se omitieron ${resultado.reclamos_omitidos} reclamos que ya existen en la base de datos (ID <= ${resultado.ultimo_id_guardado})`);
+                }
+
+                if (reclamosParaProcesar.length === 0) {
+                    let mensaje = 'No hay reclamos nuevos para sincronizar';
+                    if (resultado.reclamos_omitidos > 0) {
+                        mensaje += `<br><small>Se encontraron ${resultado.reclamos_omitidos} reclamos, pero ya están guardados en la base de datos.</small>`;
+                    }
+                    this.mostrarMensaje(mensaje, 'info');
+                    return;
+                }
+
+                // Iniciar procesamiento progresivo
+                await this.procesarReclamosProgresivamente(reclamosParaProcesar, {
+                    fecha_desde: resultado.fecha_desde,
+                    fecha_hasta: resultado.fecha_hasta,
+                    total_recibidos: resultado.total_recibidos,
+                    total_alumbrado: resultado.total_alumbrado,
+                    reclamos_omitidos: resultado.reclamos_omitidos || 0
+                });
+
+            } catch (error) {
+                console.error('Error al sincronizar reclamos pendientes:', error);
+                this.mostrarMensaje('Error en sincronización: No se pudieron sincronizar los reclamos pendientes. Verifique el token y la conexión.', 'error');
             }
         },
 
@@ -472,47 +527,44 @@ const app = Vue.createApp({
                 return;
             }
 
-            // Mensaje de progreso
-            this.mostrarMensaje('Sincronizando reclamos', 'info');
-
             try {
-                const response = await axios.get(this.apiUrl + '/recibirReclamos', {
+                // Obtener reclamos del backend (sin guardarlos aún)
+                const response = await axios.get(BASE_URL + 'api/sincronizacion/reclamos', {
                     params: {
                         fecha_desde: this.syncFechaDesde,
                         fecha_hasta: this.syncFechaHasta
-                    },
-                    headers: {
-                        'Authorization': `Bearer ${this.tokenActual.access_token}`
                     }
                 });
 
-                console.log('Respuesta de la API externa:', response.data);
+                console.log('Respuesta del backend:', response.data);
 
-                const reclamosRecibidos = response.data;
-                let reclamosGuardados = 0;
-                let reclamosActualizados = 0;
-
-                for (const reclamoExterno of reclamosRecibidos) {
-                    try {
-                        const resultado = await this.procesarYGuardarReclamo(reclamoExterno);
-                        if (resultado === 'creado') {
-                            reclamosGuardados++;
-                        } else if (resultado === 'actualizado') {
-                            reclamosActualizados++;
-                        }
-                    } catch (error) {
-                        console.error('Error al procesar reclamo:', error);
-                    }
+                if (!response.data.success) {
+                    throw new Error('Error en la respuesta del servidor');
                 }
 
-                // Mensaje de éxito con resumen detallado
-                const mensajeExito = `Sincronización completada exitosamente<br>
-                    <strong>Total procesados:</strong> ${reclamosRecibidos.length} reclamos<br>
-                    <strong>Nuevos:</strong> ${reclamosGuardados}<br>
-                    <strong>Actualizados:</strong> ${reclamosActualizados}`;
-                
-                this.mostrarMensaje(mensajeExito, 'success');
-                this.obtenerReclamos();
+                const resultado = response.data;
+                const reclamosParaProcesar = resultado.reclamos || [];
+
+                // Mostrar si hay reclamos omitidos (ya existentes)
+                if (resultado.reclamos_omitidos > 0) {
+                    console.log(`Se omitieron ${resultado.reclamos_omitidos} reclamos que ya existen en la base de datos (ID <= ${resultado.ultimo_id_guardado})`);
+                }
+
+                if (reclamosParaProcesar.length === 0) {
+                    let mensaje = 'No hay reclamos nuevos en el rango de fechas seleccionado';
+                    if (resultado.reclamos_omitidos > 0) {
+                        mensaje += `<br><small>Se encontraron ${resultado.reclamos_omitidos} reclamos, pero ya están guardados en la base de datos.</small>`;
+                    }
+                    this.mostrarMensaje(mensaje, 'info');
+                    return;
+                }
+
+                // Iniciar procesamiento progresivo
+                await this.procesarReclamosProgresivamente(reclamosParaProcesar, {
+                    total_recibidos: resultado.total_recibidos,
+                    total_alumbrado: resultado.total_alumbrado,
+                    reclamos_omitidos: resultado.reclamos_omitidos || 0
+                });
 
             } catch (error) {
                 console.error('Error al sincronizar reclamos:', error);
@@ -547,28 +599,29 @@ const app = Vue.createApp({
             this.mostrarMensaje('Buscando reclamo', 'info');
 
             try {
-                const response = await axios.get(this.apiUrl + `/recibirReclamo/${this.numeroReclamo}`, {
-                    headers: {
-                        'Authorization': `Bearer ${this.tokenActual.access_token}`
-                    }
-                });
+                // Llamar al proxy del backend que maneja la autenticación y guarda en BD
+                const response = await axios.get(BASE_URL + `api/sincronizacion/reclamos/${this.numeroReclamo}`);
 
-                console.log('Respuesta de la API externa:', response.data);
+                console.log('Respuesta del backend:', response.data);
 
-                const resultado = await this.procesarYGuardarReclamo(response.data);
+                if (!response.data.success) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+
+                // El backend ya guardó el reclamo
+                const resultado = response.data;
 
                 // Mensaje de éxito con detalles
-                let mensajeExito;
-                if (resultado === 'creado') {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}<br><strong>Estado:</strong> Nuevo reclamo creado`;
-                } else if (resultado === 'actualizado') {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}<br><strong>Estado:</strong> Reclamo actualizado`;
-                } else {
-                    mensajeExito = `Reclamo sincronizado exitosamente<br><strong>Número:</strong> ${this.numeroReclamo}`;
-                }
+                const accionTexto = resultado.accion === 'creado' ? 'Nuevo reclamo creado' : 'Reclamo actualizado';
+                const mensajeExito = `Reclamo sincronizado exitosamente<br>
+                    <strong>Número:</strong> ${this.numeroReclamo}<br>
+                    <strong>Estado:</strong> ${accionTexto}<br>
+                    <strong>Motivo:</strong> ${resultado.reclamo.municipalidad_motivo}`;
 
                 this.mostrarMensaje(mensajeExito, 'success');
                 this.numeroReclamo = '';
+                
+                // Recargar la tabla de reclamos
                 this.obtenerReclamos();
 
             } catch (error) {
@@ -577,6 +630,112 @@ const app = Vue.createApp({
             }
         },
 
+
+        /**
+         * Procesa reclamos uno por uno mostrando el progreso
+         */
+        async procesarReclamosProgresivamente(reclamos, metadatos) {
+            this.sincronizando = true;
+            this.detenerSincronizacion = false;
+            this.progresoTotal = reclamos.length;
+            this.progresoActual = 0;
+            
+            let nuevos = 0;
+            let actualizados = 0;
+            let errores = 0;
+            let detenidoPorUsuario = false;
+
+            for (const reclamo of reclamos) {
+                try {
+                    // Procesar un reclamo (guardar + geocodificar)
+                    const response = await axios.post(BASE_URL + 'api/sincronizacion/reclamos/procesar-uno', reclamo);
+                    
+                    if (response.data.success) {
+                        if (response.data.accion === 'creado') {
+                            nuevos++;
+                        } else {
+                            actualizados++;
+                        }
+                    }
+
+                    // Actualizar progreso
+                    this.progresoActual++;
+
+                    // Actualizar tabla después de cada 5 reclamos o al final
+                    if (this.progresoActual % 5 === 0 || this.progresoActual === this.progresoTotal) {
+                        await this.obtenerReclamos();
+                    }
+
+                } catch (error) {
+                    console.error('Error al procesar reclamo:', error);
+                    errores++;
+                    this.progresoActual++;
+                }
+
+                // Verificar si el usuario pidió detener (DESPUÉS de completar el reclamo)
+                if (this.detenerSincronizacion) {
+                    detenidoPorUsuario = true;
+                    console.log('Sincronización detenida por el usuario en el reclamo', this.progresoActual);
+                    break;
+                }
+            }
+
+            // Finalizar
+            this.sincronizando = false;
+            this.detenerSincronizacion = false;
+
+            // Mensaje final
+            let mensajeFinal = '';
+            
+            if (detenidoPorUsuario) {
+                mensajeFinal = `<i class="bi bi-pause-circle"></i> Sincronización detenida por el usuario<br>`;
+            } else {
+                mensajeFinal = `<i class="bi bi-check-circle"></i> Sincronización completada exitosamente<br>`;
+            }
+            
+            if (metadatos.fecha_desde && metadatos.fecha_hasta) {
+                mensajeFinal += `<strong>Rango:</strong> ${metadatos.fecha_desde} → ${metadatos.fecha_hasta}<br>`;
+            }
+            
+            // Mostrar solo los números relevantes (Alumbrado Público)
+            mensajeFinal += `<strong>Reclamos de Alumbrado Público:</strong> ${metadatos.total_alumbrado}<br>
+                <strong>Procesados:</strong> ${this.progresoActual} de ${this.progresoTotal}<br>
+                <strong>Nuevos:</strong> ${nuevos}<br>
+                <strong>Actualizados:</strong> ${actualizados}`;
+            
+            if (metadatos.reclamos_omitidos > 0) {
+                mensajeFinal += `<br><strong class="text-muted">Omitidos (ya existentes):</strong> ${metadatos.reclamos_omitidos}`;
+            }
+            
+            if (errores > 0) {
+                mensajeFinal += `<br><strong class="text-danger">Errores:</strong> ${errores}`;
+            }
+
+            if (detenidoPorUsuario) {
+                mensajeFinal += `<br><small class="text-muted">Los reclamos restantes (${this.progresoTotal - this.progresoActual}) no fueron procesados.</small>`;
+            }
+            
+            // Nota informativa sobre otros tipos (si hay diferencia significativa)
+            if (metadatos.total_recibidos && metadatos.total_recibidos > metadatos.total_alumbrado) {
+                const otrosTipos = metadatos.total_recibidos - metadatos.total_alumbrado;
+                mensajeFinal += `<br><small class="text-muted"><i class="bi bi-info-circle"></i> Se recibieron ${metadatos.total_recibidos} reclamos en total (${otrosTipos} de otros tipos fueron filtrados)</small>`;
+            }
+
+            this.mostrarMensaje(mensajeFinal, detenidoPorUsuario ? 'warning' : 'success');
+
+            // Recargar tabla final
+            await this.obtenerReclamos();
+        },
+
+        /**
+         * Detiene la sincronización en curso
+         */
+        detenerSincronizacionEnCurso() {
+            if (this.sincronizando) {
+                this.detenerSincronizacion = true;
+                this.mostrarMensaje('Deteniendo sincronización... Se completará el reclamo actual', 'info');
+            }
+        },
 
         /**
          * Procesa y guarda un reclamo del sistema externo
