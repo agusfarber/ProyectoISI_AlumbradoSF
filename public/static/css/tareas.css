@@ -333,6 +333,12 @@ body #app.container-fluid .badge.bg-success {
     background-color: #f8f9fa;
 }
 
+#modalAcciones .observacion-texto {
+    white-space: pre-line;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
 /* Estilos para el spinner de carga */
 #modalAcciones .spinner-border {
     width: 2rem;

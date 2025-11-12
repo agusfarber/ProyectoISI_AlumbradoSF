@@ -13,6 +13,7 @@ const app = Vue.createApp({
             
             // Variables para modales
             nuevoEstado: '',
+            nuevaObservacion: '',
             
             // Variables para historial
             historialReclamo: [],
@@ -103,6 +104,12 @@ const app = Vue.createApp({
         // Verifica si el usuario es operario
         esOperario() {
             return this.userRole === '3';
+        },
+
+        puedeGuardarAccion() {
+            const tieneEstado = !!this.nuevoEstado;
+            const tieneObservacion = this.nuevaObservacion && this.nuevaObservacion.trim().length > 0;
+            return tieneEstado || tieneObservacion;
         }
     },
 
@@ -171,6 +178,7 @@ const app = Vue.createApp({
         cambiarEstado(reclamo) {
             this.reclamoSeleccionado = { ...reclamo };
             this.nuevoEstado = '';
+            this.nuevaObservacion = '';
             this.historialReclamo = []; // Limpiar historial anterior
             
             // Mostrar el modal
@@ -207,22 +215,34 @@ const app = Vue.createApp({
          * Guarda el cambio de estado
          */
         async guardarCambioEstado() {
-            if (!this.nuevoEstado) {
-                this.mostrarMensaje('Debe seleccionar un nuevo estado', 'warning');
+            const nuevoEstadoSeleccionado = this.nuevoEstado;
+            const observacionLimpia = this.nuevaObservacion ? this.nuevaObservacion.trim() : '';
+
+            if (!nuevoEstadoSeleccionado && !observacionLimpia) {
+                this.mostrarMensaje('Debe seleccionar un nuevo estado o ingresar una observación', 'warning');
                 return;
             }
 
             try {
                 const datosActualizacion = {
                     ...this.reclamoSeleccionado,
-                    municipalidad_estado: this.nuevoEstado,
                     municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
                 };
 
+                if (nuevoEstadoSeleccionado) {
+                    datosActualizacion.municipalidad_estado = nuevoEstadoSeleccionado;
+                } else {
+                    datosActualizacion.municipalidad_estado = this.reclamoSeleccionado.municipalidad_estado;
+                }
+
+                if (observacionLimpia) {
+                    datosActualizacion.observacion = observacionLimpia;
+                }
+
                 // Actualizar prioridad según el nuevo estado
-                if (this.nuevoEstado === 'En ejecución') {
+                if (nuevoEstadoSeleccionado === 'En ejecución') {
                     datosActualizacion.prioridad = 'Alta';
-                } else if (this.nuevoEstado === 'Completado') {
+                } else if (nuevoEstadoSeleccionado === 'Completado') {
                     datosActualizacion.prioridad = null;
                 }
 
@@ -231,23 +251,46 @@ const app = Vue.createApp({
                 // Actualizar el reclamo en la lista local
                 const index = this.reclamos.findIndex(r => r.id === this.reclamoSeleccionado.id);
                 if (index !== -1) {
-                    this.reclamos[index].municipalidad_estado = this.nuevoEstado;
                     this.reclamos[index].municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
                     
-                    // También actualizar la prioridad en la lista local
-                    if (this.nuevoEstado === 'En ejecución') {
-                        this.reclamos[index].prioridad = 'Alta';
-                    } else if (this.nuevoEstado === 'Completado') {
-                        this.reclamos[index].prioridad = null;
+                    if (nuevoEstadoSeleccionado) {
+                        this.reclamos[index].municipalidad_estado = nuevoEstadoSeleccionado;
+                    
+                        // También actualizar la prioridad en la lista local
+                        if (nuevoEstadoSeleccionado === 'En ejecución') {
+                            this.reclamos[index].prioridad = 'Alta';
+                        } else if (nuevoEstadoSeleccionado === 'Completado') {
+                            this.reclamos[index].prioridad = null;
+                        }
                     }
                 }
 
-                bootstrap.Modal.getInstance(document.getElementById('modalAcciones')).hide();
-                this.mostrarMensaje(`Estado cambiado a: ${this.nuevoEstado}`, 'success');
+                this.reclamoSeleccionado.municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
+                if (nuevoEstadoSeleccionado) {
+                    this.reclamoSeleccionado.municipalidad_estado = nuevoEstadoSeleccionado;
+                    if (nuevoEstadoSeleccionado === 'En ejecución') {
+                        this.reclamoSeleccionado.prioridad = 'Alta';
+                    } else if (nuevoEstadoSeleccionado === 'Completado') {
+                        this.reclamoSeleccionado.prioridad = null;
+                    }
+                }
+
+                const modalAcciones = bootstrap.Modal.getInstance(document.getElementById('modalAcciones'));
+                if (modalAcciones) {
+                    modalAcciones.hide();
+                }
+
+                const mensajeExito = nuevoEstadoSeleccionado
+                    ? `Estado actualizado a: ${nuevoEstadoSeleccionado}${observacionLimpia ? ' y observación registrada.' : ''}`
+                    : 'Observación registrada correctamente.';
+                this.mostrarMensaje(mensajeExito, 'success');
+
+                this.nuevoEstado = '';
+                this.nuevaObservacion = '';
 
             } catch (error) {
                 console.error('Error al cambiar estado:', error);
-                this.mostrarMensaje('Error al cambiar el estado del reclamo', 'error');
+                this.mostrarMensaje('Error al actualizar el reclamo', 'error');
             }
         },
 
