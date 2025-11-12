@@ -82,6 +82,16 @@ class Reclamos extends ResourceController
             return $this->failValidationErrors('Faltan datos obligatorios.');
         }
 
+        // Capturar y limpiar observación si se envía
+        $observacion = '';
+        if (isset($data['observacion'])) {
+            $observacion = trim((string) $data['observacion']);
+            unset($data['observacion']);
+        }
+        if ($observacion === '') {
+            $observacion = null;
+        }
+
         // Obtener el reclamo actual para comparar estados
         $reclamoActual = $this->model->find($id);
         if (!$reclamoActual) {
@@ -90,7 +100,18 @@ class Reclamos extends ResourceController
 
         // Verificar si hay cambio de estado para registrar en historial
         $estadoAnterior = $reclamoActual['municipalidad_estado'] ?? '';
-        $estadoNuevo = $data['municipalidad_estado'] ?? '';
+        $estadoNuevo = array_key_exists('municipalidad_estado', $data)
+            ? (string) $data['municipalidad_estado']
+            : $estadoAnterior;
+
+        if ($estadoNuevo === '') {
+            $estadoNuevo = $estadoAnterior;
+            if (array_key_exists('municipalidad_estado', $data)) {
+                unset($data['municipalidad_estado']);
+            }
+        } else {
+            $data['municipalidad_estado'] = $estadoNuevo;
+        }
         
         // Log de depuración para verificar los valores
         log_message('debug', 'Estado anterior: ' . $estadoAnterior);
@@ -121,11 +142,14 @@ class Reclamos extends ResourceController
             return $this->failServerError('Error al actualizar el reclamo.');
         }
 
-        // Registrar cambio de estado en historial si hubo cambio
-        if (!empty($estadoNuevo) && $estadoAnterior !== $estadoNuevo) {
-            // Verificar que tenemos el nro_reclamo correcto
+        $reclamoActualizado = $this->model->find($id);
+        $estadoFinal = $reclamoActualizado['municipalidad_estado'] ?? $estadoNuevo;
+        $hayCambioEstado = $estadoAnterior !== $estadoFinal;
+
+        // Registrar cambio de estado u observación en historial
+        if ($hayCambioEstado || $observacion !== null) {
             $nroReclamo = $reclamoActual['municipalidad_id'] ?? $data['municipalidad_id'] ?? '';
-            $this->registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo);
+            $this->registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoFinal, $observacion);
         }
 
         // Procesar y guardar la dirección del reclamo si cambió o es nueva
@@ -140,8 +164,7 @@ class Reclamos extends ResourceController
                 $this->procesarDireccionReclamo($data['municipalidad_domicilio'], $data['municipalidad_numeroDomicilio']);
             }
         }
-
-        $reclamoActualizado = $this->model->find($id);
+        
         return $this->respond($reclamoActualizado);
     }
 
@@ -219,15 +242,15 @@ class Reclamos extends ResourceController
     }
 
     /**
-     * Registra un cambio de estado en el historial de reclamos
+     * Registra un evento en el historial de reclamos (cambio de estado y/o observación)
      */
-    private function registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo)
+    private function registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoNuevo, $observacion = null)
     {
         try {
             $historialModel = new Historial_reclamoModel();
             
             // Log de depuración para verificar los parámetros recibidos
-            log_message('debug', 'Registrando cambio - NroReclamo: ' . $nroReclamo . ', EstadoAnterior: ' . $estadoAnterior . ', EstadoNuevo: ' . $estadoNuevo);
+            log_message('debug', 'Registrando evento historial - NroReclamo: ' . $nroReclamo . ', EstadoAnterior: ' . $estadoAnterior . ', EstadoNuevo: ' . $estadoNuevo . ', Observacion: ' . ($observacion ?? 'N/A'));
             
             // Obtener el ID del usuario desde la sesión
             $usuarioId = session()->get('user_id');
@@ -245,6 +268,7 @@ class Reclamos extends ResourceController
                 'nro_reclamo' => $nroReclamo,
                 'estado_anterior' => $estadoAnterior,
                 'estado_actual' => $estadoNuevo,
+                'observacion' => $observacion,
                 'usuario_id' => $usuarioId,
                 'fecha_cambio' => date('Y-m-d H:i:s')
             ];

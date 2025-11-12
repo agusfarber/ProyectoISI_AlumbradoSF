@@ -372,6 +372,16 @@
                                         <option value="Completado">Completado</option>
                                     </select>
                                 </div>
+                                <div class="mb-3">
+                                    <label for="observacionReclamo" class="form-label">Observaciones</label>
+                                    <textarea id="observacionReclamo"
+                                              class="form-control"
+                                              v-model="nuevaObservacion"
+                                              rows="3"
+                                              maxlength="500"
+                                              placeholder="Detalle las tareas realizadas, materiales utilizados u otra información relevante."></textarea>
+                                    <small class="text-muted">Estas observaciones serán visibles para supervisores en el historial del reclamo.</small>
+                                </div>
                             </div>
                         </div>
                         
@@ -396,6 +406,7 @@
                                             <tr>
                                                 <th>Estado Anterior</th>
                                                 <th>Estado Actual</th>
+                                                <th>Observación</th>
                                                 <th>Usuario</th>
                                                 <th>Fecha de Cambio</th>
                                             </tr>
@@ -412,6 +423,10 @@
                                                         {{ item.estado_actual }}
                                                     </span>
                                                 </td>
+                                                <td>
+                                                    <span v-if="item.observacion" class="observacion-texto">{{ item.observacion }}</span>
+                                                    <span v-else class="text-muted">Sin observaciones</span>
+                                                </td>
                                                 <td>{{ item.nombre_usuario || 'Sistema' }}</td>
                                                 <td>{{ formatearFecha(item.fecha_cambio) }}</td>
                                             </tr>
@@ -424,8 +439,8 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                    <button type="button" class="btn btn-primary" @click="guardarCambioEstado" v-if="nuevoEstado">
-                        <i class="bi bi-check-circle me-1 text-white"></i>Guardar Cambio de Estado
+                    <button type="button" class="btn btn-primary" @click="guardarCambioEstado" :disabled="!puedeGuardarAccion">
+                        <i class="bi bi-check-circle me-1 text-white"></i>Guardar
                     </button>
                 </div>
             </div>

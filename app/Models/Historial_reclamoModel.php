@@ -10,6 +10,6 @@ class Historial_reclamoModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['nro_reclamo','estado_anterior','estado_actual','usuario_id','fecha_cambio'];
+  protected $allowedFields = ['nro_reclamo','estado_anterior','estado_actual','observacion','usuario_id','fecha_cambio'];
 
 }
