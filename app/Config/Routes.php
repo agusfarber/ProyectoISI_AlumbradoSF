@@ -68,6 +68,9 @@ $routes->get('api/rutas/operario/mis-reclamos', 'Api\\Rutas::getReclamosPorOpera
 $routes->get('api/rutas/operario/reclamos-recibidos', 'Api\\Rutas::getReclamosRecibidos');
 $routes->post('api/rutas/operario/add-reclamo', 'Api\\Rutas::añadirReclamoARuta');
 $routes->resource('api/rutas');
+// Endpoint Cierre de Reclamos
+$routes->get('api/cierre-reclamos/completados', 'Api\\CierreReclamos::obtenerReclamosCompletados');
+$routes->post('api/cierre-reclamos/cerrar', 'Api\\CierreReclamos::cerrarReclamos');
 
 
 // Autenticación y configuración de páginas

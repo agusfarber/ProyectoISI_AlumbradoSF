@@ -46,8 +46,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     navLinks.forEach(link => {
         const href = link.getAttribute('href');
-        if (href && currentPath.includes(href.split('/').pop())) {
-            link.classList.add('active');
+        if (href) {
+            // Obtener la última parte de la URL actual y del href
+            const currentPage = currentPath.split('/').filter(p => p).pop();
+            const linkPage = href.split('/').filter(p => p).pop();
+            
+            // Comparación exacta (no parcial)
+            if (currentPage === linkPage) {
+                link.classList.add('active');
+            }
         }
     });
 
@@ -59,8 +66,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         dropdownLinks.forEach(link => {
             const href = link.getAttribute('href');
-            if (href && currentPath.includes(href.split('/').pop())) {
-                toggle.classList.add('active');
+            if (href) {
+                // Obtener la última parte de la URL actual y del href
+                const currentPage = currentPath.split('/').filter(p => p).pop();
+                const linkPage = href.split('/').filter(p => p).pop();
+                
+                // Comparación exacta (no parcial)
+                if (currentPage === linkPage) {
+                    toggle.classList.add('active');
+                }
             }
         });
     });

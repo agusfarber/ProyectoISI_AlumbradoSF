@@ -290,31 +290,29 @@ const app = Vue.createApp({
 
             } catch (error) {
                 console.error('Error al cambiar estado:', error);
-                this.mostrarMensaje('Error al actualizar el reclamo', 'error');
+                
+                // Manejar error específico cuando el reclamo está cerrado
+                if (error.response && error.response.status === 403) {
+                    const mensajeError = error.response.data.message || 'No se puede cambiar el estado de un reclamo que ya ha sido cerrado formalmente.';
+                    this.mostrarMensaje(mensajeError, 'error');
+                    
+                    // Cerrar el modal si está abierto
+                    const modalAcciones = bootstrap.Modal.getInstance(document.getElementById('modalAcciones'));
+                    if (modalAcciones) {
+                        modalAcciones.hide();
+                    }
+                    
+                    // Recargar los reclamos para actualizar la lista (eliminar el reclamo cerrado)
+                    this.obtenerReclamos();
+                } else {
+                    // Error genérico
+                    const mensajeError = error.response && error.response.data.message 
+                        ? error.response.data.message 
+                        : 'Error al actualizar el reclamo';
+                    this.mostrarMensaje(mensajeError, 'error');
+                }
             }
         },
-
-
-
-
-
-        // Métodos de filtros comentados para HU futura
-        // /**
-        //  * Aplica los filtros (ya manejado por computed)
-        //  */
-        // aplicarFiltros() {
-        //     // Los filtros se aplican automáticamente por el computed property
-        // },
-
-        // /**
-        //  * Limpia todos los filtros
-        //  */
-        // limpiarFiltros() {
-        //     this.filtroEstado = '';
-        //     this.filtroPrioridad = '';
-        //     this.filtroFechaDesde = '';
-        //     this.filtroFechaHasta = '';
-        // },
 
         /**
          * Obtiene la fecha actual en formato para inputs datetime-local

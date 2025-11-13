@@ -105,7 +105,24 @@ const app = Vue.createApp({
                     },
                     { 
                         data: 'municipalidad_estado',
-                        className: 'text-start'
+                        className: 'text-start',
+                        render: (data, type, row) => {
+                            // Si el reclamo está cerrado, mostrar "Cerrado" en lugar de "Completado"
+                            if (row.cerrado == 1 && data === 'Completado') {
+                                return '<span class="badge bg-dark">Cerrado</span>';
+                            }
+                            // Colorear según estado
+                            const estadoClass = {
+                                'Recibido': 'bg-info',
+                                'Asignado': 'bg-primary',
+                                'En ejecución': 'bg-warning text-dark',
+                                'Completado': 'bg-success',
+                                'En plan': 'bg-secondary',
+                                'Error de datos': 'bg-danger'
+                            };
+                            const badgeClass = estadoClass[data] || 'bg-secondary';
+                            return `<span class="badge ${badgeClass}">${data}</span>`;
+                        }
                     },
                     { 
                         data: 'municipalidad_domicilio',

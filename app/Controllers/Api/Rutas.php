@@ -1113,15 +1113,21 @@ class Rutas extends ResourceController
                     $reclamo = $reclamoModel->find($reclamoId);
                     
                     if ($reclamo) {
-                        // Obtener coordenadas del reclamo
-                        $coordenadas = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
-                        $reclamo['coordenadas'] = $coordenadas;
-                        $reclamo['posicion'] = $rutaReclamo['posicion'];
-                        $reclamo['ruta_id'] = $ruta['id'];
-                        $reclamo['ruta_nombre'] = $ruta['nombre'];
-                        $reclamo['ruta_color'] = $ruta['color'];
-                        $todosLosReclamos[] = $reclamo;
-                        $reclamosYaProcesados[] = $reclamoId;
+                        // FILTRAR RECLAMOS CERRADOS: No mostrar reclamos que están cerrados (cerrado = 1)
+                        // Solo incluir reclamos que NO están cerrados (cerrado = 0 o cerrado IS NULL)
+                        $estaCerrado = isset($reclamo['cerrado']) && $reclamo['cerrado'] == 1;
+                        
+                        if (!$estaCerrado) {
+                            // Obtener coordenadas del reclamo
+                            $coordenadas = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
+                            $reclamo['coordenadas'] = $coordenadas;
+                            $reclamo['posicion'] = $rutaReclamo['posicion'];
+                            $reclamo['ruta_id'] = $ruta['id'];
+                            $reclamo['ruta_nombre'] = $ruta['nombre'];
+                            $reclamo['ruta_color'] = $ruta['color'];
+                            $todosLosReclamos[] = $reclamo;
+                            $reclamosYaProcesados[] = $reclamoId;
+                        }
                     } else {
                         // Log si un reclamo no existe (posible inconsistencia de datos)
                         log_message('warning', "Reclamo ID {$reclamoId} no encontrado pero está en ruta ID {$ruta['id']}");
