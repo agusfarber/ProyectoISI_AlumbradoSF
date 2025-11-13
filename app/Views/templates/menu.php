@@ -46,6 +46,15 @@
     </div>
     <?php endif; ?>
 
+    <?php if ($userRole == '1' || $userRole == '2'): ?>
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/cierre_reclamos"); ?>" title="Cierre">
+        <i class="bi bi-lock-fill"></i>
+        <span>Cierre</span>
+      </a>
+    </div>
+    <?php endif; ?>
+
     <?php if ($userRole == '1' || $userRole == '2' || $userRole == '3'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/materiales"); ?>" title="Materiales">

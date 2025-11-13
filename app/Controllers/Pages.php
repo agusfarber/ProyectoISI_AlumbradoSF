@@ -29,6 +29,7 @@ class Pages extends BaseController
             'ruta_google' => ['1', '2', '3'],
             'token103' => ['1', '2', '3'],
             'tareas' => ['1', '2', '3'],
+            'cierre_reclamos' => ['1', '2'],
         ];
       
         // Obtener el rol del usuario

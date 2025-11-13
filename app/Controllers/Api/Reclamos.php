@@ -98,11 +98,19 @@ class Reclamos extends ResourceController
             return $this->failNotFound('Reclamo no encontrado.');
         }
 
+        // VALIDAR: Si el reclamo está cerrado (cerrado = 1), no permitir cambiar el estado
+        $estaCerrado = isset($reclamoActual['cerrado']) && $reclamoActual['cerrado'] == 1;
+        
         // Verificar si hay cambio de estado para registrar en historial
         $estadoAnterior = $reclamoActual['municipalidad_estado'] ?? '';
         $estadoNuevo = array_key_exists('municipalidad_estado', $data)
             ? (string) $data['municipalidad_estado']
             : $estadoAnterior;
+        
+        // Si el reclamo está cerrado y se intenta cambiar el estado, rechazar la operación
+        if ($estaCerrado && $estadoNuevo !== $estadoAnterior) {
+            return $this->failForbidden('No se puede cambiar el estado de un reclamo que ya ha sido cerrado formalmente.');
+        }
 
         if ($estadoNuevo === '') {
             $estadoNuevo = $estadoAnterior;
