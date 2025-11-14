@@ -70,6 +70,7 @@ $routes->post('api/rutas/operario/add-reclamo', 'Api\\Rutas::añadirReclamoARuta
 $routes->resource('api/rutas');
 // Endpoint Cierre de Reclamos
 $routes->get('api/cierre-reclamos/completados', 'Api\\CierreReclamos::obtenerReclamosCompletados');
+$routes->get('api/cierre-reclamos/cerrados', 'Api\\CierreReclamos::obtenerReclamosCerrados');
 $routes->post('api/cierre-reclamos/cerrar', 'Api\\CierreReclamos::cerrarReclamos');
 
 

@@ -10,7 +10,7 @@
 
     <!-- Resumen de reclamos -->
     <div class="row mb-3">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card text-white bg-primary card-resumen">
                 <div class="card-body p-2">
                     <div class="d-flex align-items-center">
@@ -23,7 +23,20 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-success card-resumen">
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-lock-fill fs-4 me-2"></i>
+                        <div>
+                            <small class="d-block">Cerrados</small>
+                            <strong class="fs-5">{{ reclamosCerrados.length }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!--div class="col-md-3">
             <div class="card text-white bg-secondary card-resumen">
                 <div class="card-body p-2">
                     <div class="d-flex align-items-center">
@@ -35,7 +48,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </div-->
     </div>
 
     <!-- Botones de acción -->
@@ -52,24 +65,53 @@
     </div>
 
     <!-- Tabla de reclamos completados -->
-    <div class="table-responsive">
-        <table id="tabla_cierre_reclamos" class="table table-bordered table-hover w-100">
-            <thead>
-                <tr>
-                    <th style="width: 50px;">
-                        <input type="checkbox" class="form-check-input" @change="toggleSeleccionTodos" :checked="todosMarcados">
-                    </th>
-                    <th>ID</th>
-                    <th>Motivo</th>
-                    <th>Domicilio</th>
-                    <th>Fecha Inicio</th>
-                    <th>Fecha Modificación</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Contenido de la tabla gestionado por DataTables -->
-            </tbody>
-        </table>
+    <div class="mb-4">
+        <h5 class="mb-3">
+            <i class="bi bi-list-check me-2"></i>Reclamos Completados (Pendientes de Cierre)
+        </h5>
+        <div class="table-responsive">
+            <table id="tabla_cierre_reclamos" class="table table-bordered table-hover w-100">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input type="checkbox" class="form-check-input" @change="toggleSeleccionTodos" :checked="todosMarcados">
+                        </th>
+                        <th>ID</th>
+                        <th>Motivo</th>
+                        <th>Domicilio</th>
+                        <th>Fecha Inicio</th>
+                        <th>Fecha Modificación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Contenido de la tabla gestionado por DataTables -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tabla de reclamos cerrados -->
+    <div class="mb-4">
+        <h5 class="mb-3">
+            <i class="bi bi-lock-fill me-2"></i>Reclamos Cerrados
+        </h5>
+        <div class="table-responsive">
+            <table id="tabla_reclamos_cerrados" class="table table-bordered table-hover w-100">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Motivo</th>
+                        <th>Domicilio</th>
+                        <th>Fecha Inicio</th>
+                        <th>Fecha Modificación</th>
+                        <th>Fecha Cierre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Contenido de la tabla gestionado por DataTables -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Modal Ver Detalles Reclamo -->
@@ -103,6 +145,10 @@
                                 <label class="fw-bold">Fecha de Modificación:</label>
                                 <p>{{ formatearFecha(reclamoSeleccionado.municipalidad_fechaModificacion) }}</p>
                             </div>
+                            <div class="mb-3" v-if="reclamoSeleccionado.fecha_cierre">
+                                <label class="fw-bold">Fecha de Cierre:</label>
+                                <p><span class="badge bg-success">{{ formatearFecha(reclamoSeleccionado.fecha_cierre) }}</span></p>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -111,7 +157,10 @@
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
-                                <p><span class="badge bg-success">{{ reclamoSeleccionado.municipalidad_estado }}</span></p>
+                                <p>
+                                    <span class="badge bg-success" v-if="reclamoSeleccionado.cerrado == 1">Cerrado</span>
+                                    <span class="badge bg-primary" v-else>{{ reclamoSeleccionado.municipalidad_estado }}</span>
+                                </p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Prioridad:</label>
