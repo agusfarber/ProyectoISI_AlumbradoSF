@@ -48,14 +48,18 @@ class CreateTestTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 20,
             ],
-            'rol_id' => [
+            'contrasena' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'idRol' => [
                 'type' => 'INT',
                 'constraint' => 11,
                 'unsigned' => true,
             ],
         ]);
         $this->forge->addKey('id', true);
-        $this->forge->addForeignKey('rol_id', 'rol', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('idRol', 'rol', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('usuario');
 
         // Crear tabla cuadrilla para los tests
@@ -250,16 +254,92 @@ class CreateTestTables extends Migration
         $this->forge->addForeignKey('ruta_id', 'ruta', 'id', 'CASCADE', 'CASCADE');
         $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('ruta_reclamo');
+
+        // Crear tabla tipo_material para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'nombre' => [
+                'type' => 'VARCHAR',
+                'constraint' => 100,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->createTable('tipo_material');
+
+        // Crear tabla material para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'nombre' => [
+                'type' => 'VARCHAR',
+                'constraint' => 200,
+            ],
+            'idTipo' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+            ],
+            'cantidad' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'default' => 0,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('idTipo', 'tipo_material', 'id', 'SET NULL', 'CASCADE');
+        $this->forge->createTable('material');
+
+        // Crear tabla token103 para credenciales de API externa
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'username' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'password' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'created_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'updated_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->createTable('token103');
     }
 
     public function down()
     {
-        $this->forge->dropTable('ruta_reclamo');
-        $this->forge->dropTable('ruta');
-        $this->forge->dropTable('reclamo');
-        $this->forge->dropTable('cuadrilla_operarios');
-        $this->forge->dropTable('cuadrilla');
-        $this->forge->dropTable('usuario');
-        $this->forge->dropTable('rol');
+        $this->forge->dropTable('token103', true);
+        $this->forge->dropTable('material', true);
+        $this->forge->dropTable('tipo_material', true);
+        $this->forge->dropTable('ruta_reclamo', true);
+        $this->forge->dropTable('ruta', true);
+        $this->forge->dropTable('direccion', true);
+        $this->forge->dropTable('reclamo', true);
+        $this->forge->dropTable('cuadrilla_operarios', true);
+        $this->forge->dropTable('cuadrilla', true);
+        $this->forge->dropTable('usuario', true);
+        $this->forge->dropTable('rol', true);
     }
 }

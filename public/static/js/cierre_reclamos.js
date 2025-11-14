@@ -2,9 +2,11 @@ const app = Vue.createApp({
     data() {
         return {
             reclamosCompletados: [],
+            reclamosCerrados: [],
             reclamosSeleccionados: [],
             reclamoSeleccionado: {},
             tabla: null,
+            tablaCerrados: null,
             cargando: false,
             procesando: false,
             ultimaActualizacion: ''
@@ -58,7 +60,38 @@ const app = Vue.createApp({
         },
 
         /**
-         * Inicializa o reinicia la DataTable con los datos actuales de reclamos
+         * Obtiene los reclamos cerrados desde la API
+         */
+        async obtenerReclamosCerrados() {
+            try {
+                const url = BASE_URL + 'api/cierre-reclamos/cerrados';
+                const response = await axios.get(url);
+
+                if (response.data.success) {
+                    // Ordenar reclamos de menor a mayor por municipalidad_id
+                    this.reclamosCerrados = response.data.reclamos.sort((a, b) => {
+                        return parseInt(a.municipalidad_id) - parseInt(b.municipalidad_id);
+                    });
+                    
+                    // Inicializar o actualizar la tabla DataTables
+                    this.$nextTick(() => {
+                        this.inicializarTablaCerrados();
+                    });
+                } else {
+                    this.mostrarMensaje('Error al cargar reclamos cerrados', 'error');
+                }
+            } catch (error) {
+                console.error('Error al obtener reclamos cerrados:', error);
+                if (error.response && error.response.status === 401) {
+                    this.mostrarMensaje('No tiene permisos para acceder a esta función. Solo supervisores pueden ver reclamos cerrados.', 'error');
+                } else {
+                    this.mostrarMensaje('Error al cargar los reclamos cerrados', 'error');
+                }
+            }
+        },
+
+        /**
+         * Inicializa o reinicia la DataTable con los datos actuales de reclamos completados
          */
         inicializarTabla() {
             if (this.tabla) {
@@ -151,6 +184,80 @@ const app = Vue.createApp({
         },
 
         /**
+         * Inicializa o reinicia la DataTable con los datos actuales de reclamos cerrados
+         */
+        inicializarTablaCerrados() {
+            if (this.tablaCerrados) {
+                this.tablaCerrados.destroy();
+            }
+            
+            this.tablaCerrados = $('#tabla_reclamos_cerrados').DataTable({
+                data: this.reclamosCerrados,
+                responsive: true,
+                pagingType: 'simple_numbers',
+                lengthMenu: [
+                    [10, 25, 50, 100],
+                    [10, 25, 50, 100]
+                ],
+                language: {
+                    "processing": "Procesando...",
+                    "lengthMenu": "Mostrar _MENU_ registros",
+                    "zeroRecords": "No se encontraron resultados",
+                    "emptyTable": "Ningún dato disponible en esta tabla",
+                    "infoEmpty": "Mostrando registros del 0 al 0 de un total de 0 registros",
+                    "infoFiltered": "(filtrado de un total de _MAX_ registros)",
+                    "search": "Buscar:",
+                    "loadingRecords": "Cargando...",
+                    "info": "Mostrando _START_ a _END_ de _TOTAL_ registros"
+                },
+                columns: [
+                    {
+                        data: 'municipalidad_id',
+                        className: 'text-start',
+                        render: (data, type, row) => {
+                            return `<a href="#" class="ver-reclamo-cerrado-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
+                        }
+                    },
+                    { 
+                        data: 'municipalidad_motivo',
+                        className: 'text-start'
+                    },
+                    {
+                        data: null,
+                        className: 'text-start',
+                        render: (data, type, row) => {
+                            return `${row.municipalidad_domicilio} ${row.municipalidad_numeroDomicilio}`;
+                        }
+                    },
+                    {
+                        data: 'municipalidad_fechaInicio',
+                        className: 'text-start',
+                        render: (data) => this.formatearFecha(data)
+                    },
+                    {
+                        data: 'municipalidad_fechaModificacion',
+                        className: 'text-start',
+                        render: (data) => this.formatearFecha(data)
+                    },
+                    {
+                        data: 'fecha_cierre',
+                        className: 'text-start',
+                        render: (data) => this.formatearFecha(data)
+                    }
+                ],
+                order: [[0, 'asc']] // Ordenar por ID ascendente
+            });
+
+            // Evento para ver detalles al hacer clic en el ID
+            $('#tabla_reclamos_cerrados tbody').off('click', '.ver-reclamo-cerrado-id').on('click', '.ver-reclamo-cerrado-id', (e) => {
+                e.preventDefault();
+                const id = $(e.currentTarget).data('id');
+                const reclamo = this.reclamosCerrados.find(r => r.id == id);
+                if (reclamo) this.verDetalles(reclamo);
+            });
+        },
+
+        /**
          * Cierra los reclamos seleccionados
          */
         async cerrarReclamosSeleccionados() {
@@ -184,8 +291,34 @@ const app = Vue.createApp({
                     mensaje += `<strong>Reclamos cerrados:</strong> ${response.data.cerrados}<br>`;
                     mensaje += `<strong>Fecha de cierre:</strong> ${this.formatearFecha(response.data.fecha_cierre)}`;
 
+                    // Información sobre envío al sistema 103
+                    if (response.data.enviados_sistema103 !== undefined) {
+                        mensaje += `<br><br><strong>Sincronización con Sistema 103:</strong><br>`;
+                        
+                        if (response.data.enviados_sistema103 > 0) {
+                            mensaje += `<span class="text-success"><i class="bi bi-check-circle"></i> ${response.data.enviados_sistema103} reclamo(s) cerrado(s) y enviado(s) exitosamente al sistema 103</span>`;
+                            
+                            if (response.data.reclamos_enviados_externos && response.data.reclamos_enviados_externos.length > 0) {
+                                mensaje += `<br><small class="text-muted">IDs: ${response.data.reclamos_enviados_externos.join(', ')}</small>`;
+                            }
+                        }
+                        
+                        if (response.data.no_enviados_sistema103 > 0) {
+                            mensaje += `<br><span class="text-warning"><i class="bi bi-exclamation-triangle"></i> ${response.data.no_enviados_sistema103} reclamo(s) NO se cerraron porque falló el envío al sistema 103</span>`;
+                            mensaje += `<br><small class="text-muted">Estos reclamos permanecen sin cerrar en la base de datos local hasta que se pueda enviar correctamente al sistema 103.</small>`;
+                            
+                            if (response.data.reclamos_no_enviados_externos && response.data.reclamos_no_enviados_externos.length > 0) {
+                                mensaje += '<br><small class="text-muted">Detalles de errores:<ul class="mb-0">';
+                                response.data.reclamos_no_enviados_externos.forEach(item => {
+                                    mensaje += `<li>Reclamo ${item.id}: ${item.error}</li>`;
+                                });
+                                mensaje += '</ul></small>';
+                            }
+                        }
+                    }
+
                     if (response.data.errores > 0) {
-                        mensaje += `<br><strong class="text-warning">Advertencia:</strong> ${response.data.errores} reclamo(s) no pudieron ser cerrados`;
+                        mensaje += `<br><br><strong class="text-warning">Advertencia:</strong> ${response.data.errores} reclamo(s) no pudieron ser cerrados`;
                         
                         if (response.data.detalles_errores) {
                             mensaje += '<br><small class="text-muted">Detalles:<ul class="mb-0">';
@@ -198,16 +331,12 @@ const app = Vue.createApp({
 
                     this.mostrarMensaje(mensaje, 'success');
 
-                    // Limpiar selección y recargar
+                    // Limpiar selección y recargar ambas tablas
                     this.reclamosSeleccionados = [];
-                    await this.obtenerReclamosCompletados();
-                    
-                    // Reinicializar tabla después de recargar
-                    this.$nextTick(() => {
-                        if (this.tabla) {
-                            this.inicializarTabla();
-                        }
-                    });
+                    await Promise.all([
+                        this.obtenerReclamosCompletados(),
+                        this.obtenerReclamosCerrados()
+                    ]);
 
                 } else {
                     let mensajeError = 'No se pudo cerrar ningún reclamo';
@@ -431,12 +560,14 @@ const app = Vue.createApp({
     },
 
     mounted() {
-        // Cargar reclamos completados al montar el componente
+        // Cargar reclamos completados y cerrados al montar el componente
         this.obtenerReclamosCompletados();
+        this.obtenerReclamosCerrados();
 
         // Actualizar cada 1 hora (3600000 ms)
         setInterval(() => {
             this.obtenerReclamosCompletados();
+            this.obtenerReclamosCerrados();
         }, 3600000);
     }
 });
