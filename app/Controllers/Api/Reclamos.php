@@ -9,6 +9,8 @@ use App\Models\DireccionModel;
 use App\Models\MaterialModel;
 use App\Models\Material_reclamoModel;
 use App\Models\Tipo_materialModel;
+use App\Models\Tiempo_reparacionModel;
+use App\Models\Tiempo_promedio_motivoModel;
 
 class Reclamos extends ResourceController
 {
@@ -94,6 +96,7 @@ class Reclamos extends ResourceController
         if ($observacion === '') {
             $observacion = null;
         }
+
 
         // Obtener el reclamo actual para comparar estados
         $reclamoActual = $this->model->find($id);
@@ -655,5 +658,313 @@ class Reclamos extends ResourceController
                     ->get();
         
         return $query->getRowArray();
+    }
+
+    /**
+     * Guarda el tiempo de reparación registrado por un operario
+     */
+    private function guardarTiempoReparacion($reclamoId, $motivoReclamo, $tiempoMinutos)
+    {
+        try {
+            $tiempoReparacionModel = new Tiempo_reparacionModel();
+            
+            // Obtener el ID del usuario desde la sesión
+            $usuarioId = session()->get('user_id');
+            if (!$usuarioId) {
+                $usuarioId = 0; // Sistema o no especificado
+            }
+
+            $datosTiempo = [
+                'reclamo_id' => $reclamoId,
+                'motivo_reclamo' => $motivoReclamo,
+                'tiempo_minutos' => $tiempoMinutos,
+                'usuario_id' => $usuarioId,
+                'fecha_registro' => date('Y-m-d H:i:s')
+            ];
+
+            $tiempoReparacionModel->insert($datosTiempo);
+            
+            log_message('info', "Tiempo de reparación guardado: Reclamo ID {$reclamoId}, Motivo: {$motivoReclamo}, Tiempo: {$tiempoMinutos} minutos");
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar tiempo de reparación: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Recalcula el promedio de tiempo de reparación para un motivo específico
+     */
+    private function recalcularPromedioMotivo($motivo, $nuevoTiempoMinutos)
+    {
+        try {
+            $promedioModel = new Tiempo_promedio_motivoModel();
+            
+            // Buscar si ya existe un registro para este motivo
+            $promedioExistente = $promedioModel->where('motivo', $motivo)->first();
+            
+            if ($promedioExistente) {
+                // Actualizar el promedio existente
+                $nuevaCantidad = $promedioExistente['cantidad_registros'] + 1;
+                $nuevoTiempoTotal = $promedioExistente['tiempo_total_minutos'] + $nuevoTiempoMinutos;
+                $nuevoPromedio = $nuevoTiempoTotal / $nuevaCantidad;
+                
+                $promedioModel->update($promedioExistente['id'], [
+                    'tiempo_promedio_minutos' => round($nuevoPromedio, 2),
+                    'cantidad_registros' => $nuevaCantidad,
+                    'tiempo_total_minutos' => $nuevoTiempoTotal,
+                    'fecha_actualizacion' => date('Y-m-d H:i:s')
+                ]);
+                
+                log_message('info', "Promedio actualizado para motivo '{$motivo}': {$nuevoPromedio} minutos (de {$promedioExistente['cantidad_registros']} registros)");
+            } else {
+                // Crear nuevo registro con el primer tiempo
+                $promedioModel->insert([
+                    'motivo' => $motivo,
+                    'tiempo_promedio_minutos' => $nuevoTiempoMinutos,
+                    'cantidad_registros' => 1,
+                    'tiempo_total_minutos' => $nuevoTiempoMinutos,
+                    'tiempo_default_minutos' => 15, // Valor por defecto
+                    'fecha_actualizacion' => date('Y-m-d H:i:s')
+                ]);
+                
+                log_message('info', "Nuevo promedio creado para motivo '{$motivo}': {$nuevoTiempoMinutos} minutos (primer registro)");
+            }
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al recalcular promedio de motivo: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Obtiene el tiempo de reparación registrado para un reclamo
+     */
+    public function getTiempoReparacion($reclamoId = null)
+    {
+        try {
+            if (!$reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            // Verificar que el reclamo existe
+            $reclamo = $this->model->find($reclamoId);
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $tiempoReparacionModel = new Tiempo_reparacionModel();
+            $db = \Config\Database::connect();
+            
+            // Obtener el tiempo de reparación con el nombre del usuario
+            $query = $db->table('tiempo_reparacion tr')
+                        ->select('tr.*, u.nombre as usuario_nombre')
+                        ->join('usuario u', 'u.id = tr.usuario_id', 'left')
+                        ->where('tr.reclamo_id', $reclamoId)
+                        ->orderBy('tr.fecha_registro', 'DESC')
+                        ->limit(1)
+                        ->get();
+            
+            $tiempoReparacion = $query->getRowArray();
+            
+            if (!$tiempoReparacion) {
+                return $this->respond(null);
+            }
+            
+            return $this->respond($tiempoReparacion);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener tiempo de reparación: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener el tiempo de reparación del reclamo.');
+        }
+    }
+
+    /**
+     * Guarda o actualiza el tiempo de reparación de un reclamo
+     */
+    public function guardarTiempoReparacionEndpoint($reclamoId = null)
+    {
+        try {
+            if (!$reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            $data = $this->request->getJSON(true);
+
+            // Validar datos obligatorios
+            if (empty($data['tiempo_reparacion_minutos'])) {
+                return $this->failValidationErrors('El tiempo de reparación es obligatorio.');
+            }
+
+            $tiempoMinutos = (int) $data['tiempo_reparacion_minutos'];
+            if ($tiempoMinutos <= 0) {
+                return $this->failValidationErrors('El tiempo de reparación debe ser mayor a 0.');
+            }
+
+            // Verificar que el reclamo existe
+            $reclamo = $this->model->find($reclamoId);
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $motivoReclamo = $reclamo['municipalidad_motivo'] ?? '';
+            if (empty($motivoReclamo)) {
+                return $this->failValidationErrors('El reclamo no tiene motivo asociado.');
+            }
+
+            // Verificar si ya existe un tiempo registrado para este reclamo
+            $tiempoReparacionModel = new Tiempo_reparacionModel();
+            $tiempoExistente = $tiempoReparacionModel->where('reclamo_id', $reclamoId)->first();
+
+            if ($tiempoExistente) {
+                // Actualizar el tiempo existente
+                $tiempoAnterior = $tiempoExistente['tiempo_minutos'];
+                $motivoAnterior = $tiempoExistente['motivo_reclamo'] ?? '';
+                
+                // Si el motivo cambió, ajustar ambos promedios
+                if (!empty($motivoAnterior) && $motivoAnterior !== $motivoReclamo) {
+                    // Restar el tiempo anterior del motivo anterior (reduciendo cantidad_registros también)
+                    $this->restarTiempoDelPromedio($motivoAnterior, $tiempoAnterior);
+                    
+                    // Agregar el nuevo tiempo al motivo nuevo (como si fuera nuevo)
+                    $this->recalcularPromedioMotivo($motivoReclamo, $tiempoMinutos);
+                    
+                    log_message('info', "Tiempo de reparación actualizado con cambio de motivo: Reclamo ID {$reclamoId}, Motivo anterior: {$motivoAnterior}, Motivo nuevo: {$motivoReclamo}");
+                } else {
+                    // Solo ajustar el promedio del mismo motivo (mantener cantidad_registros igual)
+                    $diferenciaTiempo = $tiempoMinutos - $tiempoAnterior;
+                    $this->recalcularPromedioMotivoConDiferencia($motivoReclamo, $diferenciaTiempo);
+                }
+                
+                // Actualizar el registro
+                $tiempoReparacionModel->update($tiempoExistente['id'], [
+                    'tiempo_minutos' => $tiempoMinutos,
+                    'motivo_reclamo' => $motivoReclamo,
+                    'fecha_registro' => date('Y-m-d H:i:s'),
+                    'usuario_id' => session()->get('user_id') ?? 0
+                ]);
+                
+                log_message('info', "Tiempo de reparación actualizado: Reclamo ID {$reclamoId}, Tiempo anterior: {$tiempoAnterior}, Tiempo nuevo: {$tiempoMinutos}");
+            } else {
+                // Crear nuevo registro
+                $this->guardarTiempoReparacion($reclamoId, $motivoReclamo, $tiempoMinutos);
+                $this->recalcularPromedioMotivo($motivoReclamo, $tiempoMinutos);
+            }
+
+            // Obtener el tiempo actualizado con el nombre del usuario
+            $db = \Config\Database::connect();
+            $query = $db->table('tiempo_reparacion tr')
+                        ->select('tr.*, u.nombre as usuario_nombre')
+                        ->join('usuario u', 'u.id = tr.usuario_id', 'left')
+                        ->where('tr.reclamo_id', $reclamoId)
+                        ->orderBy('tr.fecha_registro', 'DESC')
+                        ->limit(1)
+                        ->get();
+            
+            $tiempoActualizado = $query->getRowArray();
+            
+            return $this->respond($tiempoActualizado);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar tiempo de reparación: ' . $e->getMessage());
+            return $this->failServerError('Error al guardar el tiempo de reparación.');
+        }
+    }
+
+    /**
+     * Recalcula el promedio de tiempo de reparación ajustando por diferencia (para actualizaciones)
+     * Solo ajusta el tiempo total, mantiene cantidad_registros igual
+     */
+    private function recalcularPromedioMotivoConDiferencia($motivo, $diferenciaTiempo)
+    {
+        try {
+            $promedioModel = new Tiempo_promedio_motivoModel();
+            
+            // Buscar el promedio existente
+            $promedioExistente = $promedioModel->where('motivo', $motivo)->first();
+            
+            if ($promedioExistente) {
+                // Ajustar el tiempo total y recalcular el promedio (cantidad_registros se mantiene igual)
+                $nuevoTiempoTotal = $promedioExistente['tiempo_total_minutos'] + $diferenciaTiempo;
+                
+                // Asegurar que el tiempo total no sea negativo
+                if ($nuevoTiempoTotal < 0) {
+                    $nuevoTiempoTotal = 0;
+                }
+                
+                $nuevoPromedio = $promedioExistente['cantidad_registros'] > 0 
+                    ? $nuevoTiempoTotal / $promedioExistente['cantidad_registros'] 
+                    : 0;
+                
+                $promedioModel->update($promedioExistente['id'], [
+                    'tiempo_promedio_minutos' => round($nuevoPromedio, 2),
+                    'tiempo_total_minutos' => $nuevoTiempoTotal,
+                    'fecha_actualizacion' => date('Y-m-d H:i:s')
+                ]);
+                
+                log_message('info', "Promedio actualizado (ajuste) para motivo '{$motivo}': {$nuevoPromedio} minutos");
+            }
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al recalcular promedio con diferencia: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resta un tiempo completo del promedio de un motivo (usado cuando cambia el motivo)
+     * Reduce tanto el tiempo_total como la cantidad_registros
+     */
+    private function restarTiempoDelPromedio($motivo, $tiempoMinutos)
+    {
+        try {
+            $promedioModel = new Tiempo_promedio_motivoModel();
+            
+            // Buscar el promedio existente
+            $promedioExistente = $promedioModel->where('motivo', $motivo)->first();
+            
+            if ($promedioExistente && $promedioExistente['cantidad_registros'] > 0) {
+                // Reducir el tiempo total y la cantidad de registros
+                $nuevoTiempoTotal = $promedioExistente['tiempo_total_minutos'] - $tiempoMinutos;
+                $nuevaCantidad = $promedioExistente['cantidad_registros'] - 1;
+                
+                // Asegurar que no sean negativos
+                if ($nuevoTiempoTotal < 0) {
+                    $nuevoTiempoTotal = 0;
+                }
+                if ($nuevaCantidad < 0) {
+                    $nuevaCantidad = 0;
+                }
+                
+                // Recalcular el promedio
+                $nuevoPromedio = $nuevaCantidad > 0 ? $nuevoTiempoTotal / $nuevaCantidad : 0;
+                
+                $promedioModel->update($promedioExistente['id'], [
+                    'tiempo_promedio_minutos' => round($nuevoPromedio, 2),
+                    'cantidad_registros' => $nuevaCantidad,
+                    'tiempo_total_minutos' => $nuevoTiempoTotal,
+                    'fecha_actualizacion' => date('Y-m-d H:i:s')
+                ]);
+                
+                log_message('info', "Tiempo restado del promedio para motivo '{$motivo}': {$tiempoMinutos} minutos removidos, nuevo promedio: {$nuevoPromedio} minutos");
+            }
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al restar tiempo del promedio: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Obtiene los tiempos promedio de reparación por motivo (para consulta de supervisores)
+     */
+    public function getTiemposPromedio()
+    {
+        try {
+            $promedioModel = new Tiempo_promedio_motivoModel();
+            $promedios = $promedioModel->orderBy('motivo', 'ASC')->findAll();
+            
+            return $this->respond($promedios);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener tiempos promedio: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener los tiempos promedio de reparación.');
+        }
     }
 }

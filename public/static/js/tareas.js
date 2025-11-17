@@ -15,6 +15,14 @@ const app = Vue.createApp({
             nuevoEstado: '',
             nuevaObservacion: '',
             
+            // Variables para tiempo de reparación
+            tiempoReparacion: {
+                valor: null,
+                unidad: 'minutos' // 'minutos' o 'horas'
+            },
+            tiempoReparacionRegistrado: null,
+            cargandoTiempoReparacion: false,
+            
             // Variables para historial
             historialReclamo: [],
             cargandoHistorial: false,
@@ -151,6 +159,10 @@ const app = Vue.createApp({
             } else {
                 return this.puedeGuardarMaterial();
             }
+        },
+        
+        puedeGuardarTiempoReparacion() {
+            return this.tiempoReparacion.valor && this.tiempoReparacion.valor > 0;
         }
     },
 
@@ -220,6 +232,11 @@ const app = Vue.createApp({
             this.reclamoSeleccionado = { ...reclamo };
             this.nuevoEstado = '';
             this.nuevaObservacion = '';
+            this.tiempoReparacion = {
+                valor: null,
+                unidad: 'minutos'
+            };
+            this.tiempoReparacionRegistrado = null;
             this.historialReclamo = []; // Limpiar historial anterior
             this.mostrarHistorialEstado = false; // Ocultar historial inicialmente
             
@@ -249,15 +266,19 @@ const app = Vue.createApp({
                 // Activar la pestaña "Cambiar Estado"
                 const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
                 const materialesTab = document.getElementById('materiales-tab');
+                const tiempoReparacionTab = document.getElementById('tiempo-reparacion-tab');
                 const cambiarEstadoPane = document.getElementById('cambiar-estado');
                 const materialesPane = document.getElementById('materiales');
+                const tiempoReparacionPane = document.getElementById('tiempo-reparacion');
                 
-                if (cambiarEstadoTab && materialesTab && cambiarEstadoPane && materialesPane) {
+                if (cambiarEstadoTab && materialesTab && tiempoReparacionTab && cambiarEstadoPane && materialesPane && tiempoReparacionPane) {
                     // Remover clases activas de todas las pestañas
                     cambiarEstadoTab.classList.remove('active');
                     materialesTab.classList.remove('active');
+                    tiempoReparacionTab.classList.remove('active');
                     cambiarEstadoPane.classList.remove('show', 'active');
                     materialesPane.classList.remove('show', 'active');
+                    tiempoReparacionPane.classList.remove('show', 'active');
                     
                     // Activar la pestaña "Cambiar Estado"
                     cambiarEstadoTab.classList.add('active');
@@ -266,6 +287,7 @@ const app = Vue.createApp({
                     // Actualizar atributos ARIA
                     cambiarEstadoTab.setAttribute('aria-selected', 'true');
                     materialesTab.setAttribute('aria-selected', 'false');
+                    tiempoReparacionTab.setAttribute('aria-selected', 'false');
                 }
             });
         },
@@ -337,6 +359,7 @@ const app = Vue.createApp({
                 const mensajeExito = nuevoEstadoSeleccionado
                     ? `Estado actualizado a: ${nuevoEstadoSeleccionado}${observacionLimpia ? ' y observación registrada.' : ''}`
                     : 'Observación registrada correctamente.';
+                
                 this.mostrarMensaje(mensajeExito, 'success');
 
                 // Si el historial está visible, actualizarlo
@@ -1564,6 +1587,105 @@ const app = Vue.createApp({
             this.mostrarMensaje('Error al cargar el detalle del material', 'error');
         } finally {
             this.cargandoDetalleMaterial = false;
+        }
+    },
+
+    /**
+     * Carga el tiempo de reparación registrado para el reclamo actual
+     */
+    async cargarTiempoReparacion() {
+        if (!this.reclamoSeleccionado.id) {
+            return;
+        }
+
+        this.cargandoTiempoReparacion = true;
+        this.tiempoReparacionRegistrado = null;
+        
+        try {
+            const response = await axios.get(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/tiempo-reparacion');
+            if (response.data) {
+                this.tiempoReparacionRegistrado = response.data;
+            }
+        } catch (error) {
+            console.error('Error al cargar tiempo de reparación:', error);
+            // Si no existe tiempo registrado, no es un error crítico
+            if (error.response && error.response.status !== 404) {
+                this.mostrarMensaje('Error al cargar el tiempo de reparación', 'error');
+            }
+        } finally {
+            this.cargandoTiempoReparacion = false;
+        }
+    },
+
+    /**
+     * Guarda o actualiza el tiempo de reparación de un reclamo
+     */
+    async guardarTiempoReparacion() {
+        if (!this.puedeGuardarTiempoReparacion) {
+            this.mostrarMensaje('Debe ingresar un tiempo de reparación válido', 'warning');
+            return;
+        }
+
+        if (!this.reclamoSeleccionado.id) {
+            this.mostrarMensaje('Error: No hay reclamo seleccionado', 'error');
+            return;
+        }
+
+        try {
+            // Convertir a minutos si viene en horas
+            let tiempoMinutos = this.tiempoReparacion.valor;
+            if (this.tiempoReparacion.unidad === 'horas') {
+                tiempoMinutos = tiempoMinutos * 60;
+            }
+            tiempoMinutos = Math.round(tiempoMinutos);
+
+            const datos = {
+                tiempo_reparacion_minutos: tiempoMinutos
+            };
+
+            await axios.post(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/tiempo-reparacion', datos);
+            
+            this.mostrarMensaje('Tiempo de reparación registrado correctamente. Promedios actualizados.', 'success');
+            
+            // Recargar el tiempo registrado
+            await this.cargarTiempoReparacion();
+            
+            // Limpiar el formulario
+            this.tiempoReparacion = {
+                valor: null,
+                unidad: 'minutos'
+            };
+            
+        } catch (error) {
+            console.error('Error al guardar tiempo de reparación:', error);
+            const mensajeError = error.response && error.response.data && error.response.data.message 
+                ? error.response.data.message 
+                : 'Error al guardar el tiempo de reparación';
+            this.mostrarMensaje(mensajeError, 'error');
+        }
+    },
+
+    /**
+     * Formatea el tiempo en minutos a formato legible (minutos/horas)
+     */
+    formatearTiempo(tiempoMinutos) {
+        if (!tiempoMinutos) {
+            return 'No especificado';
+        }
+
+        const minutos = parseInt(tiempoMinutos);
+        
+        if (minutos < 60) {
+            return `${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}`;
+        } else {
+            const horas = Math.floor(minutos / 60);
+            const minutosRestantes = minutos % 60;
+            
+            if (minutosRestantes === 0) {
+                return `${horas} ${horas === 1 ? 'hora' : 'horas'}`;
+            } else {
+                return `${horas} ${horas === 1 ? 'hora' : 'horas'} y ${minutosRestantes} ${minutosRestantes === 1 ? 'minuto' : 'minutos'}`;
+            }
         }
     }
 },

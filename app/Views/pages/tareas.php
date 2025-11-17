@@ -348,6 +348,11 @@
                                 Materiales
                             </button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tiempo-reparacion-tab" data-bs-toggle="tab" data-bs-target="#tiempo-reparacion" type="button" role="tab" aria-controls="tiempo-reparacion" aria-selected="false" @click="cargarTiempoReparacion">
+                                Tiempo de Reparación
+                            </button>
+                        </li>
                     </ul>
                     
                     <!-- Contenido de las pestañas -->
@@ -608,6 +613,97 @@
                                                 </tbody>
                                             </table>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Pestaña Tiempo de Reparación -->
+                        <div class="tab-pane fade" id="tiempo-reparacion" role="tabpanel" aria-labelledby="tiempo-reparacion-tab">
+                            <div class="mt-3">
+                                <!-- Formulario para registrar tiempo de reparación -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-clock"></i> Registrar Tiempo de Reparación</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <label for="tiempoReparacion" class="form-label">Tiempo de Reparación</label>
+                                            <div class="row g-2">
+                                                <div class="col-8">
+                                                    <input type="number" 
+                                                           id="tiempoReparacion" 
+                                                           class="form-control" 
+                                                           v-model.number="tiempoReparacion.valor" 
+                                                           min="0" 
+                                                           step="0.5"
+                                                           placeholder="Ingrese el tiempo de reparación">
+                                                </div>
+                                                <div class="col-4">
+                                                    <select class="form-select" v-model="tiempoReparacion.unidad">
+                                                        <option value="minutos">Minutos</option>
+                                                        <option value="horas">Horas</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">Este tiempo ayudará a mejorar las estimaciones futuras para este tipo de reclamo</small>
+                                        </div>
+                                        
+                                        <!-- Botón para guardar tiempo -->
+                                        <div class="mb-3">
+                                            <button class="btn btn-primary w-100" @click="guardarTiempoReparacion" :disabled="!puedeGuardarTiempoReparacion">
+                                                <i class="bi bi-check-circle me-1 text-white"></i> Guardar Tiempo de Reparación
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tiempo registrado actualmente -->
+                                <div v-if="cargandoTiempoReparacion" class="card">
+                                    <div class="card-body text-center py-3">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted mb-0">Cargando tiempo de reparación...</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="card" v-else-if="tiempoReparacionRegistrado">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> Tiempo Registrado</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-info mb-0">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-clock-history me-2" style="font-size: 1.5rem;"></i>
+                                                <div>
+                                                    <strong>Tiempo registrado:</strong> 
+                                                    <span class="fs-5 ms-2">
+                                                        {{ formatearTiempo(tiempoReparacionRegistrado.tiempo_minutos) }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="mt-2">
+                                                <small>
+                                                    <i class="bi bi-calendar me-1"></i>
+                                                    Registrado el {{ formatearFecha(tiempoReparacionRegistrado.fecha_registro) }}
+                                                    <span v-if="tiempoReparacionRegistrado.usuario_nombre">
+                                                        por {{ tiempoReparacionRegistrado.usuario_nombre }}
+                                                    </span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <p class="text-muted small mt-2 mb-0">
+                                            Si ingresa un nuevo tiempo, se actualizará este registro.
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Mensaje cuando no hay tiempo registrado -->
+                                <div class="card" v-else>
+                                    <div class="card-body text-center py-4">
+                                        <i class="bi bi-clock text-muted" style="font-size: 3rem;"></i>
+                                        <p class="text-muted mt-2 mb-0">No hay tiempo de reparación registrado para este reclamo.</p>
                                     </div>
                                 </div>
                             </div>
