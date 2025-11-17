@@ -6,6 +6,9 @@ use CodeIgniter\RESTful\ResourceController;
 use App\Models\ReclamoModel;
 use App\Models\Historial_reclamoModel;
 use App\Models\DireccionModel;
+use App\Models\MaterialModel;
+use App\Models\Material_reclamoModel;
+use App\Models\Tipo_materialModel;
 
 class Reclamos extends ResourceController
 {
@@ -482,5 +485,175 @@ class Reclamos extends ResourceController
         } else {
             log_message('warning', "No se pudieron obtener coordenadas para: {$domicilio} {$numeroDomicilio}");
         }
+    }
+
+    /**
+     * Obtiene materiales filtrados por tipo (o todos si no se especifica tipo)
+     */
+    public function getMaterialesPorTipo()
+    {
+        try {
+            $tipoId = $this->request->getGet('tipo_id');
+            $materialModel = new MaterialModel();
+            
+            if ($tipoId && $tipoId !== '') {
+                $materiales = $materialModel->where('idTipo', $tipoId)->findAll();
+            } else {
+                $materiales = $materialModel->findAll();
+            }
+            
+            return $this->respond($materiales);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener materiales: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener los materiales.');
+        }
+    }
+
+    /**
+     * Guarda un material utilizado en un reclamo
+     */
+    public function guardarMaterialReclamo($reclamoId = null)
+    {
+        try {
+            if (!$reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            // Verificar que el reclamo existe
+            $reclamo = $this->model->find($reclamoId);
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $data = $this->request->getJSON(true);
+
+            // Validar datos obligatorios - solo material_id es obligatorio
+            if (empty($data['material_id'])) {
+                return $this->failValidationErrors('El material es obligatorio.');
+            }
+
+            // Obtener el ID del usuario desde la sesión
+            $usuarioId = session()->get('user_id');
+            if (!$usuarioId) {
+                $usuarioId = 0; // Sistema o no especificado
+            }
+
+            $materialReclamoModel = new Material_reclamoModel();
+            
+            // La cantidad es opcional - si no se proporciona o es <= 0, se guarda como null
+            $cantidad = null;
+            if (isset($data['cantidad']) && $data['cantidad'] !== '' && $data['cantidad'] !== null) {
+                $cantidadValor = (int) $data['cantidad'];
+                if ($cantidadValor > 0) {
+                    $cantidad = $cantidadValor;
+                }
+            }
+            
+            $datosMaterialReclamo = [
+                'reclamo_id' => $reclamoId,
+                'material_id' => (int) $data['material_id'],
+                'cantidad' => $cantidad,
+                'observacion' => isset($data['observacion']) ? trim((string) $data['observacion']) : null,
+                'fecha' => date('Y-m-d H:i:s'),
+                'usuario_id' => $usuarioId
+            ];
+
+            $id = $materialReclamoModel->insert($datosMaterialReclamo);
+            
+            if ($id === false) {
+                return $this->failServerError('Error al guardar el material del reclamo.');
+            }
+
+            // Obtener el registro completo con información del material y usuario
+            $materialReclamoGuardado = $this->obtenerMaterialReclamoCompleto($id);
+            
+            return $this->respondCreated($materialReclamoGuardado);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar material de reclamo: ' . $e->getMessage());
+            return $this->failServerError('Error al guardar el material del reclamo.');
+        }
+    }
+
+    /**
+     * Obtiene el historial de materiales utilizados en un reclamo
+     */
+    public function getMaterialesReclamo($reclamoId = null)
+    {
+        try {
+            if (!$reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            // Verificar que el reclamo existe
+            $reclamo = $this->model->find($reclamoId);
+            if (!$reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $db = \Config\Database::connect();
+            $materialReclamoModel = new Material_reclamoModel();
+            
+            // Obtener el historial con información del material y usuario
+            $query = $db->table('material_reclamo mr')
+                        ->select('mr.*, m.nombre as material_nombre, m.cantidad as material_cantidad_stock, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre')
+                        ->join('material m', 'm.id = mr.material_id', 'left')
+                        ->join('tipo_material tm', 'tm.id = m.idTipo', 'left')
+                        ->join('usuario u', 'u.id = mr.usuario_id', 'left')
+                        ->where('mr.reclamo_id', $reclamoId)
+                        ->orderBy('mr.fecha', 'DESC')
+                        ->get();
+            
+            $historial = $query->getResultArray();
+            
+            return $this->respond($historial);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener materiales del reclamo: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener los materiales del reclamo.');
+        }
+    }
+
+    /**
+     * Obtiene el detalle completo de un material_reclamo específico
+     */
+    public function getDetalleMaterialReclamo($materialReclamoId = null)
+    {
+        try {
+            if (!$materialReclamoId) {
+                return $this->failValidationErrors('ID de material_reclamo requerido.');
+            }
+
+            $materialReclamo = $this->obtenerMaterialReclamoCompleto($materialReclamoId);
+            
+            if (!$materialReclamo) {
+                return $this->failNotFound('Registro de material no encontrado.');
+            }
+            
+            return $this->respond($materialReclamo);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener detalle de material_reclamo: ' . $e->getMessage());
+            return $this->failServerError('Error al obtener el detalle del material.');
+        }
+    }
+
+    /**
+     * Método auxiliar para obtener un material_reclamo completo con información relacionada
+     */
+    private function obtenerMaterialReclamoCompleto($materialReclamoId)
+    {
+        $db = \Config\Database::connect();
+        
+        $query = $db->table('material_reclamo mr')
+                    ->select('mr.*, m.nombre as material_nombre, m.cantidad as material_cantidad_stock, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre, r.municipalidad_id as reclamo_municipalidad_id')
+                    ->join('material m', 'm.id = mr.material_id', 'left')
+                    ->join('tipo_material tm', 'tm.id = m.idTipo', 'left')
+                    ->join('usuario u', 'u.id = mr.usuario_id', 'left')
+                    ->join('reclamo r', 'r.id = mr.reclamo_id', 'left')
+                    ->where('mr.id', $materialReclamoId)
+                    ->get();
+        
+        return $query->getRowArray();
     }
 }

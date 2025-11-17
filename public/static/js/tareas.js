@@ -18,6 +18,7 @@ const app = Vue.createApp({
             // Variables para historial
             historialReclamo: [],
             cargandoHistorial: false,
+            mostrarHistorialEstado: false,
             
             // Variables para el mapa
             mapaRutas: null,
@@ -42,7 +43,28 @@ const app = Vue.createApp({
             reclamosRecibidosFiltrados: [],
             filtroBusquedaReclamos: '',
             reclamoRecibidoSeleccionado: {},
-            añadiendoReclamo: null
+            añadiendoReclamo: null,
+            
+            // Variables para la solapa de materiales
+            tiposMaterial: [],
+            materialesFiltrados: [],
+            materialSeleccionado: {
+                tipo_id: '',
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            },
+            materialNuevo: {
+                tipo_id: '',
+                nombre: '',
+                cantidad: null
+            },
+            modoMaterialNuevo: false, // false = material existente, true = crear material nuevo
+            historialMateriales: [],
+            mostrarHistorialMateriales: false,
+            cargandoMateriales: false,
+            detalleMaterial: null,
+            cargandoDetalleMaterial: false
         };
     },
 
@@ -110,6 +132,25 @@ const app = Vue.createApp({
             const tieneEstado = !!this.nuevoEstado;
             const tieneObservacion = this.nuevaObservacion && this.nuevaObservacion.trim().length > 0;
             return tieneEstado || tieneObservacion;
+        },
+        
+        puedeGuardarMaterial() {
+            // Solo el material es obligatorio, la cantidad es opcional
+            return !!this.materialSeleccionado.material_id;
+        },
+        
+        puedeGuardarMaterialNuevo() {
+            // Para crear material nuevo, solo el nombre es obligatorio
+            return !!this.materialNuevo.nombre && this.materialNuevo.nombre.trim().length > 0;
+        },
+        
+        puedeGuardarMaterialSegunModo() {
+            // Retorna true si puede guardar según el modo actual
+            if (this.modoMaterialNuevo) {
+                return this.puedeGuardarMaterialNuevo();
+            } else {
+                return this.puedeGuardarMaterial();
+            }
         }
     },
 
@@ -180,6 +221,24 @@ const app = Vue.createApp({
             this.nuevoEstado = '';
             this.nuevaObservacion = '';
             this.historialReclamo = []; // Limpiar historial anterior
+            this.mostrarHistorialEstado = false; // Ocultar historial inicialmente
+            
+            // Limpiar datos de materiales
+            this.materialSeleccionado = {
+                tipo_id: '',
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            };
+            this.materialNuevo = {
+                tipo_id: '',
+                nombre: '',
+                cantidad: null
+            };
+            this.modoMaterialNuevo = false; // Iniciar en modo material existente
+            this.materialesFiltrados = [];
+            this.historialMateriales = [];
+            this.mostrarHistorialMateriales = false;
             
             // Mostrar el modal
             const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
@@ -189,16 +248,16 @@ const app = Vue.createApp({
             this.$nextTick(() => {
                 // Activar la pestaña "Cambiar Estado"
                 const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
-                const historialTab = document.getElementById('historial-tab');
+                const materialesTab = document.getElementById('materiales-tab');
                 const cambiarEstadoPane = document.getElementById('cambiar-estado');
-                const historialPane = document.getElementById('historial');
+                const materialesPane = document.getElementById('materiales');
                 
-                if (cambiarEstadoTab && historialTab && cambiarEstadoPane && historialPane) {
-                    // Remover clases activas de ambas pestañas
+                if (cambiarEstadoTab && materialesTab && cambiarEstadoPane && materialesPane) {
+                    // Remover clases activas de todas las pestañas
                     cambiarEstadoTab.classList.remove('active');
-                    historialTab.classList.remove('active');
+                    materialesTab.classList.remove('active');
                     cambiarEstadoPane.classList.remove('show', 'active');
-                    historialPane.classList.remove('show', 'active');
+                    materialesPane.classList.remove('show', 'active');
                     
                     // Activar la pestaña "Cambiar Estado"
                     cambiarEstadoTab.classList.add('active');
@@ -206,7 +265,7 @@ const app = Vue.createApp({
                     
                     // Actualizar atributos ARIA
                     cambiarEstadoTab.setAttribute('aria-selected', 'true');
-                    historialTab.setAttribute('aria-selected', 'false');
+                    materialesTab.setAttribute('aria-selected', 'false');
                 }
             });
         },
@@ -275,16 +334,17 @@ const app = Vue.createApp({
                     }
                 }
 
-                const modalAcciones = bootstrap.Modal.getInstance(document.getElementById('modalAcciones'));
-                if (modalAcciones) {
-                    modalAcciones.hide();
-                }
-
                 const mensajeExito = nuevoEstadoSeleccionado
                     ? `Estado actualizado a: ${nuevoEstadoSeleccionado}${observacionLimpia ? ' y observación registrada.' : ''}`
                     : 'Observación registrada correctamente.';
                 this.mostrarMensaje(mensajeExito, 'success');
 
+                // Si el historial está visible, actualizarlo
+                if (this.mostrarHistorialEstado) {
+                    await this.cargarHistorial();
+                }
+
+                // Limpiar formulario
                 this.nuevoEstado = '';
                 this.nuevaObservacion = '';
 
@@ -421,6 +481,17 @@ const app = Vue.createApp({
                 this.historialReclamo = [];
             } finally {
                 this.cargandoHistorial = false;
+            }
+        },
+
+        /**
+         * Alterna la visualización del historial de cambios de estado
+         */
+        async toggleHistorialEstado() {
+            this.mostrarHistorialEstado = !this.mostrarHistorialEstado;
+            
+            if (this.mostrarHistorialEstado && this.historialReclamo.length === 0) {
+                await this.cargarHistorial();
             }
         },
 
@@ -1230,6 +1301,269 @@ const app = Vue.createApp({
             else if (this.proveedorMapaRutas === 'mapbox' && this.mapaRutasMapbox) {
                 this.mostrarRutasEnMapaMapbox();
             }
+        }
+    },
+
+    /**
+     * Carga los tipos de materiales y materiales cuando se abre la solapa de materiales
+     */
+    async cargarMateriales() {
+        if (this.tiposMaterial.length === 0) {
+            await this.obtenerTiposMaterial();
+        }
+        await this.filtrarMaterialesPorTipo();
+    },
+
+    /**
+     * Alterna entre el modo de material existente y crear material nuevo
+     */
+    alternarModoMaterial() {
+        this.modoMaterialNuevo = !this.modoMaterialNuevo;
+        
+        // Limpiar campos al cambiar de modo
+        if (this.modoMaterialNuevo) {
+            // Cambiando a modo crear nuevo - limpiar campos de material existente
+            this.materialSeleccionado.material_id = '';
+            this.materialSeleccionado.cantidad = null;
+        } else {
+            // Cambiando a modo existente - limpiar campos de material nuevo
+            this.materialNuevo = {
+                tipo_id: '',
+                nombre: '',
+                cantidad: null
+            };
+        }
+    },
+
+    /**
+     * Obtiene los tipos de materiales
+     */
+    async obtenerTiposMaterial() {
+        try {
+            const response = await axios.get(BASE_URL + 'api/materiales/tipos');
+            this.tiposMaterial = response.data;
+        } catch (error) {
+            console.error('Error al obtener tipos de materiales:', error);
+            this.mostrarMensaje('Error al cargar los tipos de materiales', 'error');
+            this.tiposMaterial = [];
+        }
+    },
+
+    /**
+     * Filtra los materiales por tipo seleccionado
+     */
+    async filtrarMaterialesPorTipo() {
+        try {
+            const params = {};
+            if (this.materialSeleccionado.tipo_id) {
+                params.tipo_id = this.materialSeleccionado.tipo_id;
+            }
+            
+            const response = await axios.get(BASE_URL + 'api/reclamos/materiales/por-tipo', { params });
+            this.materialesFiltrados = response.data;
+            
+            // Si cambió el tipo, limpiar la selección de material
+            if (this.materialSeleccionado.material_id) {
+                const materialExiste = this.materialesFiltrados.find(m => m.id == this.materialSeleccionado.material_id);
+                if (!materialExiste) {
+                    this.materialSeleccionado.material_id = '';
+                }
+            }
+        } catch (error) {
+            console.error('Error al filtrar materiales:', error);
+            this.mostrarMensaje('Error al cargar los materiales', 'error');
+            this.materialesFiltrados = [];
+        }
+    },
+
+    /**
+     * Guarda un material utilizado en el reclamo
+     */
+    async guardarMaterialReclamo() {
+        if (!this.puedeGuardarMaterial) {
+            this.mostrarMensaje('Debe seleccionar un material', 'warning');
+            return;
+        }
+
+        if (!this.reclamoSeleccionado.id) {
+            this.mostrarMensaje('Error: No hay reclamo seleccionado', 'error');
+            return;
+        }
+
+        try {
+            const datos = {
+                material_id: this.materialSeleccionado.material_id,
+                cantidad: this.materialSeleccionado.cantidad || null, // Cantidad opcional
+                observacion: this.materialSeleccionado.observacion || null
+            };
+
+            await axios.post(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales', datos);
+            
+            this.mostrarMensaje('Material registrado exitosamente', 'success');
+            
+            // Limpiar el formulario
+            this.materialSeleccionado = {
+                tipo_id: this.materialSeleccionado.tipo_id, // Mantener el tipo seleccionado
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            };
+            
+            // Si el historial está visible, actualizarlo
+            if (this.mostrarHistorialMateriales) {
+                await this.obtenerHistorialMateriales();
+            }
+            
+        } catch (error) {
+            console.error('Error al guardar material:', error);
+            const mensajeError = error.response && error.response.data && error.response.data.message 
+                ? error.response.data.message 
+                : 'Error al guardar el material';
+            this.mostrarMensaje(mensajeError, 'error');
+        }
+    },
+
+    /**
+     * Crea un material nuevo y lo registra en material_reclamo
+     */
+    async guardarMaterialNuevoYReclamo() {
+        if (!this.puedeGuardarMaterialNuevo) {
+            this.mostrarMensaje('Debe ingresar el nombre del material', 'warning');
+            return;
+        }
+
+        if (!this.reclamoSeleccionado.id) {
+            this.mostrarMensaje('Error: No hay reclamo seleccionado', 'error');
+            return;
+        }
+
+        try {
+            const nombreMaterial = this.materialNuevo.nombre.trim();
+            
+            // Paso 0: Verificar si el material ya existe
+            const responseVerificacion = await axios.get(BASE_URL + 'api/materiales/verificar', {
+                params: { nombre: nombreMaterial }
+            });
+            
+            if (responseVerificacion.data.existe) {
+                this.mostrarMensaje(
+                    `El material "${nombreMaterial}" ya existe. Por favor, selecciónelo de la lista de materiales existentes.`,
+                    'warning'
+                );
+                // Cambiar automáticamente al modo de material existente
+                this.modoMaterialNuevo = false;
+                // Limpiar el campo de nombre nuevo
+                this.materialNuevo.nombre = '';
+                // Recargar materiales para que aparezca en la lista
+                await this.filtrarMaterialesPorTipo();
+                return;
+            }
+            
+            // Guardar la cantidad ingresada para usarla en material_reclamo
+            const cantidadParaReclamo = this.materialNuevo.cantidad || null;
+            
+            // Paso 1: Crear el material nuevo (siempre con cantidad 0 en la tabla material)
+            const datosMaterial = {
+                nombre: nombreMaterial,
+                idTipo: this.materialNuevo.tipo_id || null,
+                cantidad: 0 // Siempre 0 cuando se crea desde esta interfaz
+            };
+
+            const responseMaterial = await axios.post(BASE_URL + 'api/materiales', datosMaterial);
+            const materialCreado = responseMaterial.data;
+            
+            // Paso 2: Registrar el material en material_reclamo con la cantidad ingresada
+            const datosMaterialReclamo = {
+                material_id: materialCreado.id,
+                cantidad: cantidadParaReclamo, // La cantidad ingresada solo va a material_reclamo
+                observacion: this.materialSeleccionado.observacion || null
+            };
+
+            await axios.post(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales', datosMaterialReclamo);
+            
+            this.mostrarMensaje(`Material "${materialCreado.nombre}" creado y registrado exitosamente`, 'success');
+            
+            // Limpiar los formularios
+            this.materialSeleccionado = {
+                tipo_id: '',
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            };
+            this.materialNuevo = {
+                tipo_id: '',
+                nombre: '',
+                cantidad: null
+            };
+            
+            // Recargar materiales para que aparezca el nuevo material en la lista
+            await this.filtrarMaterialesPorTipo();
+            
+            // Si el historial está visible, actualizarlo
+            if (this.mostrarHistorialMateriales) {
+                await this.obtenerHistorialMateriales();
+            }
+            
+        } catch (error) {
+            console.error('Error al crear y guardar material nuevo:', error);
+            const mensajeError = error.response && error.response.data && error.response.data.message 
+                ? error.response.data.message 
+                : 'Error al crear y guardar el material nuevo';
+            this.mostrarMensaje(mensajeError, 'error');
+        }
+    },
+
+    /**
+     * Obtiene el historial de materiales del reclamo
+     */
+    async obtenerHistorialMateriales() {
+        if (!this.reclamoSeleccionado.id) {
+            return;
+        }
+
+        this.cargandoMateriales = true;
+        
+        try {
+            const response = await axios.get(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales');
+            this.historialMateriales = response.data;
+        } catch (error) {
+            console.error('Error al obtener historial de materiales:', error);
+            this.mostrarMensaje('Error al cargar el historial de materiales', 'error');
+            this.historialMateriales = [];
+        } finally {
+            this.cargandoMateriales = false;
+        }
+    },
+
+    /**
+     * Alterna la visualización del historial de materiales
+     */
+    async toggleHistorialMateriales() {
+        this.mostrarHistorialMateriales = !this.mostrarHistorialMateriales;
+        
+        if (this.mostrarHistorialMateriales && this.historialMateriales.length === 0) {
+            await this.obtenerHistorialMateriales();
+        }
+    },
+
+    /**
+     * Muestra el detalle completo de un material_reclamo
+     */
+    async verDetalleMaterial(materialReclamoId) {
+        this.cargandoDetalleMaterial = true;
+        this.detalleMaterial = null;
+        
+        try {
+            const response = await axios.get(BASE_URL + 'api/reclamos/materiales/' + materialReclamoId + '/detalle');
+            this.detalleMaterial = response.data;
+            
+            const modal = new bootstrap.Modal(document.getElementById('modalDetalleMaterial'));
+            modal.show();
+        } catch (error) {
+            console.error('Error al obtener detalle de material:', error);
+            this.mostrarMensaje('Error al cargar el detalle del material', 'error');
+        } finally {
+            this.cargandoDetalleMaterial = false;
         }
     }
 },

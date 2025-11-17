@@ -344,8 +344,8 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="historial-tab" data-bs-toggle="tab" data-bs-target="#historial" type="button" role="tab" aria-controls="historial" aria-selected="false" @click="cargarHistorial">
-                                Historial
+                            <button class="nav-link" id="materiales-tab" data-bs-toggle="tab" data-bs-target="#materiales" type="button" role="tab" aria-controls="materiales" aria-selected="false" @click="cargarMateriales">
+                                Materiales
                             </button>
                         </li>
                     </ul>
@@ -380,58 +380,235 @@
                                               rows="3"
                                               maxlength="500"
                                               placeholder="Detalle las tareas realizadas, materiales utilizados u otra información relevante."></textarea>
-                                    <small class="text-muted">Estas observaciones serán visibles para supervisores en el historial del reclamo.</small>
+                                    
+                                </div>
+                                
+                                <!-- Botón para guardar -->
+                                <div class="mb-3">
+                                    <button type="button" class="btn btn-primary w-100" @click="guardarCambioEstado" :disabled="!puedeGuardarAccion">
+                                        <i class="bi bi-check-circle me-1 text-white"></i>Guardar
+                                    </button>
+                                </div>
+                                
+                                <!-- Botón para ver historial -->
+                                <div class="mb-3">
+                                    <button class="btn btn-outline-primary w-100" @click="toggleHistorialEstado">
+                                        <i class="bi" :class="mostrarHistorialEstado ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                                        {{ mostrarHistorialEstado ? 'Ocultar' : 'Ver' }} Historial de Cambios de Estado
+                                    </button>
+                                </div>
+                                
+                                <!-- Tabla de historial de cambios de estado -->
+                                <div v-if="mostrarHistorialEstado" class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-clock-history"></i> Historial de Cambios de Estado</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div v-if="cargandoHistorial" class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando...</span>
+                                            </div>
+                                            <p class="mt-2 text-muted">Cargando historial...</p>
+                                        </div>
+                                        
+                                        <div v-else-if="historialReclamo.length === 0" class="text-center py-4">
+                                            <i class="bi bi-clock-history text-muted" style="font-size: 2rem;"></i>
+                                            <p class="text-muted mt-2">No hay historial disponible para este reclamo.</p>
+                                        </div>
+                                        
+                                        <div v-else class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Estado Anterior</th>
+                                                        <th>Estado Actual</th>
+                                                        <th>Observación</th>
+                                                        <th>Usuario</th>
+                                                        <th>Fecha de Cambio</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="item in historialReclamo" :key="item.id">
+                                                        <td>
+                                                            <span class="badge" :class="getEstadoBadgeClass(item.estado_anterior)">
+                                                                {{ item.estado_anterior || 'N/A' }}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge" :class="getEstadoBadgeClass(item.estado_actual)">
+                                                                {{ item.estado_actual }}
+                                                            </span>
+                                                        </td>
+                                                        <td>
+                                                            <span v-if="item.observacion" class="observacion-texto">{{ item.observacion }}</span>
+                                                            <span v-else class="text-muted">Sin observaciones</span>
+                                                        </td>
+                                                        <td>{{ item.nombre_usuario || 'Sistema' }}</td>
+                                                        <td>{{ formatearFecha(item.fecha_cambio) }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Pestaña Historial -->
-                        <div class="tab-pane fade" id="historial" role="tabpanel" aria-labelledby="historial-tab">
+                        <!-- Pestaña Materiales -->
+                        <div class="tab-pane fade" id="materiales" role="tabpanel" aria-labelledby="materiales-tab">
                             <div class="mt-3">
-                                <div v-if="cargandoHistorial" class="text-center py-3">
-                                    <div class="spinner-border text-primary" role="status">
-                                        <span class="visually-hidden">Cargando...</span>
+                                <!-- Formulario para registrar material -->
+                                <div class="card mb-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-box-seam"></i> Registrar Material Utilizado</h6>
                                     </div>
-                                    <p class="mt-2 text-muted">Cargando historial...</p>
+                                    <div class="card-body">
+                                        <!-- Modo: Material Existente -->
+                                        <div v-if="!modoMaterialNuevo">
+                                            <!-- Fila con los tres selects/inputs -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-4">
+                                                    <label for="tipoMaterialSelect" class="form-label">Tipo de Material</label>
+                                                    <select id="tipoMaterialSelect" class="form-select" v-model="materialSeleccionado.tipo_id" @change="filtrarMaterialesPorTipo">
+                                                        <option value="">Todos los tipos</option>
+                                                        <option v-for="tipo in tiposMaterial" :key="tipo.id" :value="tipo.id">
+                                                            {{ tipo.nombre }}
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label for="materialSelect" class="form-label">Material</label>
+                                                    <select id="materialSelect" class="form-select" v-model="materialSeleccionado.material_id" :disabled="materialesFiltrados.length === 0">
+                                                        <option value="">Seleccionar material</option>
+                                                        <option v-for="material in materialesFiltrados" :key="material.id" :value="material.id">
+                                                            {{ material.nombre }}
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label for="cantidadMaterial" class="form-label">Cantidad</label>
+                                                    <input type="number" id="cantidadMaterial" class="form-control" v-model.number="materialSeleccionado.cantidad" min="0" placeholder="Cantidad (opcional)">
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Campo de observación -->
+                                            <div class="mb-3">
+                                                <label for="observacionMaterial" class="form-label">Observación</label>
+                                                <textarea id="observacionMaterial" class="form-control" v-model="materialSeleccionado.observacion" rows="3" placeholder="Observaciones sobre el material utilizado (opcional)"></textarea>
+                                            </div>
+                                            
+                                            <!-- Botón para guardar -->
+                                            <div class="mb-3">
+                                                <button class="btn btn-success w-100" @click="guardarMaterialReclamo" :disabled="!puedeGuardarMaterial">
+                                                    <i class="bi bi-check-circle me-1 text-white"></i> Guardar Material
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Botón para cambiar a modo crear material nuevo -->
+                                            <div class="mb-0">
+                                                <button class="btn btn-outline-secondary w-100" @click="alternarModoMaterial">
+                                                    <i class="bi bi-plus-circle me-1"></i> El material no existe, crear uno nuevo
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Modo: Crear Material Nuevo -->
+                                        <div v-else>
+                                            <!-- Fila para crear material nuevo -->
+                                            <div class="row g-2 mb-3">
+                                                <div class="col-md-4">
+                                                    <label for="nuevoTipoMaterialSelect" class="form-label">Tipo de Material <small class="text-muted">(opcional)</small></label>
+                                                    <select id="nuevoTipoMaterialSelect" class="form-select" v-model="materialNuevo.tipo_id">
+                                                        <option value="">Sin tipo</option>
+                                                        <option v-for="tipo in tiposMaterial" :key="tipo.id" :value="tipo.id">
+                                                            {{ tipo.nombre }}
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label for="nuevoNombreMaterial" class="form-label">Nombre del Material</label>
+                                                    <input type="text" id="nuevoNombreMaterial" class="form-control" v-model="materialNuevo.nombre" placeholder="Nombre del material">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label for="nuevoCantidadMaterial" class="form-label">Cantidad</label>
+                                                    <input type="number" id="nuevoCantidadMaterial" class="form-control" v-model.number="materialNuevo.cantidad" min="0" placeholder="Cantidad">
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Campo de observación -->
+                                            <div class="mb-3">
+                                                <label for="observacionMaterialNuevo" class="form-label">Observación</label>
+                                                <textarea id="observacionMaterialNuevo" class="form-control" v-model="materialSeleccionado.observacion" rows="3" placeholder="Observaciones sobre el material utilizado (opcional)"></textarea>
+                                            </div>
+                                            
+                                            <!-- Botón para guardar -->
+                                            <div class="mb-3">
+                                                <button class="btn btn-primary w-100" @click="guardarMaterialNuevoYReclamo" :disabled="!puedeGuardarMaterialNuevo">
+                                                    <i class="bi bi-plus-circle me-1 text-white"></i> Crear y Guardar Material Nuevo
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Botón para cambiar a modo material existente -->
+                                            <div class="mb-0">
+                                                <button class="btn btn-outline-secondary w-100" @click="alternarModoMaterial">
+                                                    <i class="bi bi-arrow-left me-1"></i> Seleccionar material existente
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                                 
-                                <div v-else-if="historialReclamo.length === 0" class="text-center py-4">
-                                    <i class="bi bi-clock-history text-muted" style="font-size: 2rem;"></i>
-                                    <p class="text-muted mt-2">No hay historial disponible para este reclamo.</p>
+                                <!-- Botón para ver historial -->
+                                <div class="mb-3">
+                                    <button class="btn btn-outline-primary w-100" @click="toggleHistorialMateriales">
+                                        <i class="bi" :class="mostrarHistorialMateriales ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                                        {{ mostrarHistorialMateriales ? 'Ocultar' : 'Ver' }} Historial de Materiales
+                                    </button>
                                 </div>
                                 
-                                <div v-else class="table-responsive">
-                                    <table class="table table-sm table-hover">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Estado Anterior</th>
-                                                <th>Estado Actual</th>
-                                                <th>Observación</th>
-                                                <th>Usuario</th>
-                                                <th>Fecha de Cambio</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr v-for="item in historialReclamo" :key="item.id">
-                                                <td>
-                                                    <span class="badge" :class="getEstadoBadgeClass(item.estado_anterior)">
-                                                        {{ item.estado_anterior || 'N/A' }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span class="badge" :class="getEstadoBadgeClass(item.estado_actual)">
-                                                        {{ item.estado_actual }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <span v-if="item.observacion" class="observacion-texto">{{ item.observacion }}</span>
-                                                    <span v-else class="text-muted">Sin observaciones</span>
-                                                </td>
-                                                <td>{{ item.nombre_usuario || 'Sistema' }}</td>
-                                                <td>{{ formatearFecha(item.fecha_cambio) }}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <!-- Tabla de historial de materiales -->
+                                <div v-if="mostrarHistorialMateriales" class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="bi bi-clock-history"></i> Historial de Materiales</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div v-if="cargandoMateriales" class="text-center py-3">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Cargando...</span>
+                                            </div>
+                                            <p class="mt-2 text-muted">Cargando materiales...</p>
+                                        </div>
+                                        
+                                        <div v-else-if="historialMateriales.length === 0" class="text-center py-4">
+                                            <i class="bi bi-box text-muted" style="font-size: 2rem;"></i>
+                                            <p class="text-muted mt-2">No hay materiales registrados para este reclamo.</p>
+                                        </div>
+                                        
+                                        <div v-else class="table-responsive">
+                                            <table class="table table-sm table-hover">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Material</th>
+                                                        <th>Cantidad</th>
+                                                        <th>Fecha</th>
+                                                        <th>Usuario</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr v-for="item in historialMateriales" :key="item.id">
+                                                        <td>
+                                                            <a href="#" class="text-primary text-decoration-none" @click.prevent="verDetalleMaterial(item.id)">
+                                                                <i class="bi bi-info-circle me-1"></i>{{ item.material_nombre || 'N/A' }}
+                                                            </a>
+                                                        </td>
+                                                        <td>{{ item.cantidad || 'No especificada' }}</td>
+                                                        <td>{{ formatearFecha(item.fecha) }}</td>
+                                                        <td>{{ item.usuario_nombre || 'Sistema' }}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -439,9 +616,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                    <button type="button" class="btn btn-primary" @click="guardarCambioEstado" :disabled="!puedeGuardarAccion">
-                        <i class="bi bi-check-circle me-1 text-white"></i>Guardar
-                    </button>
                 </div>
             </div>
         </div>
@@ -636,6 +810,70 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" @click="cerrarModalDetallesReclamoRecibido">
                         Cerrar
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalle Material Reclamo -->
+    <div class="modal fade" id="modalDetalleMaterial" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalle del Material Utilizado</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="cargandoDetalleMaterial" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Cargando detalle...</p>
+                    </div>
+                    <div v-else-if="detalleMaterial">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="fw-bold">Reclamo:</label>
+                                    <p>{{ detalleMaterial.reclamo_municipalidad_id || 'N/A' }}</p>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="fw-bold">Material:</label>
+                                    <p>{{ detalleMaterial.material_nombre || 'N/A' }}</p>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="fw-bold">Tipo de Material:</label>
+                                    <p>{{ detalleMaterial.tipo_material_nombre || 'No especificado' }}</p>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="fw-bold">Cantidad Utilizada:</label>
+                                    <p>{{ detalleMaterial.cantidad || 'No especificada' }}</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <!--div class="mb-3">
+                                    <label class="fw-bold">Stock Disponible:</label>
+                                    <p>{{ detalleMaterial.material_cantidad_stock || 'N/A' }}</p>
+                                </div-->
+                                <div class="mb-3">
+                                    <label class="fw-bold">Fecha de Registro:</label>
+                                    <p>{{ formatearFecha(detalleMaterial.fecha) }}</p>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="fw-bold">Usuario:</label>
+                                    <p>{{ detalleMaterial.usuario_nombre || 'Sistema' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="fw-bold">Observación:</label>
+                            <p v-if="detalleMaterial.observacion" class="border p-3 rounded bg-light">{{ detalleMaterial.observacion }}</p>
+                            <p v-else class="text-muted">Sin observaciones</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>

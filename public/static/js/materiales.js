@@ -180,6 +180,31 @@ const app = Vue.createApp({
 
         async guardarMaterial() {
             const esNuevo = !this.material.id;
+            
+            // Si es un material nuevo, verificar si ya existe antes de crear
+            if (esNuevo) {
+                const nombreMaterial = this.material.nombre.trim();
+                
+                if (nombreMaterial) {
+                    try {
+                        const responseVerificacion = await axios.get(BASE_URL + 'api/materiales/verificar', {
+                            params: { nombre: nombreMaterial }
+                        });
+                        
+                        if (responseVerificacion.data.existe) {
+                            this.mostrarMensaje(
+                                `El material "${nombreMaterial}" ya existe. Por favor, edite el material existente en lugar de crear uno nuevo.`,
+                                'warning'
+                            );
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('Error al verificar material:', error);
+                        // Continuar con la creación si falla la verificación
+                    }
+                }
+            }
+            
             const url = BASE_URL + 'api/materiales' + (esNuevo ? '' : '/' + this.material.id);
             const metodo = esNuevo ? 'post' : 'put';
             
@@ -205,11 +230,20 @@ const app = Vue.createApp({
             }).catch(error => {
                 console.error('Error al guardar material:', error);
                 
-                // Mensaje de error
+                // Mensaje de error más específico
+                let mensajeError = 'Error al guardar el material';
+                if (error.response && error.response.data) {
+                    if (error.response.data.messages) {
+                        mensajeError = error.response.data.messages;
+                    } else if (error.response.data.message) {
+                        mensajeError = error.response.data.message;
+                    }
+                }
+                
                 if (esNuevo) {
-                    this.mostrarMensaje('Error al crear el material', 'error');
+                    this.mostrarMensaje(mensajeError, 'error');
                 } else {
-                    this.mostrarMensaje('Error al editar el material', 'error');
+                    this.mostrarMensaje(mensajeError, 'error');
                 }
             });
         },
