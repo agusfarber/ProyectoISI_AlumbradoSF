@@ -53,11 +53,16 @@ use App\Models\Ruta_reclamoModel;
 use App\Models\ReclamoModel;
 use App\Models\DireccionModel;
 use App\Models\CuadrillaModel;
+use App\Models\Tiempo_promedio_motivoModel;
 
 class Rutas extends ResourceController
 {
     protected $modelName = 'App\Models\RutaModel';
     protected $format = 'json';
+
+    // API Keys para cálculo de rutas
+    private $googleMapsApiKey = 'AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg';
+    private $mapboxApiKey = 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ajJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw';
 
     public function __construct()
     {
@@ -759,7 +764,195 @@ class Rutas extends ResourceController
     }
 
     /**
+     * Calcula el tiempo de desplazamiento usando APIs de mapas (Google Maps primero, Mapbox como fallback)
+     */
+    private function calcularTiempoDesplazamientoConAPI($reclamos)
+    {
+        if (count($reclamos) < 2) {
+            return ['exito' => false, 'error' => 'Se necesitan al menos 2 reclamos'];
+        }
+
+        // Intentar con Google Maps Directions API primero
+        $resultadoGoogle = $this->calcularTiempoConGoogleMaps($reclamos);
+        if ($resultadoGoogle['exito']) {
+            return $resultadoGoogle;
+        }
+
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Google Maps falló ({$resultadoGoogle['error']}), intentando con Mapbox...");
+
+        // Fallback a Mapbox Directions API
+        $resultadoMapbox = $this->calcularTiempoConMapbox($reclamos);
+        if ($resultadoMapbox['exito']) {
+            return $resultadoMapbox;
+        }
+
+        log_message('warning', "CALCULO TIEMPO ESTIMADO: Mapbox también falló ({$resultadoMapbox['error']})");
+
+        // Si ambas APIs fallan, retornar error
+        return ['exito' => false, 'error' => 'Ambas APIs fallaron'];
+    }
+
+    /**
+     * Calcula el tiempo de desplazamiento usando Google Maps Directions API
+     */
+    private function calcularTiempoConGoogleMaps($reclamos)
+    {
+        try {
+            $client = \Config\Services::curlrequest();
+            $tiempoTotalMinutos = 0;
+            $distanciaTotalKm = 0;
+            $tramos = [];
+
+            // Google Maps Directions API tiene límite de 25 waypoints
+            // Para rutas largas, calculamos por tramos
+            for ($i = 0; $i < count($reclamos) - 1; $i++) {
+                $reclamoActual = $reclamos[$i];
+                $reclamoSiguiente = $reclamos[$i + 1];
+
+                if (!isset($reclamoActual['coordenadas']) || !isset($reclamoSiguiente['coordenadas'])) {
+                    continue;
+                }
+
+                $origin = $reclamoActual['coordenadas']['lat'] . ',' . $reclamoActual['coordenadas']['lng'];
+                $destination = $reclamoSiguiente['coordenadas']['lat'] . ',' . $reclamoSiguiente['coordenadas']['lng'];
+
+                $url = 'https://maps.googleapis.com/maps/api/directions/json';
+                $params = [
+                    'origin' => $origin,
+                    'destination' => $destination,
+                    'mode' => 'driving',
+                    'key' => $this->googleMapsApiKey,
+                    'language' => 'es'
+                ];
+
+                $response = $client->get($url, ['query' => $params]);
+                $data = json_decode($response->getBody(), true);
+
+                if ($response->getStatusCode() !== 200 || $data['status'] !== 'OK') {
+                    throw new \Exception('Google Maps API error: ' . ($data['status'] ?? 'Unknown'));
+                }
+
+                if (empty($data['routes']) || empty($data['routes'][0]['legs'])) {
+                    throw new \Exception('No route found');
+                }
+
+                $leg = $data['routes'][0]['legs'][0];
+                $distanciaMetros = $leg['distance']['value'] ?? 0;
+                $tiempoSegundos = $leg['duration']['value'] ?? 0;
+
+                $distanciaKm = $distanciaMetros / 1000;
+                $tiempoMinutos = $tiempoSegundos / 60;
+
+                $tiempoTotalMinutos += $tiempoMinutos;
+                $distanciaTotalKm += $distanciaKm;
+
+                $tramos[] = [
+                    'reclamo_origen' => $reclamoActual['municipalidad_id'] ?? $reclamoActual['id'] ?? 'N/A',
+                    'reclamo_destino' => $reclamoSiguiente['municipalidad_id'] ?? $reclamoSiguiente['id'] ?? 'N/A',
+                    'distancia_km' => $distanciaKm,
+                    'tiempo_minutos' => $tiempoMinutos
+                ];
+            }
+
+            return [
+                'exito' => true,
+                'proveedor' => 'Google Maps',
+                'tiempo_minutos' => $tiempoTotalMinutos,
+                'distancia_km' => $distanciaTotalKm,
+                'tramos' => $tramos
+            ];
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al calcular tiempo con Google Maps: ' . $e->getMessage());
+            return [
+                'exito' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Calcula el tiempo de desplazamiento usando Mapbox Directions API
+     */
+    private function calcularTiempoConMapbox($reclamos)
+    {
+        try {
+            $client = \Config\Services::curlrequest();
+            $tiempoTotalMinutos = 0;
+            $distanciaTotalKm = 0;
+            $tramos = [];
+
+            // Mapbox Directions API requiere coordenadas en formato lng,lat
+            for ($i = 0; $i < count($reclamos) - 1; $i++) {
+                $reclamoActual = $reclamos[$i];
+                $reclamoSiguiente = $reclamos[$i + 1];
+
+                if (!isset($reclamoActual['coordenadas']) || !isset($reclamoSiguiente['coordenadas'])) {
+                    continue;
+                }
+
+                // Mapbox usa formato lng,lat (al revés que Google)
+                $coordinates = [
+                    [$reclamoActual['coordenadas']['lng'], $reclamoActual['coordenadas']['lat']],
+                    [$reclamoSiguiente['coordenadas']['lng'], $reclamoSiguiente['coordenadas']['lat']]
+                ];
+
+                $coordsString = implode(';', array_map(function($coord) {
+                    return $coord[0] . ',' . $coord[1];
+                }, $coordinates));
+
+                $url = "https://api.mapbox.com/directions/v5/mapbox/driving/{$coordsString}";
+                $params = [
+                    'access_token' => $this->mapboxApiKey,
+                    'geometries' => 'geojson',
+                    'steps' => 'false'
+                ];
+
+                $response = $client->get($url, ['query' => $params]);
+                $data = json_decode($response->getBody(), true);
+
+                if ($response->getStatusCode() !== 200 || empty($data['routes'])) {
+                    throw new \Exception('Mapbox API error: ' . ($data['message'] ?? 'Unknown'));
+                }
+
+                $route = $data['routes'][0];
+                $distanciaMetros = $route['distance'] ?? 0;
+                $tiempoSegundos = $route['duration'] ?? 0;
+
+                $distanciaKm = $distanciaMetros / 1000;
+                $tiempoMinutos = $tiempoSegundos / 60;
+
+                $tiempoTotalMinutos += $tiempoMinutos;
+                $distanciaTotalKm += $distanciaKm;
+
+                $tramos[] = [
+                    'reclamo_origen' => $reclamoActual['municipalidad_id'] ?? $reclamoActual['id'] ?? 'N/A',
+                    'reclamo_destino' => $reclamoSiguiente['municipalidad_id'] ?? $reclamoSiguiente['id'] ?? 'N/A',
+                    'distancia_km' => $distanciaKm,
+                    'tiempo_minutos' => $tiempoMinutos
+                ];
+            }
+
+            return [
+                'exito' => true,
+                'proveedor' => 'Mapbox',
+                'tiempo_minutos' => $tiempoTotalMinutos,
+                'distancia_km' => $distanciaTotalKm,
+                'tramos' => $tramos
+            ];
+
+        } catch (\Exception $e) {
+            log_message('error', 'Error al calcular tiempo con Mapbox: ' . $e->getMessage());
+            return [
+                'exito' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Calcula la distancia entre dos puntos geográficos (fórmula de Haversine)
+     * Usado como último fallback si las APIs de mapas fallan
      */
     private function calcularDistancia($lat1, $lng1, $lat2, $lng2)
     {
@@ -775,41 +968,126 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Calcula el tiempo estimado de la ruta
+     * Calcula el tiempo estimado de la ruta usando promedios por motivo
      */
     private function calcularTiempoEstimado($reclamos)
     {
         if (count($reclamos) < 2) {
+            log_message('info', 'CALCULO TIEMPO ESTIMADO: Menos de 2 reclamos, retornando 30 minutos mínimo');
             return '00:30:00'; // 30 minutos mínimo
         }
         
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Iniciando cálculo para ruta con " . count($reclamos) . " reclamos");
+        
         $tiempoTotalMinutos = 0;
+        $promedioModel = new Tiempo_promedio_motivoModel();
         
-        // Tiempo por reclamo (estimado 15 minutos por reclamo)
-        $tiempoTotalMinutos += count($reclamos) * 15;
+        // Cargar todos los promedios en memoria para optimizar consultas
+        $promedios = [];
+        $promediosData = $promedioModel->findAll();
+        foreach ($promediosData as $promedio) {
+            $promedios[$promedio['motivo']] = $promedio;
+        }
         
-        // Tiempo de desplazamiento entre reclamos
-        for ($i = 0; $i < count($reclamos) - 1; $i++) {
-            $reclamoActual = $reclamos[$i];
-            $reclamoSiguiente = $reclamos[$i + 1];
-            
-            if (isset($reclamoActual['coordenadas']) && isset($reclamoSiguiente['coordenadas'])) {
-                $distancia = $this->calcularDistancia(
-                    $reclamoActual['coordenadas']['lat'], $reclamoActual['coordenadas']['lng'],
-                    $reclamoSiguiente['coordenadas']['lat'], $reclamoSiguiente['coordenadas']['lng']
-                );
-                
-                // Estimación: 30 km/h promedio en ciudad
-                $tiempoDesplazamiento = ($distancia / 30) * 60; // Convertir a minutos
-                $tiempoTotalMinutos += $tiempoDesplazamiento;
+        log_message('info', 'CALCULO TIEMPO ESTIMADO: Promedios cargados - ' . count($promedios) . ' motivos con promedio registrado');
+        if (count($promedios) > 0) {
+            foreach ($promedios as $motivo => $promedio) {
+                log_message('info', "  - Motivo: '{$motivo}' | Promedio: {$promedio['tiempo_promedio_minutos']} min | Registros: {$promedio['cantidad_registros']}");
             }
         }
+        
+        // Tiempo por reclamo según el promedio del motivo
+        $detalleReclamos = [];
+        foreach ($reclamos as $index => $reclamo) {
+            $motivo = $reclamo['municipalidad_motivo'] ?? '';
+            $reclamoId = $reclamo['municipalidad_id'] ?? $reclamo['id'] ?? 'N/A';
+            $tiempoEstimado = 15; // Tiempo por defecto si no hay promedio
+            $fuenteTiempo = 'defecto (15 min)';
+            
+            if (!empty($motivo) && isset($promedios[$motivo])) {
+                // Usar el promedio calculado para este motivo
+                $tiempoEstimado = (float) $promedios[$motivo]['tiempo_promedio_minutos'];
+                $fuenteTiempo = "promedio calculado ({$tiempoEstimado} min)";
+            } elseif (!empty($motivo)) {
+                // Motivo existe pero no tiene promedio
+                $fuenteTiempo = "defecto (15 min) - motivo sin promedio: '{$motivo}'";
+            } else {
+                $fuenteTiempo = "defecto (15 min) - motivo vacío";
+            }
+            
+            $detalleReclamos[] = [
+                'reclamo' => $reclamoId,
+                'motivo' => $motivo,
+                'tiempo' => $tiempoEstimado,
+                'fuente' => $fuenteTiempo
+            ];
+            
+            $tiempoTotalMinutos += $tiempoEstimado;
+        }
+        
+        log_message('info', 'CALCULO TIEMPO ESTIMADO: Tiempos por reclamo:');
+        foreach ($detalleReclamos as $detalle) {
+            log_message('info', "  - Reclamo #{$detalle['reclamo']} | Motivo: '{$detalle['motivo']}' | Tiempo: {$detalle['tiempo']} min ({$detalle['fuente']})");
+        }
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total de reparación (sin desplazamiento): {$tiempoTotalMinutos} minutos");
+        
+        // Tiempo de desplazamiento entre reclamos usando APIs de mapas
+        $tiempoDesplazamientoTotal = 0;
+        $distanciaTotal = 0;
+        
+        if (count($reclamos) > 1) {
+            // Intentar obtener tiempos usando Google Maps Directions API
+            $resultadoAPI = $this->calcularTiempoDesplazamientoConAPI($reclamos);
+            
+            if ($resultadoAPI['exito']) {
+                $tiempoDesplazamientoTotal = $resultadoAPI['tiempo_minutos'];
+                $distanciaTotal = $resultadoAPI['distancia_km'];
+                log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempos obtenidos usando {$resultadoAPI['proveedor']} API");
+                
+                // Log detallado de cada tramo
+                foreach ($resultadoAPI['tramos'] as $tramo) {
+                    $reclamoActualId = $tramo['reclamo_origen'] ?? 'N/A';
+                    $reclamoSiguienteId = $tramo['reclamo_destino'] ?? 'N/A';
+                    log_message('info', "  - Desplazamiento ({$resultadoAPI['proveedor']}): Reclamo #{$reclamoActualId} → Reclamo #{$reclamoSiguienteId} | Distancia: " . round($tramo['distancia_km'], 2) . " km | Tiempo: " . round($tramo['tiempo_minutos'], 2) . " min");
+                }
+            } else {
+                // Fallback: usar Haversine si las APIs fallan
+                log_message('warning', "CALCULO TIEMPO ESTIMADO: APIs de mapas no disponibles, usando cálculo Haversine (línea recta)");
+                for ($i = 0; $i < count($reclamos) - 1; $i++) {
+                    $reclamoActual = $reclamos[$i];
+                    $reclamoSiguiente = $reclamos[$i + 1];
+                    
+                    if (isset($reclamoActual['coordenadas']) && isset($reclamoSiguiente['coordenadas'])) {
+                        $distancia = $this->calcularDistancia(
+                            $reclamoActual['coordenadas']['lat'], $reclamoActual['coordenadas']['lng'],
+                            $reclamoSiguiente['coordenadas']['lat'], $reclamoSiguiente['coordenadas']['lng']
+                        );
+                        
+                        // Estimación: 30 km/h promedio en ciudad
+                        $tiempoDesplazamiento = ($distancia / 30) * 60; // Convertir a minutos
+                        $tiempoDesplazamientoTotal += $tiempoDesplazamiento;
+                        $distanciaTotal += $distancia;
+                        
+                        $reclamoActualId = $reclamoActual['municipalidad_id'] ?? $reclamoActual['id'] ?? 'N/A';
+                        $reclamoSiguienteId = $reclamoSiguiente['municipalidad_id'] ?? $reclamoSiguiente['id'] ?? 'N/A';
+                        log_message('info', "  - Desplazamiento (Haversine): Reclamo #{$reclamoActualId} → Reclamo #{$reclamoSiguienteId} | Distancia: " . round($distancia, 2) . " km | Tiempo: " . round($tiempoDesplazamiento, 2) . " min");
+                    }
+                }
+            }
+        }
+        
+        $tiempoTotalMinutos += $tiempoDesplazamientoTotal;
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total de desplazamiento: " . round($tiempoDesplazamientoTotal, 2) . " minutos | Distancia total: " . round($distanciaTotal, 2) . " km");
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total estimado (reparación + desplazamiento): {$tiempoTotalMinutos} minutos");
         
         // Convertir a formato HH:MM:SS
         $horas = floor($tiempoTotalMinutos / 60);
         $minutos = $tiempoTotalMinutos % 60;
         
-        return sprintf('%02d:%02d:00', $horas, $minutos);
+        $tiempoFormateado = sprintf('%02d:%02d:00', $horas, $minutos);
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo final formateado: {$tiempoFormateado} ({$horas}h {$minutos}m)");
+        
+        return $tiempoFormateado;
     }
 
     /**

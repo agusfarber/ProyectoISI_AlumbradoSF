@@ -37,6 +37,9 @@ $routes->get('api/reclamos/materiales/por-tipo', 'Api\\Reclamos::getMaterialesPo
 $routes->post('api/reclamos/(:num)/materiales', 'Api\\Reclamos::guardarMaterialReclamo/$1');
 $routes->get('api/reclamos/(:num)/materiales', 'Api\\Reclamos::getMaterialesReclamo/$1');
 $routes->get('api/reclamos/materiales/(:num)/detalle', 'Api\\Reclamos::getDetalleMaterialReclamo/$1');
+$routes->get('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::getTiempoReparacion/$1');
+$routes->post('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::guardarTiempoReparacionEndpoint/$1');
+$routes->get('api/reclamos/tiempos-promedio', 'Api\\Reclamos::getTiemposPromedio');
 $routes->resource('api/reclamos');
 // Endpoints para Tipos de Materiales
 $routes->get('api/materiales/tipos', 'Api\\Materiales::getTipos');
