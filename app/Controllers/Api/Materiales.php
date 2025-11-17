@@ -29,17 +29,47 @@ class Materiales extends ResourceController
     {
         $data = $this->request->getJSON(true);
 
-        if (empty($data['nombre']) || !isset($data['cantidad']) || !isset($data['idTipo'])) {
-            return $this->failValidationErrors('Faltan datos obligatorios: nombre, cantidad y tipo.');
+        // Solo el nombre es obligatorio, cantidad y tipo son opcionales
+        if (empty($data['nombre'])) {
+            return $this->failValidationErrors('El nombre del material es obligatorio.');
         }
 
         $data['nombre'] = trim((string) $data['nombre']);
-        $data['cantidad'] = (int) $data['cantidad'];
-        $data['idTipo'] = (int) $data['idTipo'];
+        
+        if ($data['nombre'] === '') {
+            return $this->failValidationErrors('El nombre del material no puede estar vacío.');
+        }
 
-        // La validación de creación sigue requiriendo un tipo
-        if ($data['nombre'] === '' || $data['cantidad'] < 0 || $data['idTipo'] <= 0) {
-            return $this->failValidationErrors('Nombre, cantidad o tipo inválidos.');
+        // Verificar si el material ya existe (case-insensitive)
+        $materiales = $this->model->findAll();
+        foreach ($materiales as $mat) {
+            if (strtolower(trim($mat['nombre'])) === strtolower($data['nombre'])) {
+                return $this->failValidationErrors('El material "' . $data['nombre'] . '" ya existe.');
+            }
+        }
+
+        // Manejar cantidad (opcional)
+        if (isset($data['cantidad'])) {
+            $data['cantidad'] = (int) $data['cantidad'];
+            if ($data['cantidad'] < 0) {
+                return $this->failValidationErrors('La cantidad no puede ser negativa.');
+            }
+        } else {
+            $data['cantidad'] = 0; // Valor por defecto si no se proporciona
+        }
+
+        // Manejar tipo (opcional)
+        if (isset($data['idTipo']) && $data['idTipo'] !== '' && $data['idTipo'] !== null) {
+            $data['idTipo'] = (int) $data['idTipo'];
+            if ($data['idTipo'] < 0) {
+                return $this->failValidationErrors('El tipo de material es inválido.');
+            }
+            // Si es 0, establecer como null
+            if ($data['idTipo'] === 0) {
+                $data['idTipo'] = null;
+            }
+        } else {
+            $data['idTipo'] = null; // Tipo opcional
         }
 
         $id = $this->model->insert($data);
@@ -62,6 +92,15 @@ class Materiales extends ResourceController
             $data['nombre'] = trim((string) $data['nombre']);
             if ($data['nombre'] === '') {
                 return $this->failValidationErrors('El nombre no puede estar vacío.');
+            }
+            
+            // Verificar si el nuevo nombre ya existe en otro material (case-insensitive)
+            $materiales = $this->model->findAll();
+            foreach ($materiales as $mat) {
+                // Excluir el material actual de la verificación
+                if ($mat['id'] != $id && strtolower(trim($mat['nombre'])) === strtolower($data['nombre'])) {
+                    return $this->failValidationErrors('El material "' . $data['nombre'] . '" ya existe.');
+                }
             }
         }
 
@@ -101,6 +140,37 @@ class Materiales extends ResourceController
         }
         $this->model->delete($id);
         return $this->respondDeleted(['mensaje' => 'Material eliminado con éxito.']);
+    }
+
+    /**
+     * Verifica si un material existe por nombre (case-insensitive)
+     */
+    public function verificarExistencia()
+    {
+        $nombre = $this->request->getGet('nombre');
+        
+        if (empty($nombre)) {
+            return $this->failValidationErrors('El nombre del material es requerido.');
+        }
+        
+        $nombre = trim((string) $nombre);
+        
+        // Buscar material por nombre (case-insensitive)
+        // Obtener todos los materiales y comparar en PHP (más compatible)
+        $materiales = $this->model->findAll();
+        $material = null;
+        
+        foreach ($materiales as $mat) {
+            if (strtolower(trim($mat['nombre'])) === strtolower($nombre)) {
+                $material = $mat;
+                break;
+            }
+        }
+        
+        return $this->respond([
+            'existe' => $material !== null,
+            'material' => $material
+        ]);
     }
 
     public function import()
