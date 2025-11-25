@@ -30,6 +30,7 @@ class Pages extends BaseController
             'token103' => ['1', '2', '3'],
             'tareas' => ['1', '2', '3'],
             'cierre_reclamos' => ['1', '2'],
+            'analisis' => ['2'],
         ];
       
         // Obtener el rol del usuario

@@ -23,6 +23,15 @@
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <?php if (isset($title) && (strtolower($title) === 'analisis' || strtolower($title) === 'análisis')): ?>
+    <!-- ApexCharts CSS -->
+    <style>
+        .apexcharts-canvas { width: 100% !important; }
+        .apexcharts-legend { padding: 10px 0 !important; }
+        .chart-container canvas { max-width: 100% !important; }
+    </style>
+    <?php endif; ?>
 
 
     <link rel="stylesheet" href="<?php echo base_url('/static/css/darkSweetAlert.css'); ?>">

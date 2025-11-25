@@ -40,6 +40,13 @@
 <!-- SweetAlert2 debe cargarse antes del archivo JavaScript específico de la página -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
 
+<?php if (isset($title) && (strtolower($title) === 'analisis' || strtolower($title) === 'análisis')): ?>
+<!-- ApexCharts para gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
+<!-- Chart.js para gráfico de tiempo promedio -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<?php endif; ?>
+
 <?php if (isset($jsPageFile)) { ?>
   <script src="<?= base_url($jsPageFile); ?>"></script><?php } ?>
 <script src="<?php echo base_url("/static/js/tools.js"); ?>"></script>
