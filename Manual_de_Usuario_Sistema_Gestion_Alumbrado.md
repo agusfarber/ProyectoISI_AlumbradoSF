@@ -151,51 +151,131 @@ Si necesitas verificar quién tiene permisos de supervisor:
 **Descripción general:**
 La configuración del sistema incluye la gestión de tokens para sincronización externa, el inventario de materiales y otros parámetros críticos para el funcionamiento del sistema.
 
-### 🔑 Gestión de Tokens para Sincronización
+### 🔑 Gestión de Credenciales Basic Auth para Sincronización
 
-**¿Qué son los tokens?**
-Los tokens son credenciales especiales que permiten al sistema conectarse con el sistema externo 103 de la municipalidad para sincronizar reclamos automáticamente.
+**¿Qué son las credenciales Basic Auth?**
+Las credenciales Basic Auth (username y password) permiten al sistema conectarse con el sistema externo 103 de la municipalidad para sincronizar reclamos. El sistema genera automáticamente un token Base64 a partir de estas credenciales para autenticarse con la API externa.
 
-**Acceder a la gestión de tokens:**
+**Acceder a la gestión de credenciales:**
 
 **Paso 1**: Desde el menú principal, hacer clic en **"Token 103"**
-- El ícono muestra una llave (🔑) o símbolo de token
+- El ícono muestra una llave (🔑)
 - Esta opción solo está disponible para administradores
+- La página se titula "Gestión de Credenciales Basic Auth"
 
-**Paso 2**: Visualizar la configuración actual de tokens
-- La página mostrará los tokens existentes y su estado
-- Podrás ver si hay tokens activos o si necesitas configurar nuevos
+**Paso 2**: Visualizar la configuración actual
+- La página muestra dos paneles:
+  - **Panel izquierdo**: Formulario para configurar credenciales
+  - **Panel derecho**: Información del token actual y token Base64 generado
 
-![Configuración de tokens](imagenes/token103_configuracion.png)
+![Configuración de credenciales](imagenes/token103_configuracion.png)
 
-**Funcionalidades disponibles:**
+### 📝 Configurar Credenciales
 
-**1. Configurar nuevo token:**
-- **Obtener token**: Contactar al administrador del sistema 103 para obtener las credenciales
-- **Configurar token**: Ingresar el token en el sistema
-- **Verificar conexión**: Probar que el token funcione correctamente
+**Proceso de configuración:**
 
-**2. Gestionar tokens existentes:**
-- **Ver tokens activos**: Lista de tokens configurados y su estado
-- **Renovar tokens**: Actualizar tokens que hayan expirado
-- **Desactivar tokens**: Remover tokens que ya no se necesiten
+**Paso 1**: Obtener las credenciales del sistema 103
+- Contactar al administrador del sistema 103 de la municipalidad
+- Solicitar el **username** y **password** para acceso a la API
+- Las credenciales son específicas para el sistema de sincronización
 
-**3. Sincronización automática:**
-- **Reclamos nuevos**: El sistema puede descargar automáticamente nuevos reclamos
-- **Actualizaciones**: Sincronizar cambios en reclamos existentes
-- **Estado de conexión**: Verificar si la sincronización está funcionando
+**Paso 2**: Ingresar las credenciales en el formulario
+- **Username**: Ingresar el nombre de usuario proporcionado (ej: `usuario@municipalidad.com`)
+- **Password**: Ingresar la contraseña proporcionada
+- El sistema genera automáticamente el token Base64 mientras escribes
+
+**Paso 3**: Guardar las credenciales
+- Hacer clic en **"Guardar Credenciales"**
+- Se mostrará un mensaje de confirmación
+- El sistema guardará las credenciales en la base de datos
+- Si ya existían credenciales, se actualizarán con las nuevas
+
+**Generación automática del token:**
+- El sistema genera automáticamente el token Base64 al ingresar username y password
+- El token se crea codificando `username:password` en Base64
+- No es necesario hacer clic en ningún botón para generar el token
+- El token se actualiza en tiempo real mientras escribes
+
+### 📋 Información del Token
+
+**Panel de información:**
+
+Una vez guardadas las credenciales, el panel derecho muestra:
+
+**1. Estado de las credenciales:**
+- **Credenciales Configuradas**: Si hay credenciales guardadas
+- **Sin Credenciales**: Si no hay credenciales configuradas
+
+**2. Datos mostrados:**
+- **Username**: El nombre de usuario guardado
+- **Password**: Se muestra como `••••••••••` por seguridad
+- **Token Basic Auth (Base64)**: El token generado automáticamente
+
+**3. Copiar el token:**
+- Hacer clic en el botón de copiar (📋) junto al campo del token
+- El token se copiará al portapapeles
+- Aparecerá un mensaje "Copiado" confirmando la acción
+- El token se puede usar directamente en peticiones HTTP como: `Authorization: Basic {token}`
+
+**Formato del token:**
+```
+Authorization: Basic YWd1c2ZhcmJlckBnbWFpbC5jb206QWx1bWJyYWRvMjAyNSMh
+```
+
+### 🔄 Actualizar Credenciales
+
+**Cuándo actualizar:**
+- Cuando las credenciales han expirado
+- Cuando se cambian las credenciales en el sistema 103
+- Por seguridad, para rotar las credenciales periódicamente
+
+**Proceso de actualización:**
+
+**Paso 1**: Si ya hay credenciales guardadas, el formulario se carga automáticamente con los valores actuales
+
+**Paso 2**: Modificar el username o password según sea necesario
+- Puedes cambiar solo uno de los campos o ambos
+- El token Base64 se regenera automáticamente
+
+**Paso 3**: Hacer clic en **"Guardar Credenciales"**
+- El sistema actualizará las credenciales existentes
+- Se mostrará un mensaje de confirmación
+
+> **⚠️ Importante**: 
+> - Las credenciales son sensibles y deben mantenerse seguros
+> - No compartas las credenciales con usuarios no autorizados
+> - El password se almacena en texto plano en la base de datos (considerar encriptación para producción)
+> - Solo los administradores pueden acceder a esta página
+
+### 🔗 Uso de las Credenciales
+
+**Sincronización automática:**
+- Las credenciales se usan automáticamente cuando se sincronizan reclamos desde el sistema 103
+- El sistema utiliza el token Base64 generado para autenticarse con la API externa
+- No es necesario configurar nada adicional para usar las credenciales en la sincronización
+
+**Sincronización de reclamos:**
+- **Por rango de fechas**: El sistema usa las credenciales para obtener reclamos en un período específico
+- **Por número específico**: El sistema usa las credenciales para obtener un reclamo específico
+- **Cierre de reclamos**: Las credenciales se usan para enviar el cierre de reclamos al sistema 103
 
 **Ejemplo práctico:**
-Para configurar un nuevo token:
+Para configurar credenciales por primera vez:
 1. Contactar al administrador del sistema 103
-2. Solicitar las credenciales de acceso
+2. Solicitar las credenciales de acceso (username y password)
 3. Ir a "Token 103" en el sistema
-4. Hacer clic en "Nuevo Token"
-5. Ingresar las credenciales proporcionadas
-6. Hacer clic en "Guardar"
-7. Verificar que aparezca como "Activo"
+4. Ingresar el username en el campo correspondiente
+5. Ingresar el password en el campo correspondiente
+6. Verificar que el token Base64 se genera automáticamente
+7. Hacer clic en "Guardar Credenciales"
+8. Verificar que aparece el mensaje de éxito
+9. (Opcional) Copiar el token Base64 si necesitas usarlo externamente
 
-> **⚠️ Importante**: Los tokens son sensibles y deben mantenerse seguros. No compartas las credenciales con usuarios no autorizados.
+**Solución de problemas comunes:**
+- **No se genera el token**: Verificar que ambos campos (username y password) tengan contenido
+- **Error al guardar**: Verificar que los campos no estén vacíos y que tengas permisos de administrador
+- **Token no funciona**: Verificar que las credenciales sean correctas y estén activas en el sistema 103
+- **Error 401 Unauthorized**: Las credenciales pueden estar incorrectas o haber expirado
 
 ### 📦 Gestión de Materiales
 
@@ -346,12 +426,13 @@ El mapa interactivo es una de las herramientas más importantes para el supervis
 
 | Color | Estado | Descripción | Acción Requerida |
 |-------|--------|-------------|------------------|
-| ⚫ **Negro** | Recibido | Reclamo nuevo, sin asignar | Asignar a cuadrilla |
-| 🔴 **Rojo** | Asignado | Asignado a cuadrilla | Enviar cuadrilla al lugar |
-| 🟡 **Amarillo** | En ejecución | Trabajo en progreso | Supervisar progreso |
-| 🟢 **Verde** | Completado | Trabajo finalizado | Verificar calidad |
-| ⚫ **Gris** | En plan | Programado para futuro | Planificar ejecución |
+| ⚫ **Gris/Negro** | Recibido | Reclamo nuevo, sin asignar | Asignar a cuadrilla o incluir en hoja de ruta |
+| 🔴 **Rojo** | Asignado | Asignado a cuadrilla a través de una hoja de ruta | Enviar cuadrilla al lugar |
+| 🟡 **Amarillo/Dorado** | En ejecución | Trabajo en progreso | Supervisar progreso |
+| 🟢 **Verde** | Completado | Trabajo finalizado, pendiente de cierre | Cerrar reclamo formalmente |
+| ⚫ **Gris** | En plan | Programado para futura ejecución | Planificar ejecución |
 | ⚫ **Gris** | Error de datos | Información incorrecta | Corregir datos |
+| ⚫ **Gris Oscuro** | Cerrado | Reclamo cerrado formalmente | Solo consulta, no editable |
 
 **Funcionalidades del mapa:**
 
@@ -512,10 +593,249 @@ Los filtros son herramientas esenciales para el supervisor, permitiendo encontra
 - **Filtros se pierden**: Los filtros se mantienen mientras navegas en la misma sesión
 - **Rendimiento lento**: Usar filtros más específicos para reducir la cantidad de datos
 
-#### 📋 Generación y Edición de Hojas de Ruta
+#### 📋 Gestión de Hojas de Ruta
 
 **Descripción general:**
-La gestión de cuadrillas es fundamental para la organización eficiente del trabajo. Permite crear grupos de operarios, asignarles tareas específicas y planificar rutas de trabajo optimizadas.
+El módulo de Hojas de Ruta es una funcionalidad avanzada que permite generar automáticamente rutas optimizadas para las cuadrillas. El sistema utiliza algoritmos de optimización que consideran la prioridad de los reclamos y la proximidad geográfica para crear recorridos eficientes. Las hojas de ruta pueden generarse automáticamente o editarse manualmente según las necesidades operativas.
+
+**Acceder al módulo de Hojas de Ruta:**
+
+**Paso 1**: Hacer clic en **"Rutas"** en el menú principal
+- El ícono muestra un mapa o ruta (🗺️)
+- Esta funcionalidad está disponible para supervisores y administradores
+
+**Paso 2**: Visualizar la tabla de hojas de ruta existentes
+- La tabla muestra todas las rutas creadas en el sistema
+- Cada ruta muestra su nombre, cantidad de reclamos, tiempo estimado y estado de asignación
+
+![Tabla de hojas de ruta](imagenes/rutas_tabla.png)
+
+### 🆕 Crear Nueva Hoja de Ruta
+
+**Proceso de creación:**
+
+**Paso 1**: Hacer clic en **"+ Nueva Hoja de Ruta"**
+- El botón está ubicado en la parte superior de la página
+- Se abrirá un modal con el formulario de creación
+
+**Paso 2**: Configurar los parámetros básicos:
+- **Nombre**: Nombre descriptivo de la hoja de ruta (ej: "Ruta Zona Norte - 15/03/2024")
+- **Color**: Seleccionar un color para identificar la ruta en los mapas
+- **Cantidad de reclamos**: Número de reclamos que deseas incluir en la ruta
+  - El sistema validará que haya suficientes reclamos disponibles
+  - Solo se pueden incluir reclamos que no estén completados ni asignados a otras rutas
+
+![Formulario crear ruta](imagenes/ruta_crear_formulario.png)
+
+**Paso 3**: Hacer clic en **"Generar Vista Previa"**
+- El sistema ejecutará el algoritmo de optimización
+- Se mostrará una vista previa de la ruta propuesta en un mapa
+- Podrás ver el orden de los reclamos, la ruta trazada y el tiempo estimado
+
+**Algoritmo de optimización:**
+El sistema utiliza un algoritmo inteligente que:
+1. **Prioriza reclamos urgentes**: Los reclamos de prioridad "Alta" tienen preferencia
+2. **Optimiza por proximidad**: Selecciona reclamos cercanos entre sí para minimizar desplazamientos
+3. **Calcula ruta eficiente**: Ordena los reclamos en el mejor orden de visita
+4. **Estima tiempo total**: Calcula tiempo de trabajo y desplazamiento
+
+**Paso 4**: Revisar la vista previa
+- **Panel izquierdo**: Lista de reclamos en el orden propuesto
+- **Panel derecho**: Mapa con la ruta trazada y marcadores numerados
+- **Información mostrada**: Tiempo estimado total, distancia total, cantidad de reclamos
+
+![Vista previa de ruta](imagenes/ruta_vista_previa.png)
+
+**Paso 5**: Opciones disponibles después de la vista previa:
+
+**A) Crear ruta automática:**
+- Si estás conforme con la ruta propuesta, hacer clic en **"Crear Ruta Automática"**
+- La ruta se guardará en el sistema con estado "No Asignada"
+- Podrás asignarla a una cuadrilla posteriormente
+
+**B) Editar la ruta manualmente:**
+- Hacer clic en **"Editar Hoja de Ruta"** para activar el modo de edición
+- En modo edición puedes:
+  - **Reordenar reclamos**: Usar las flechas ↑ ↓ para cambiar el orden
+  - **Eliminar reclamos**: Quitar reclamos que no deseas incluir
+  - **Agregar reclamos**: Hacer clic en reclamos del mapa para agregarlos
+- Los cambios se reflejan en tiempo real en el mapa
+- Puedes cancelar la edición para volver a la ruta original
+
+**C) Cancelar:**
+- Si no deseas crear la ruta, hacer clic en **"Cancelar"**
+- Se cerrará el modal sin guardar cambios
+
+### ✏️ Edición Manual de Hojas de Ruta
+
+**Cuándo editar manualmente:**
+- Cuando necesitas incluir reclamos específicos que el algoritmo no seleccionó
+- Para ajustar el orden según conocimiento local (calles cerradas, obras, etc.)
+- Para priorizar reclamos de clientes importantes
+- Para agrupar reclamos por tipo de trabajo
+
+**Operaciones de edición:**
+
+**1. Reordenar reclamos:**
+- En modo edición, usar los botones ↑ (arriba) y ↓ (abajo) junto a cada reclamo
+- El orden se actualiza inmediatamente en el mapa
+- La ruta se recalcula automáticamente
+
+**2. Eliminar reclamos:**
+- Hacer clic en el botón 🗑️ (eliminar) junto al reclamo
+- El reclamo se quita de la ruta y vuelve a estar disponible
+- El mapa se actualiza mostrando la nueva ruta
+
+**3. Agregar reclamos:**
+- Hacer clic en cualquier marcador del mapa que no esté en la ruta
+- El reclamo se agregará al final de la lista
+- El sistema validará que el reclamo esté disponible (no completado, no en otra ruta)
+
+**4. Cancelar edición:**
+- Hacer clic en **"Cancelar Edición"** para restaurar la ruta original
+- Se perderán todos los cambios realizados en modo edición
+
+### 👥 Asignar Hoja de Ruta a Cuadrilla
+
+**Proceso de asignación:**
+
+**Paso 1**: Desde la tabla de rutas, identificar la ruta que deseas asignar
+- Las rutas con estado "No Asignada" pueden ser asignadas
+- Las rutas ya asignadas muestran el nombre de la cuadrilla
+
+**Paso 2**: Hacer clic en el botón de **"Asignar"** (ícono de personas) en la columna de acciones
+- Se abrirá un modal con las cuadrillas disponibles
+- Solo se muestran cuadrillas que tienen operarios asignados
+
+**Paso 3**: Seleccionar la cuadrilla destino
+- Elegir la cuadrilla del menú desplegable
+- Verificar que la cuadrilla tenga operarios suficientes para la tarea
+
+**Paso 4**: Confirmar la asignación
+- Hacer clic en **"Asignar Ruta"**
+- El sistema actualizará:
+  - Estado de la ruta: de "No Asignada" a "Asignada"
+  - Estado de los reclamos: de "Recibido" a "Asignado"
+  - Asociación: La ruta queda vinculada a la cuadrilla
+
+**Efectos de la asignación:**
+- Los reclamos de la ruta cambian automáticamente a estado "Asignado"
+- La ruta queda bloqueada para edición (no se puede modificar ni eliminar mientras esté asignada)
+- Los operarios de la cuadrilla pueden ver la ruta en sus dispositivos
+
+### 🔄 Desasignar Hoja de Ruta
+
+**Cuándo desasignar:**
+- Cuando necesitas reasignar la ruta a otra cuadrilla
+- Cuando la cuadrilla no puede completar la ruta
+- Para liberar reclamos para una nueva planificación
+
+**Proceso de desasignación:**
+
+**Paso 1**: Desde la tabla de rutas, hacer clic en **"Desasignar"** en la ruta asignada
+- El botón solo aparece en rutas que están asignadas
+
+**Paso 2**: Confirmar la desasignación
+- Se mostrará un mensaje de confirmación
+- Al confirmar:
+  - La ruta vuelve a estado "No Asignada"
+  - Los reclamos vuelven a estado "Recibido"
+  - La ruta queda disponible para reasignación o edición
+
+> **⚠️ Importante**: Al desasignar una ruta, los reclamos vuelven a estar disponibles para incluirse en otras rutas. Verifica que esto sea lo que deseas antes de confirmar.
+
+### 👁️ Visualizar Hoja de Ruta
+
+**Ver una ruta específica:**
+
+**Paso 1**: Desde la tabla de rutas, hacer clic en el botón de **"Ver"** (ícono de ojo)
+- Se abrirá un modal con la visualización completa de la ruta
+
+**Paso 2**: Explorar la ruta:
+- **Panel izquierdo**: Lista de reclamos con información detallada
+  - Hacer clic en un reclamo para centrar el mapa en ese punto
+  - Ver dirección, motivo, estado y prioridad de cada reclamo
+- **Panel derecho**: Mapa interactivo con la ruta trazada
+  - Marcadores numerados indican el orden de visita
+  - Línea de ruta muestra el recorrido optimizado
+  - Puedes alternar entre Google Maps y Mapbox
+
+**Visualizar todas las rutas simultáneamente:**
+
+**Paso 1**: Hacer clic en **"Visualizar Rutas"** en la parte superior
+- Se abrirá un modal mostrando todas las rutas del sistema
+
+**Paso 2**: Explorar las rutas:
+- **Panel izquierdo**: Lista de todas las rutas con su estado
+  - Hacer clic en una ruta para centrar el mapa en ella
+  - Cada ruta se muestra con su color distintivo
+- **Panel derecho**: Mapa con todas las rutas superpuestas
+  - Cada ruta tiene un color diferente para fácil identificación
+  - Útil para planificar y evitar solapamientos geográficos
+
+### 🗑️ Eliminar Hoja de Ruta
+
+**Cuándo eliminar:**
+- Cuando la ruta ya no es necesaria
+- Para liberar reclamos para una nueva planificación
+- Cuando se creó una ruta por error
+
+**Restricciones:**
+- **No se puede eliminar** una ruta que está asignada a una cuadrilla
+- Primero debes desasignarla, luego podrás eliminarla
+
+**Proceso de eliminación:**
+
+**Paso 1**: Desde la tabla de rutas, hacer clic en el botón de **"Eliminar"** (ícono de basura)
+- Solo aparece en rutas no asignadas
+
+**Paso 2**: Confirmar la eliminación
+- Se mostrará un mensaje de confirmación
+- Al confirmar:
+  - La ruta se elimina del sistema
+  - Los reclamos vuelven a estar disponibles (si estaban en estado "Asignado", vuelven a "Recibido")
+  - Se elimina el registro de la relación ruta-reclamo
+
+> **⚠️ Importante**: La eliminación es permanente. Asegúrate de que realmente deseas eliminar la ruta antes de confirmar.
+
+### 📊 Información de Hojas de Ruta
+
+**Datos mostrados en la tabla:**
+
+| Columna | Descripción | Ejemplo |
+|---------|-------------|---------|
+| **Nombre** | Nombre descriptivo de la ruta | "Ruta Zona Norte - 15/03/2024" |
+| **Cantidad de Reclamos** | Número de reclamos incluidos | "12" |
+| **Tiempo Estimado** | Tiempo total estimado de la ruta | "03:45:00" (3 horas 45 minutos) |
+| **Asignación** | Estado y cuadrilla asignada | "Asignada - Cuadrilla Norte" o "No Asignada" |
+| **Fecha de Creación** | Cuándo se creó la ruta | "15/03/2024 10:30" |
+
+**Cálculo del tiempo estimado:**
+- **Tiempo de trabajo**: 15 minutos por reclamo (trabajo en sitio)
+- **Tiempo de desplazamiento**: Basado en distancia y velocidad promedio urbana (30 km/h)
+- **Total**: Suma de ambos tiempos
+
+**Estados de una hoja de ruta:**
+- **No Asignada**: Ruta creada pero aún no asignada a ninguna cuadrilla
+- **Asignada**: Ruta asignada a una cuadrilla, los reclamos están en estado "Asignado"
+
+### 💡 Recomendaciones para Uso de Hojas de Ruta
+
+**Mejores prácticas:**
+- **Cantidad óptima**: Crear rutas con 10-20 reclamos para balance entre eficiencia y tiempo de trabajo
+- **Revisar vista previa**: Siempre revisar la vista previa antes de crear la ruta
+- **Agrupar por zona**: Crear rutas que agrupen reclamos de zonas geográficas cercanas
+- **Priorizar urgencia**: El sistema ya prioriza reclamos de alta prioridad, pero puedes ajustar manualmente
+- **Asignar temprano**: Asignar las rutas a las cuadrillas al inicio del día para mejor planificación
+- **Monitorear progreso**: Revisar regularmente el estado de las rutas asignadas
+
+**Solución de problemas comunes:**
+- **No hay suficientes reclamos**: Verificar que haya reclamos disponibles (no completados, no en otras rutas)
+- **Ruta no se puede asignar**: Verificar que la cuadrilla tenga operarios asignados
+- **No puedo eliminar ruta**: La ruta debe estar desasignada antes de poder eliminarla
+- **Reclamos no aparecen en mapa**: Verificar que los reclamos tengan direcciones válidas
+
+---
 
 ### 👥 Gestión de Cuadrillas
 
@@ -601,48 +921,6 @@ Para crear una cuadrilla especializada en semáforos:
 8. Seleccionar 3-4 operarios con experiencia en semáforos
 9. Hacer clic en "Agregar Seleccionados"
 10. Hacer clic en "Guardar" para confirmar
-
-### 🗺️ Planificación de Rutas de Trabajo
-
-**Crear hoja de ruta:**
-
-**Paso 1**: Desde el mapa de reclamos, identificar los trabajos asignados a una cuadrilla específica
-- Filtrar por estado "Asignado"
-- Identificar reclamos en una zona geográfica específica
-
-**Paso 2**: Planificar la ruta más eficiente:
-- **Agrupar por proximidad**: Trabajar en una zona antes de moverse a otra
-- **Considerar tráfico**: Planificar horarios para evitar congestiones
-- **Priorizar urgencia**: Atender primero los reclamos de alta prioridad
-- **Verificar materiales**: Asegurar que se tengan los materiales necesarios
-
-**Paso 3**: Documentar la hoja de ruta:
-- **Lista de reclamos**: Ordenados por orden de visita
-- **Direcciones**: Con direcciones completas y referencias
-- **Materiales necesarios**: Lista de materiales para cada trabajo
-- **Tiempo estimado**: Tiempo aproximado para cada reparación
-
-**Ejemplo de hoja de ruta:**
-```
-HOJA DE RUTA - CUADRILLA NORTE
-Fecha: 15/03/2024
-Operarios: Carlos Mendoza, Ana Silva, Luis Torres
-
-1. Reclamo #12345 - Av. Principal 123
-   Motivo: Luminaria quemada
-   Materiales: Luminaria LED 50W, portalámparas
-   Tiempo estimado: 30 minutos
-
-2. Reclamo #12346 - Calle Secundaria 456
-   Motivo: Poste inclinado
-   Materiales: Base de concreto, herramientas
-   Tiempo estimado: 45 minutos
-
-3. Reclamo #12347 - Plaza Central
-   Motivo: Semáforo desincronizado
-   Materiales: Herramientas de calibración
-   Tiempo estimado: 60 minutos
-```
 
 ### 📊 Seguimiento y Monitoreo de Cuadrillas
 
@@ -764,6 +1042,116 @@ Para hacer un seguimiento diario:
 - **Optimizar procesos**: Mejorar la eficiencia basándose en los datos
 - **Comunicar resultados**: Informar a la administración sobre el progreso
 
+#### 🔒 Cierre de Reclamos
+
+**Descripción general:**
+El módulo de Cierre de Reclamos permite cerrar formalmente los reclamos que han sido completados. Al cerrar un reclamo, se marca como cerrado en el sistema local y se sincroniza automáticamente con el sistema externo 103 de la municipalidad. Los reclamos cerrados quedan bloqueados para edición y no pueden cambiar de estado.
+
+**Acceder al módulo de cierre:**
+
+**Paso 1**: Hacer clic en **"Cierre"** en el menú principal
+- El ícono muestra un candado (🔒)
+- Esta funcionalidad está disponible para supervisores y administradores
+
+**Paso 2**: Visualizar el resumen de reclamos
+- **Tarjeta "Completados"**: Muestra la cantidad de reclamos completados pendientes de cierre
+- **Tarjeta "Cerrados"**: Muestra la cantidad de reclamos ya cerrados formalmente
+
+![Vista de cierre de reclamos](imagenes/cierre_reclamos_vista.png)
+
+### 📋 Cerrar Reclamos Completados
+
+**Proceso de cierre:**
+
+**Paso 1**: Revisar la tabla de reclamos completados
+- La tabla muestra todos los reclamos con estado "Completado" que aún no han sido cerrados
+- Información mostrada: ID, motivo, domicilio, fecha de inicio, fecha de modificación
+
+**Paso 2**: Seleccionar reclamos para cerrar
+- **Selección individual**: Marcar el checkbox de cada reclamo que deseas cerrar
+- **Selección múltiple**: Usar el checkbox del encabezado para seleccionar todos
+- El contador muestra cuántos reclamos has seleccionado
+
+**Paso 3**: Hacer clic en **"Cerrar Reclamos"**
+- El botón muestra la cantidad de reclamos seleccionados
+- Se iniciará el proceso de cierre
+
+**Proceso automático de cierre:**
+1. **Validación**: El sistema verifica que los reclamos estén en estado "Completado"
+2. **Sincronización con sistema 103**: Se envía el cierre al sistema externo de la municipalidad
+3. **Registro local**: Si la sincronización es exitosa, se marca el reclamo como cerrado en la base de datos local
+4. **Registro de fecha**: Se guarda la fecha y hora del cierre
+5. **Bloqueo**: El reclamo queda bloqueado para edición
+
+**Resultado del cierre:**
+- **Reclamos cerrados exitosamente**: Se muestran en un mensaje de confirmación
+- **Reclamos enviados al sistema 103**: Se indica cuántos se sincronizaron correctamente
+- **Errores**: Si algún reclamo no se pudo cerrar, se muestra un mensaje de error específico
+
+> **⚠️ Importante**: Una vez cerrado, un reclamo NO puede cambiar de estado ni ser editado. Asegúrate de que el trabajo esté realmente completado antes de cerrar.
+
+### 📊 Visualizar Reclamos Cerrados
+
+**Ver historial de cierres:**
+
+**Paso 1**: En la sección "Reclamos Cerrados", revisar la tabla
+- Muestra todos los reclamos que han sido cerrados formalmente
+- Información mostrada: ID, motivo, domicilio, fecha de inicio, fecha de cierre
+
+**Información disponible:**
+- **Fecha de cierre**: Cuándo se cerró formalmente el reclamo
+- **Estado**: Siempre muestra "Cerrado" (bloqueado)
+- **Sincronización**: Indica si se sincronizó correctamente con el sistema 103
+
+**Filtros y búsqueda:**
+- Usar la búsqueda de la tabla para encontrar reclamos específicos
+- Filtrar por fecha de cierre para ver cierres de períodos específicos
+- Ordenar por cualquier columna para organizar la información
+
+### 🔄 Sincronización con Sistema 103
+
+**¿Qué es la sincronización?**
+Cuando se cierra un reclamo, el sistema automáticamente:
+1. Envía una petición al sistema externo 103 de la municipalidad
+2. Actualiza el estado del reclamo en el sistema 103 a "CP" (Completado)
+3. Registra el cierre en la base de datos local
+
+**Requisitos para sincronización:**
+- **Token 103 configurado**: Debe haber credenciales válidas configuradas en "Token 103"
+- **Conexión a internet**: El sistema necesita conectarse al sistema externo
+- **Reclamo válido**: El reclamo debe tener un `municipalidad_id` válido
+
+**Manejo de errores:**
+- **Si falla la sincronización**: El reclamo NO se cierra localmente
+- **Mensaje de error**: Se muestra un mensaje específico indicando qué reclamos no se pudieron cerrar
+- **Reintento**: Puedes intentar cerrar nuevamente los reclamos que fallaron
+
+**Ejemplo de mensaje de éxito:**
+```
+✅ Cierre exitoso
+Reclamos cerrados: 5
+Fecha de cierre: 15/03/2024 14:30
+
+Sincronización con Sistema 103:
+✅ 5 reclamo(s) cerrado(s) y enviado(s) exitosamente al sistema 103
+IDs: 12345, 12346, 12347, 12348, 12349
+```
+
+### 💡 Recomendaciones para Cierre de Reclamos
+
+**Mejores prácticas:**
+- **Cerrar en lotes**: Cerrar múltiples reclamos a la vez para eficiencia
+- **Verificar antes de cerrar**: Asegurarse de que el trabajo esté realmente completado
+- **Revisar regularmente**: Cerrar los reclamos completados al final de cada día o semana
+- **Monitorear sincronización**: Verificar que los cierres se sincronicen correctamente con el sistema 103
+- **Mantener historial**: Los reclamos cerrados quedan registrados para auditoría
+
+**Solución de problemas comunes:**
+- **No puedo cerrar reclamos**: Verificar que los reclamos estén en estado "Completado"
+- **Error de sincronización**: Verificar que el Token 103 esté configurado correctamente
+- **Reclamos no aparecen**: Solo aparecen reclamos con estado "Completado" que no están cerrados
+- **Cierre fallido**: Revisar los logs del sistema o contactar al administrador
+
 ---
 
 ### 2.3 Operario
@@ -838,9 +1226,9 @@ La vista de tareas está especialmente diseñada para operarios, mostrando los r
 
 **Estados disponibles para operarios:**
 - **Recibido** (Gris): Reclamo nuevo, listo para ser asignado
-- **Asignado** (Azul): Reclamo asignado a tu cuadrilla, listo para ejecutar
-- **En ejecución** (Amarillo): Trabajo en progreso (tuyo o de otro operario)
-- **Completado** (Verde): Trabajo finalizado exitosamente
+- **Asignado** (Azul/Rojo): Reclamo asignado a tu cuadrilla a través de una hoja de ruta, listo para ejecutar
+- **En ejecución** (Amarillo/Dorado): Trabajo en progreso (tuyo o de otro operario)
+- **Completado** (Verde): Trabajo finalizado exitosamente, pendiente de cierre formal
 
 **Interpretación de colores:**
 - **Gris**: Trabajo pendiente de asignación
@@ -1053,32 +1441,37 @@ Estado: Completado exitosamente
 - **Error al cambiar estado**: Verificar que hayas seleccionado un estado válido
 - **Observaciones no se guardan**: Asegurar que el texto no sea demasiado largo
 
-#### 📸 Subida de Fotos y Registro de Materiales
+#### 📝 Registro de Observaciones y Materiales
 
 **Descripción general:**
-Esta funcionalidad permitirá a los operarios documentar visualmente el trabajo realizado y registrar los materiales utilizados, mejorando la trazabilidad y la gestión del inventario.
+El registro de observaciones es fundamental para documentar el trabajo realizado. Aunque el sistema no tiene actualmente funcionalidad de subida de fotos, las observaciones de texto permiten documentar todos los aspectos importantes del trabajo realizado.
 
-**Funcionalidades planificadas:**
+**Tipos de información a registrar en observaciones:**
 
-**1. Subida de fotos:**
-- **Fotos del problema**: Capturar el estado inicial del reclamo
-- **Fotos del proceso**: Documentar el trabajo en progreso
-- **Fotos del resultado**: Mostrar el trabajo completado
-- **Fotos de seguridad**: Documentar situaciones de riesgo
+**1. Trabajo realizado:**
+- Descripción detallada de la reparación ejecutada
+- Técnicas y métodos utilizados
+- Tiempo empleado en la reparación
+- Dificultades encontradas durante el trabajo
 
-**2. Registro de materiales:**
-- **Materiales utilizados**: Registrar qué materiales se usaron
-- **Cantidades**: Especificar cuántas unidades se utilizaron
-- **Códigos de materiales**: Usar códigos de barras para identificación rápida
-- **Actualización de inventario**: Reducir automáticamente el stock
+**2. Materiales utilizados:**
+- Lista de materiales empleados
+- Cantidades utilizadas
+- Códigos o referencias de materiales
+- Materiales adicionales necesarios
 
-**3. Documentación técnica:**
-- **Mediciones**: Registrar dimensiones y especificaciones
-- **Códigos de colores**: Documentar códigos de cables y conexiones
-- **Números de serie**: Registrar números de equipos instalados
-- **Certificaciones**: Documentar certificados de materiales
+**3. Observaciones técnicas:**
+- Estado de las instalaciones encontradas
+- Recomendaciones para futuras reparaciones
+- Problemas adicionales detectados
+- Medidas de seguridad aplicadas
 
-> **📝 Nota**: La funcionalidad de subida de fotos y registro de materiales está en desarrollo y estará disponible en futuras versiones del sistema. Mientras tanto, se recomienda documentar esta información en las observaciones de texto.
+**4. Calidad del trabajo:**
+- Verificación de funcionamiento
+- Estado final del reclamo
+- Necesidad de seguimiento posterior
+
+> **📝 Nota**: Las observaciones se registran en el campo de texto al cambiar el estado del reclamo. Es importante ser detallado y claro en las observaciones para facilitar el seguimiento y la auditoría.
 
 #### 🗺️ Visualización de Hoja de Ruta y Ruta Optimizada
 
@@ -1102,10 +1495,11 @@ El mapa es una herramienta esencial para los operarios, permitiendo visualizar l
 
 | Color | Estado | Significado para operario | Acción recomendada |
 |-------|--------|---------------------------|-------------------|
-| ⚫ **Negro** | Recibido | Reclamo nuevo, sin asignar | Informar al supervisor |
-| 🔴 **Rojo** | Asignado | Asignado a tu cuadrilla | Preparar para ir al lugar |
-| 🟡 **Amarillo** | En ejecución | Trabajo en progreso | Continuar o verificar |
-| 🟢 **Verde** | Completado | Trabajo finalizado | Verificar calidad |
+| ⚫ **Gris/Negro** | Recibido | Reclamo nuevo, sin asignar | Informar al supervisor |
+| 🔴 **Rojo** | Asignado | Asignado a tu cuadrilla a través de una hoja de ruta | Preparar para ir al lugar |
+| 🟡 **Amarillo/Dorado** | En ejecución | Trabajo en progreso | Continuar o verificar |
+| 🟢 **Verde** | Completado | Trabajo finalizado, pendiente de cierre | Verificar calidad y esperar cierre formal |
+| ⚫ **Gris Oscuro** | Cerrado | Reclamo cerrado formalmente | Solo consulta |
 
 **Funcionalidades del mapa para operarios:**
 
@@ -1246,27 +1640,36 @@ Para una jornada de trabajo:
 
 **Administrador**: Usuario con permisos completos para configurar el sistema y gestionar otros usuarios.
 
-**Cuadrilla**: Grupo de operarios asignados para trabajar en conjunto en las tareas de mantenimiento.
+**Cierre de Reclamo**: Proceso formal de finalización de un reclamo completado. Al cerrar, el reclamo se sincroniza con el sistema 103 y queda bloqueado para edición.
+
+**Cuadrilla**: Grupo de operarios asignados para trabajar en conjunto en las tareas de mantenimiento. Una cuadrilla puede tener hasta 4 operarios.
 
 **Estado del Reclamo**: Situación actual del reclamo en el proceso de resolución:
-- **Recibido**: Reclamo ingresado al sistema
-- **Asignado**: Asignado a una cuadrilla específica
+- **Recibido**: Reclamo ingresado al sistema, sin asignar
+- **Asignado**: Asignado a una cuadrilla a través de una hoja de ruta
 - **En ejecución**: Trabajo en progreso
-- **Completado**: Trabajo finalizado
+- **Completado**: Trabajo finalizado, pendiente de cierre formal
 - **En plan**: Programado para futura ejecución
 - **Error de datos**: Requiere corrección de información
+- **Cerrado**: Reclamo cerrado formalmente, bloqueado para edición
 
-**Legajo**: Número de identificación único de cada operario en el sistema.
+**Hoja de Ruta**: Conjunto de reclamos organizados en un orden optimizado para ser atendidos por una cuadrilla. Puede generarse automáticamente o editarse manualmente.
 
-**Operario**: Personal técnico que ejecuta las reparaciones en campo.
+**Legajo**: Número de identificación único de cada operario en el sistema. Se usa para el login de operarios y supervisores.
 
-**Prioridad**: Nivel de urgencia del reclamo (Alta, Media, Baja).
+**Operario**: Personal técnico que ejecuta las reparaciones en campo. Tiene acceso limitado principalmente a tareas asignadas y cambio de estados.
 
-**Reclamo**: Solicitud ciudadana relacionada con problemas de alumbrado público.
+**Prioridad**: Nivel de urgencia del reclamo:
+- **Alta**: Reclamos urgentes que requieren atención inmediata
+- **Baja**: Reclamos de mantenimiento rutinario
 
-**Supervisor**: Usuario encargado de coordinar cuadrillas y gestionar la asignación de tareas.
+**Reclamo**: Solicitud ciudadana relacionada con problemas de alumbrado público. Puede ser recibida desde el sistema 103 o ingresada manualmente.
 
-**Token 103**: Credencial para sincronizar datos con el sistema externo de la municipalidad.
+**Sistema 103**: Sistema externo de la municipalidad para gestión de reclamos ciudadanos. El sistema se sincroniza con este para recibir reclamos y enviar cierres.
+
+**Supervisor**: Usuario encargado de coordinar cuadrillas, gestionar la asignación de tareas, crear hojas de ruta y cerrar reclamos.
+
+**Token 103 / Credenciales Basic Auth**: Username y password que permiten al sistema autenticarse con el sistema externo 103 de la municipalidad. El sistema genera automáticamente un token Base64 a partir de estas credenciales para las peticiones HTTP. Se configura en el módulo "Token 103" del administrador.
 
 ### ❓ FAQ - Preguntas Frecuentes
 
@@ -1274,19 +1677,37 @@ Para una jornada de trabajo:
 R: Contacta al administrador del sistema para que te asigne una nueva contraseña.
 
 **P: ¿Puedo cambiar el estado de un reclamo desde cualquier lugar?**
-R: Sí, puedes cambiar el estado desde la vista de tareas, el mapa o la lista de reclamos.
+R: Sí, puedes cambiar el estado desde la vista de tareas, el mapa o la lista de reclamos. Sin embargo, los reclamos cerrados no pueden cambiar de estado.
 
 **P: ¿Qué hago si no veo un reclamo en el mapa?**
-R: Verifica que el reclamo tenga una dirección válida y que los filtros no estén ocultando el reclamo.
+R: Verifica que el reclamo tenga una dirección válida y que los filtros no estén ocultando el reclamo. También verifica que el reclamo no esté completado o cerrado si estás buscando reclamos activos.
 
 **P: ¿Cómo sé qué cuadrilla está asignada a un reclamo?**
-R: Esta información se mostrará en futuras versiones del sistema.
+R: Puedes ver esta información en la hoja de ruta asignada. Si un reclamo está en una ruta asignada, la cuadrilla aparece en la información de la ruta.
 
 **P: ¿Puedo trabajar desde mi teléfono móvil?**
-R: Sí, el sistema es responsive y funciona en dispositivos móviles, especialmente la vista de tareas.
+R: Sí, el sistema es responsive y funciona en dispositivos móviles, especialmente la vista de tareas y el mapa.
 
 **P: ¿Qué hago si el sistema está lento?**
-R: Usa los filtros para reducir la cantidad de datos mostrados y mejora el rendimiento.
+R: Usa los filtros para reducir la cantidad de datos mostrados y mejora el rendimiento. También puedes cerrar pestañas del navegador que no estés usando.
+
+**P: ¿Cómo funciona la generación automática de hojas de ruta?**
+R: El sistema utiliza un algoritmo que prioriza reclamos de alta prioridad y optimiza el orden por proximidad geográfica. Puedes generar una vista previa antes de crear la ruta y editarla manualmente si es necesario.
+
+**P: ¿Puedo editar una hoja de ruta después de crearla?**
+R: Solo puedes editar una hoja de ruta si no está asignada a una cuadrilla. Una vez asignada, debes desasignarla primero para poder editarla.
+
+**P: ¿Qué pasa si cierro un reclamo por error?**
+R: Los reclamos cerrados no pueden ser modificados. Si necesitas corregir un cierre, contacta al administrador del sistema.
+
+**P: ¿Cómo sé si un reclamo se sincronizó correctamente con el sistema 103?**
+R: Al cerrar reclamos, el sistema muestra un mensaje indicando cuántos se enviaron exitosamente al sistema 103. Si hay errores, se mostrarán en el mensaje de resultado.
+
+**P: ¿Puedo asignar una hoja de ruta a más de una cuadrilla?**
+R: No, cada hoja de ruta solo puede estar asignada a una cuadrilla a la vez. Si necesitas reasignarla, primero debes desasignarla de la cuadrilla actual.
+
+**P: ¿Qué reclamos puedo incluir en una hoja de ruta?**
+R: Solo puedes incluir reclamos que no estén completados y que no estén ya asignados a otra hoja de ruta. El sistema valida esto automáticamente.
 
 ### 🚨 Problemas Frecuentes y Soluciones
 
@@ -1326,5 +1747,5 @@ Para soporte técnico o consultas sobre el sistema, contacta a:
 
 ---
 
-*Manual de Usuario v1.0 - Sistema de Gestión de Alumbrado Público*
-*Última actualización: [fecha actual]*
+*Manual de Usuario v2.0 - Sistema de Gestión de Alumbrado Público*
+*Última actualización: Diciembre 2024*
