@@ -91,6 +91,15 @@
     </div>
     <?php endif; ?>
 
+    <?php if ($userRole == '2'): ?>
+    <div class="nav-item">
+      <a class="nav-link" href="<?= base_url("/analisis"); ?>" title="Análisis">
+        <i class="bi bi-graph-up"></i>
+        <span>Análisis</span>
+      </a>
+    </div>
+    <?php endif; ?>
+
     <?php if ($userRole == '1' ||$userRole == '3'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/tareas"); ?>" title="Tareas">

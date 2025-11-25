@@ -80,6 +80,18 @@ $routes->resource('api/rutas');
 $routes->get('api/cierre-reclamos/completados', 'Api\\CierreReclamos::obtenerReclamosCompletados');
 $routes->get('api/cierre-reclamos/cerrados', 'Api\\CierreReclamos::obtenerReclamosCerrados');
 $routes->post('api/cierre-reclamos/cerrar', 'Api\\CierreReclamos::cerrarReclamos');
+// Endpoint Análisis de Reclamos
+$routes->get('api/analisis/reclamos-por-estado', 'Api\\Analisis::getReclamosPorEstado');
+$routes->get('api/analisis/reclamos-por-motivo', 'Api\\Analisis::getReclamosPorMotivo');
+$routes->get('api/analisis/kpi-resumen', 'Api\\Analisis::getKpiResumen');
+$routes->get('api/analisis/evolucion-temporal', 'Api\\Analisis::getEvolucionTemporal');
+$routes->get('api/analisis/tiempo-promedio-por-motivo', 'Api\\Analisis::getTiempoPromedioPorMotivo');
+$routes->get('api/analisis/evolucion-tiempo-promedio', 'Api\\Analisis::getEvolucionTiempoPromedio');
+$routes->get('api/analisis/mapa-calor-zonas', 'Api\\Analisis::getMapaCalorZonas');
+$routes->get('api/analisis/evolucion-alta-prioridad', 'Api\\Analisis::getEvolucionAltaPrioridad');
+$routes->get('api/analisis/consumo-materiales', 'Api\\Analisis::getConsumoMateriales');
+$routes->get('api/analisis/reclamos-cerrados-abiertos', 'Api\\Analisis::getReclamosCerradosAbiertos');
+$routes->get('api/analisis/tasa-cierre', 'Api\\Analisis::getTasaCierre');
 
 
 // Autenticación y configuración de páginas
