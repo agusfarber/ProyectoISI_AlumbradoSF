@@ -180,6 +180,16 @@ class CreateTestTables extends Migration
                 'constraint' => 20,
                 'null' => true,
             ],
+            'cerrado' => [
+                'type' => 'INT',
+                'constraint' => 1,
+                'default' => 0,
+                'null' => false,
+            ],
+            'fecha_cierre' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('reclamo');
@@ -299,6 +309,51 @@ class CreateTestTables extends Migration
         $this->forge->addForeignKey('idTipo', 'tipo_material', 'id', 'SET NULL', 'CASCADE');
         $this->forge->createTable('material');
 
+        // Crear tabla material_reclamo para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'reclamo_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'material_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'cantidad' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'null' => true,
+            ],
+            'observacion' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+            'fecha' => [
+                'type' => 'DATETIME',
+            ],
+            'usuario_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+                'default' => null,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('material_id', 'material', 'id', 'CASCADE', 'CASCADE');
+        // Usuario_id puede ser NULL (sistema) o referenciar un usuario existente
+        // No agregamos foreign key porque el código usa 0 para sistema y necesitamos permitir NULL
+        $this->forge->createTable('material_reclamo');
+
         // Crear tabla token103 para credenciales de API externa
         $this->forge->addField([
             'id' => [
@@ -326,11 +381,131 @@ class CreateTestTables extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('token103');
+
+        // Crear tabla historial_reclamo para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'nro_reclamo' => [
+                'type' => 'VARCHAR',
+                'constraint' => 50,
+            ],
+            'estado_anterior' => [
+                'type' => 'VARCHAR',
+                'constraint' => 50,
+                'null' => true,
+            ],
+            'estado_actual' => [
+                'type' => 'VARCHAR',
+                'constraint' => 50,
+                'null' => true,
+            ],
+            'observacion' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+            'usuario_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+            ],
+            'fecha_cambio' => [
+                'type' => 'DATETIME',
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->createTable('historial_reclamo');
+
+        // Crear tabla tiempo_reparacion para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'reclamo_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'motivo_reclamo' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'tiempo_minutos' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+            ],
+            'usuario_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+            ],
+            'fecha_registro' => [
+                'type' => 'DATETIME',
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->createTable('tiempo_reparacion');
+
+        // Crear tabla tiempo_promedio_motivo para los tests
+        $this->forge->addField([
+            'id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'auto_increment' => true,
+            ],
+            'motivo' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+            ],
+            'tiempo_promedio_minutos' => [
+                'type' => 'DECIMAL',
+                'constraint' => '10,2',
+            ],
+            'cantidad_registros' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'default' => 0,
+            ],
+            'tiempo_total_minutos' => [
+                'type' => 'DECIMAL',
+                'constraint' => '12,2',
+                'default' => 0,
+            ],
+            'tiempo_default_minutos' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'default' => 15,
+            ],
+            'fecha_actualizacion' => [
+                'type' => 'DATETIME',
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addUniqueKey('motivo');
+        $this->forge->createTable('tiempo_promedio_motivo');
     }
 
     public function down()
     {
+        $this->forge->dropTable('tiempo_promedio_motivo', true);
+        $this->forge->dropTable('tiempo_reparacion', true);
+        $this->forge->dropTable('historial_reclamo', true);
         $this->forge->dropTable('token103', true);
+        $this->forge->dropTable('material_reclamo', true);
         $this->forge->dropTable('material', true);
         $this->forge->dropTable('tipo_material', true);
         $this->forge->dropTable('ruta_reclamo', true);
