@@ -580,6 +580,30 @@
     display: none;
   }
   
+  /* Asegurar que los enlaces tengan posición relativa para el ::after */
+  .sidebar-nav .nav-link {
+    position: relative;
+  }
+  
+  /* Indicador de menú activo en móvil: barra blanca abajo del icono (horizontal) */
+  .sidebar-nav .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 3px;
+    background: var(--color-white);
+    border-radius: 2px 2px 0 0;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    /* Asegurar que no se muestre el estilo de desktop */
+    right: auto;
+    top: auto;
+    width: 60%;
+    height: 3px;
+  }
+  
   /* Footer móvil - botón de cerrar sesión fuera del área de scroll */
   .sidebar-footer-mobile {
     display: flex;
@@ -740,18 +764,20 @@
   }
 }
 
-/* Efecto de brillo en los enlaces activos */
-.sidebar-nav .nav-link.active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 60%;
-  background: var(--color-white);
-  border-radius: 2px 0 0 2px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+/* Efecto de brillo en los enlaces activos (solo desktop) */
+@media (min-width: 769px) {
+  .sidebar-nav .nav-link.active::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 60%;
+    background: var(--color-white);
+    border-radius: 2px 0 0 2px;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
 }
 
 /* ========================================

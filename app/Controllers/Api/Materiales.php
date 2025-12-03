@@ -302,7 +302,7 @@ class Materiales extends ResourceController
                 } else {
                     // Material no existe: crear nuevo
                     $resultado = $this->model->insert($item);
-                    if ($resultado === false) {
+            if ($resultado === false) {
                         $erroresProcesamiento[] = "Error al crear material '{$item['nombre']}'";
                         log_message('error', "Error al crear material: " . json_encode($item));
                     } else {
