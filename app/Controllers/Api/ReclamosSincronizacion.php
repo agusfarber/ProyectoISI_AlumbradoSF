@@ -482,6 +482,11 @@ class ReclamosSincronizacion extends ResourceController
                 return $this->failValidationErrors('Datos de reclamo requeridos');
             }
             
+            // Asegurar que se asigne prioridad baja por defecto si no viene
+            if (empty($data['prioridad'])) {
+                $data['prioridad'] = 'Baja';
+            }
+            
             $reclamoModel = new ReclamoModel();
             
             // Verificar si el reclamo ya existe
@@ -542,8 +547,8 @@ class ReclamosSincronizacion extends ResourceController
             'municipalidad_entreCalleUno' => $reclamoApi['desde_calle']['nombre'] ?? '',
             'municipalidad_entreCalleDos' => $reclamoApi['hasta_calle']['nombre'] ?? '',
             'municipalidad_ciudadano' => null, // No viene en la API
-            'municipalidad_descripcion' => null // No viene en la API
-            // prioridad no se toca, tiene su propia lógica en el modelo
+            'municipalidad_descripcion' => null, // No viene en la API
+            'prioridad' => 'Baja' // Asignar prioridad baja por defecto para reclamos sincronizados
         ];
     }
 

@@ -1,19 +1,43 @@
 <div id="app" class="container-fluid">
     <div>Gestión de Materiales</div>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <button class="btn btn-primary" @click="abrirFormulario()">+ Nuevo Material</button>
-        <div class="d-flex align-items-center gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <button class="btn btn-primary" @click="abrirFormulario()">
+            <i class="bi bi-plus-circle me-1 text-white"></i> Nuevo Material
+        </button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Botón para seleccionar archivo (más intuitivo en móvil) -->
+            <label for="inputArchivoMateriales" class="btn btn-outline-primary mb-0" style="cursor: pointer;">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i>
+                <span class="d-none d-md-inline">Seleccionar archivo</span>
+                <span class="d-md-none">Archivo</span>
+            </label>
             <input type="file" 
                 id="inputArchivoMateriales" 
-                class="form-control" 
+                class="d-none" 
                 @change="onArchivoSeleccionado" 
                 accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+            
+            <!-- Indicador del archivo seleccionado -->
+            <div v-if="archivoSeleccionado" class="d-flex align-items-center gap-2 px-2 py-1 bg-light rounded border">
+                <i class="bi bi-file-earmark-check text-success"></i>
+                <span class="text-muted small d-none d-md-inline" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" :title="archivoSeleccionado.name">
+                    {{ archivoSeleccionado.name }}
+                </span>
+                <button type="button" class="btn-close btn-close-sm" @click="archivoSeleccionado = null; document.getElementById('inputArchivoMateriales').value = '';" aria-label="Quitar archivo"></button>
+            </div>
+            
             <button class="btn btn-outline-secondary" 
                 :disabled="!archivoSeleccionado" 
                 @click="importarArchivo">
-                Importar
+                <i class="bi bi-upload me-1"></i>
+                <span class="d-none d-md-inline">Importar</span>
+                <span class="d-md-none">Importar</span>
             </button>
-            <button class="btn btn-success" @click="abrirModalTipos()">Gestionar Tipos</button>
+            <button class="btn btn-success" @click="abrirModalTipos()">
+                <i class="bi bi-tags me-1 text-white"></i>
+                <span class="d-none d-md-inline">Gestionar Tipos</span>
+                <span class="d-md-none">Tipos</span>
+            </button>
         </div>
     </div>
     <div class="table-responsive">
@@ -86,7 +110,7 @@
                         <table id="tabla_tipos" class="table table-bordered table-hover w-100">
                             <thead>
                                 <tr>
-                                    <th class="text-start">ID</th>
+                                    <!--th class="text-start">ID</th-->
                                     <th class="text-start">Nombre</th>
                                     <th class="text-start">Acciones</th>
                                 </tr>

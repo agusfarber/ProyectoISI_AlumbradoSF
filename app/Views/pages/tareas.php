@@ -248,7 +248,7 @@
                 <div class="modal-body">
                     <div class="row">
                         <!-- Panel de información a la izquierda -->
-                        <div class="col-md-4">
+                        <div class="col-md-4 d-none d-md-block">
                             <div class="card h-100">
                                 <div class="card-header py-2">
                                     <small class="mb-0"><strong>Rutas y Reclamos</strong></small>
@@ -297,7 +297,7 @@
                         </div>
 
                         <!-- Mapa a la derecha -->
-                        <div class="col-md-8">
+                        <div class="col-12 col-md-8">
                             <div class="card">
                                 <div class="card-header d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0">

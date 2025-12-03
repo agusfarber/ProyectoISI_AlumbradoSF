@@ -47,10 +47,16 @@
   position: fixed;
   height: 100vh;
   z-index: 1000;
+  /* Transición solo para el toggle móvil, no para carga de página */
   transition: transform 0.3s ease;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
+  /* Desactivar animación de entrada para que quede fijo */
+  animation: none !important;
+  /* Asegurar que esté siempre visible sin efectos */
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* ========================================
@@ -406,6 +412,7 @@
   width: 200px; /* antes 280px */
   display: flex;
   flex-direction: column;
+  animation: none; /* Sin animación de entrada */
 }
 
 /* Ajuste del contenido principal */
@@ -448,21 +455,238 @@
    ======================================== */
 
 @media (max-width: 768px) {
+  /* Convertir sidebar en barra horizontal superior */
   .sidebar {
-    transform: translateX(-100%);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    min-height: auto;
+    flex-direction: row; /* Cambiar a horizontal */
+    transform: translateY(0) !important;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: var(--shadow-medium);
+    z-index: 1000;
+    /* Desactivar animaciones y transiciones en móvil para que quede fijo */
+    animation: none !important;
+    transition: none !important;
+    /* Asegurar que no haya efectos de entrada */
+    opacity: 1 !important;
+    visibility: visible !important;
+    /* Estructura flex horizontal: nav (scroll) + footer (fijo) */
+    display: flex;
+    align-items: stretch;
   }
   
-  .sidebar.show {
-    transform: translateX(0);
-    animation: slideInLeft 0.3s ease;
+  /* Ocultar header y footer en móvil */
+  .sidebar-header,
+  .sidebar-footer {
+    display: none;
   }
   
+  /* Convertir navegación en horizontal - solo los items del menú */
+  .sidebar-nav {
+    display: flex;
+    flex-direction: row;
+    padding: 0.5rem 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: 1;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    position: relative;
+    min-width: 0; /* Permite que se encoja */
+  }
+  
+  /* Contenedor para los items del menú */
+  .sidebar-nav > .nav-item {
+    flex-shrink: 0;
+  }
+  
+  /* Ocultar scrollbar pero mantener funcionalidad */
+  .sidebar-nav::-webkit-scrollbar {
+    height: 4px;
+  }
+  
+  .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+  }
+  
+  /* Ocultar texto, solo mostrar iconos */
+  .sidebar-nav .nav-link span {
+    display: none;
+  }
+  
+  /* Ajustar items del menú para móvil */
+  .sidebar-nav .nav-item {
+    margin: 0;
+  }
+  
+  /* Estilo de enlaces en móvil - solo iconos */
+  .sidebar-nav .nav-link {
+    padding: 0.6rem 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    gap: 0;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  
+  /* Evitar el efecto de selección en móvil */
+  .sidebar-nav .nav-link {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Iconos más grandes en móvil */
+  .sidebar-nav .nav-link i {
+    font-size: 1.25rem;
+    width: auto;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Ajustar hover para móvil */
+  .sidebar-nav .nav-link:hover,
+  .sidebar-nav .nav-link.active {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Evitar efecto de fondo blanco al hacer clic en móvil */
+  .sidebar-nav .nav-link:active {
+    background: rgba(255, 255, 255, 0.15) !important;
+    transform: translateY(0);
+    transition: background 0.1s ease;
+  }
+  
+  /* Desactivar el efecto ::before en móvil que puede causar el flash blanco */
+  .sidebar-nav .nav-link::before {
+    display: none;
+  }
+  
+  /* Footer móvil - botón de cerrar sesión fuera del área de scroll */
+  .sidebar-footer-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.5rem 0.75rem;
+    flex-shrink: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .sidebar-footer-mobile form {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Estilos para el botón de cerrar sesión en móvil */
+  .nav-link-logout-mobile {
+    padding: 0.6rem 0.75rem;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    gap: 0;
+    background: rgba(220, 53, 69, 0.2) !important;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    font-family: inherit;
+    font-size: inherit;
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  .nav-link-logout-mobile i {
+    font-size: 1.25rem;
+    width: auto;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.9) !important;
+  }
+  
+  .nav-link-logout-mobile span {
+    display: none; /* Ocultar texto en móvil */
+  }
+  
+  .nav-link-logout-mobile:hover {
+    background: rgba(220, 53, 69, 0.3) !important;
+    color: rgba(255, 255, 255, 1);
+  }
+  
+  .nav-link-logout-mobile:active {
+    background: rgba(220, 53, 69, 0.25) !important;
+    transform: none !important; /* Sin transformaciones que causen movimiento */
+    color: rgba(255, 255, 255, 0.95);
+    top: 0 !important; /* Asegurar que no se mueva */
+    left: 0 !important;
+  }
+  
+  .nav-link-logout-mobile:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.4);
+  }
+  
+  /* Desactivar efecto ::before en botón de cerrar sesión móvil */
+  .nav-link-logout-mobile::before {
+    display: none;
+  }
+  
+  /* Asegurar que no haya transiciones o animaciones que causen movimiento */
+  .nav-link-logout-mobile {
+    transition: background 0.1s ease, color 0.1s ease !important;
+    transform: none !important;
+    position: relative;
+  }
+  
+  
+  /* Ocultar botón toggle móvil ya que el menú está siempre visible */
+  .mobile-toggle {
+    display: none;
+  }
+  
+  /* Ocultar overlay ya que no se necesita */
+  .sidebar-overlay {
+    display: none !important;
+  }
+  
+  /* Ajustar contenido principal para compensar barra superior */
   .main-content {
     margin-left: 0;
+    margin-top: 60px; /* Altura de la barra de menú móvil */
   }
   
-  .mobile-toggle {
-    display: block;
+  /* Asegurar que el sidebar tenga altura fija en móvil */
+  .sidebar {
+    max-height: 60px;
+    min-height: 60px;
   }
   
   .content-wrapper {
@@ -472,6 +696,11 @@
 
 @media (min-width: 769px) {
   .mobile-toggle {
+    display: none;
+  }
+  
+  /* Ocultar footer móvil en desktop */
+  .sidebar-footer-mobile {
     display: none;
   }
 }
@@ -489,10 +718,10 @@
    ANIMACIONES ADICIONALES
    ======================================== */
 
-/* Animación de entrada para el sidebar */
-.sidebar {
+/* Animación de entrada desactivada - el sidebar queda fijo sin redesplegarse */
+/* .sidebar {
   animation: slideInLeft 0.5s ease-out;
-}
+} */
 
 /* Efecto de pulso en el logo del header */
 .sidebar-header h3 i {

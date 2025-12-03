@@ -19,7 +19,7 @@ class Pages extends BaseController
     {
         // Definir qué roles pueden acceder a qué páginas
         $rolePermissions = [
-            'usuarios' => ['1', '2', '3'],
+            'usuarios' => ['1'],
             'cuadrillas' => ['1', '2', '3'],
             'reclamos' => ['1', '2', '3'],
             'materiales' => ['1', '2', '3'],
