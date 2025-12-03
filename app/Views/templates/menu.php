@@ -19,7 +19,7 @@
   <nav class="sidebar-nav">
     
 
-    <?php if ($userRole == '1' || $userRole == '2'): ?>
+    <?php if ($userRole == '1'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/usuarios"); ?>" title="Usuarios">
         <i class="bi bi-people"></i>
@@ -160,6 +160,16 @@
     </div>
     -->
   </nav>
+
+  <!-- Botón de cerrar sesión para móvil (fuera del área de scroll) -->
+  <div class="sidebar-footer-mobile">
+    <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
+      <button type="submit" class="nav-link-logout-mobile" title="Cerrar sesión">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Cerrar sesión</span>
+      </button>
+    </form>
+  </div>
 
   <!-- Footer del sidebar con información del usuario -->
   <div class="sidebar-footer">

@@ -3,6 +3,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    // Asegurar que el sidebar esté siempre visible desde el inicio (sin animaciones)
+    if (sidebar) {
+        sidebar.style.animation = 'none';
+        sidebar.style.opacity = '1';
+        sidebar.style.visibility = 'visible';
+        sidebar.style.transform = window.innerWidth <= 768 ? 'translateY(0)' : 'translateX(0)';
+    }
 
     // Función para abrir/cerrar el sidebar
     function toggleSidebar() {
@@ -20,21 +28,24 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebarOverlay.addEventListener('click', toggleSidebar);
     }
 
-    // Cerrar sidebar al hacer clic en un enlace (móvil)
+    // En móvil el menú está siempre visible arriba, no se cierra al hacer clic
+    // Solo cerrar sidebar en desktop si está abierto (aunque no debería pasar)
     const sidebarLinks = document.querySelectorAll('.sidebar .nav-link');
     sidebarLinks.forEach(link => {
         link.addEventListener('click', function() {
-            if (window.innerWidth <= 768) {
+            // No hacer nada en móvil, el menú está siempre visible
+            // Solo en desktop si por alguna razón el sidebar está abierto
+            if (window.innerWidth > 768 && sidebar.classList.contains('show')) {
                 toggleSidebar();
             }
         });
     });
 
-    // Cerrar sidebar al hacer clic en dropdown items (móvil)
+    // Cerrar sidebar al hacer clic en dropdown items (solo desktop)
     const dropdownItems = document.querySelectorAll('.sidebar .dropdown-item');
     dropdownItems.forEach(item => {
         item.addEventListener('click', function() {
-            if (window.innerWidth <= 768) {
+            if (window.innerWidth > 768 && sidebar.classList.contains('show')) {
                 toggleSidebar();
             }
         });
@@ -80,14 +91,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Función para cerrar sidebar al cambiar tamaño de ventana
+// Función para manejar cambios de tamaño de ventana
 window.addEventListener('resize', function() {
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     
+    // En desktop, asegurar que el sidebar esté visible normalmente
     if (window.innerWidth > 768) {
         sidebar.classList.remove('show');
-        sidebarOverlay.classList.remove('show');
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.remove('show');
+        }
     }
+    // En móvil, el sidebar siempre está visible arriba, no necesita toggle
 });
 

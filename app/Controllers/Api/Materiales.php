@@ -207,9 +207,15 @@ class Materiales extends ResourceController
                 $nombre = isset($item['nombre']) ? trim((string) $item['nombre']) : '';
                 $cantidad = isset($item['cantidad']) ? (int) $item['cantidad'] : null;
                 $tipoNombre = isset($item['tipo']) ? trim((string) $item['tipo']) : '';
-                $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
                 
-                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: {$idTipo}");
+                // Si el tipo está vacío, asignar null. Si no, buscar en el mapa de tipos
+                if ($tipoNombre === '') {
+                    $idTipo = null;
+                } else {
+                    $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
+                }
+                
+                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: " . ($idTipo === null ? 'null' : $idTipo));
                 
                 // Validaciones más detalladas
                 if ($nombre === '') {
@@ -222,7 +228,8 @@ class Materiales extends ResourceController
                     continue;
                 }
                 
-                if ($idTipo === 0) {
+                // Solo validar que el tipo existe si se proporcionó un tipo (no está vacío)
+                if ($tipoNombre !== '' && $idTipo === 0) {
                     $errores[] = "Fila " . ($index + 1) . ": El tipo '{$tipoNombre}' no existe. Tipos disponibles: " . implode(', ', array_keys($tiposMap));
                     continue;
                 }
@@ -245,20 +252,75 @@ class Materiales extends ResourceController
                 return $this->failValidationErrors($mensajeError);
             }
 
-            // Intentar insertar en lotes
-            $resultado = $this->model->insertBatch($validados);
-            
-            if ($resultado === false) {
-                log_message('error', 'Error al insertar materiales en lote');
-                return $this->failServerError('Error al guardar los materiales en la base de datos.');
+            // Obtener todos los materiales existentes para comparar por nombre
+            $materialesExistentes = $this->model->findAll();
+            $materialesMap = [];
+            foreach ($materialesExistentes as $mat) {
+                $materialesMap[strtolower(trim($mat['nombre']))] = $mat;
             }
 
-            log_message('info', 'Importación exitosa: ' . count($validados) . ' materiales insertados');
+            // Procesar cada material: actualizar si existe, crear si no existe
+            $insertados = 0;
+            $actualizados = 0;
+            $erroresProcesamiento = [];
+
+            foreach ($validados as $item) {
+                $nombreLower = strtolower(trim($item['nombre']));
+                
+                // Verificar si el material ya existe
+                if (isset($materialesMap[$nombreLower])) {
+                    // Material existe: actualizar cantidad y tipo
+                    $materialExistente = $materialesMap[$nombreLower];
+                    $idMaterial = $materialExistente['id'];
+                    
+                    $datosActualizar = [
+                        'cantidad' => $item['cantidad'],
+                        'idTipo' => $item['idTipo']
+                    ];
+                    
+                    // Solo actualizar si hay cambios
+                    $hayCambios = false;
+                    if ($materialExistente['cantidad'] != $item['cantidad']) {
+                        $hayCambios = true;
+                    }
+                    if ($materialExistente['idTipo'] != $item['idTipo']) {
+                        $hayCambios = true;
+                    }
+                    
+                    if ($hayCambios) {
+                        $resultado = $this->model->update($idMaterial, $datosActualizar);
+                        if ($resultado === false) {
+                            $erroresProcesamiento[] = "Error al actualizar material '{$item['nombre']}'";
+                            log_message('error', "Error al actualizar material ID {$idMaterial}: " . json_encode($datosActualizar));
+                        } else {
+                            $actualizados++;
+                            log_message('debug', "Material '{$item['nombre']}' actualizado (ID: {$idMaterial})");
+                        }
+                    } else {
+                        log_message('debug', "Material '{$item['nombre']}' sin cambios, se omite");
+                    }
+                } else {
+                    // Material no existe: crear nuevo
+                    $resultado = $this->model->insert($item);
+                    if ($resultado === false) {
+                        $erroresProcesamiento[] = "Error al crear material '{$item['nombre']}'";
+                        log_message('error', "Error al crear material: " . json_encode($item));
+                    } else {
+                        $insertados++;
+                        // Actualizar el mapa para evitar duplicados en la misma importación
+                        $materialesMap[$nombreLower] = ['id' => $resultado, 'nombre' => $item['nombre']];
+                        log_message('debug', "Material '{$item['nombre']}' creado (ID: {$resultado})");
+                    }
+                }
+            }
+
+            log_message('info', "Importación completada: {$insertados} materiales insertados, {$actualizados} materiales actualizados");
 
             return $this->respond([
                 'mensaje' => 'Importación completada.',
-                'insertados' => count($validados),
-                'errores' => $errores,
+                'insertados' => $insertados,
+                'actualizados' => $actualizados,
+                'errores' => array_merge($errores, $erroresProcesamiento),
             ]);
             
         } catch (Exception $e) {

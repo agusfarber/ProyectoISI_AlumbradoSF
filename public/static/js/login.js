@@ -42,12 +42,18 @@ const loginApp = Vue.createApp({
             if (response.data.message) {
               // Redirigir según el rol del usuario
               const userRole = response.data.role;
-              if (userRole == 3) {
+              if (userRole == 1) {
+                // Administradores van a usuarios
+                window.location.replace(BASE_URL+'usuarios');
+              } else if (userRole == 2) {
+                // Supervisores van a cuadrillas
+                window.location.replace(BASE_URL+'cuadrillas');
+              } else if (userRole == 3) {
                 // Operarios van a materiales
                 window.location.replace(BASE_URL+'materiales');
               } else {
-                // Otros roles van a usuarios
-                window.location.replace(BASE_URL+'usuarios');
+                // Por defecto, ir a cuadrillas
+                window.location.replace(BASE_URL+'cuadrillas');
               }
             }
           })
@@ -85,12 +91,18 @@ const loginApp = Vue.createApp({
             if (response.data.message) {
               // Redirigir según el rol del usuario
               const userRole = response.data.role;
-              if (userRole == 3) {
+              if (userRole == 1) {
+                // Administradores van a usuarios
+                window.location.replace(BASE_URL+'usuarios');
+              } else if (userRole == 2) {
+                // Supervisores van a cuadrillas
+                window.location.replace(BASE_URL+'cuadrillas');
+              } else if (userRole == 3) {
                 // Operarios van a materiales
                 window.location.replace(BASE_URL+'materiales');
               } else {
-                // Otros roles van a usuarios
-                window.location.replace(BASE_URL+'usuarios');
+                // Por defecto, ir a cuadrillas
+                window.location.replace(BASE_URL+'cuadrillas');
               }
             }
           })
