@@ -54,11 +54,15 @@ use App\Models\ReclamoModel;
 use App\Models\DireccionModel;
 use App\Models\CuadrillaModel;
 use App\Models\Tiempo_promedio_motivoModel;
+use App\Models\RutaEjecucionModel;
+use App\Libraries\RutaEjecucionHistorialService;
 
 class Rutas extends ResourceController
 {
     protected $modelName = 'App\Models\RutaModel';
     protected $format = 'json';
+    private $tieneEstadoEjecucion = false;
+    private $tieneInicioEjecucionAt = false;
 
     // API Keys para cálculo de rutas
     private $googleMapsApiKey = 'AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg';
@@ -68,14 +72,125 @@ class Rutas extends ResourceController
     {
         // Configurar zona horaria de Argentina
         date_default_timezone_set('America/Argentina/Buenos_Aires');
+        $db = \Config\Database::connect();
+        $this->tieneEstadoEjecucion = $db->fieldExists('estado_ejecucion', 'ruta');
+        $this->tieneInicioEjecucionAt = $db->fieldExists('inicio_ejecucion_at', 'ruta');
+    }
+
+    private function rutaEstaFinalizada(?array $ruta): bool
+    {
+        if (! $ruta || ! $this->tieneEstadoEjecucion) {
+            return false;
+        }
+
+        return strtolower(trim((string) ($ruta['estado_ejecucion'] ?? ''))) === 'finalizada';
+    }
+
+    private function errorSiRutaFinalizada(?array $ruta)
+    {
+        if ($this->rutaEstaFinalizada($ruta)) {
+            return $this->failForbidden('La hoja de ruta está finalizada y no puede modificarse.');
+        }
+
+        return null;
+    }
+
+    private function errorSiRutaEnEjecucion(?array $ruta)
+    {
+        if ($ruta && $this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($ruta) === 'en ejecución') {
+            return $this->failForbidden(
+                'No se puede cambiar la cuadrilla mientras la hoja de ruta está en ejecución.'
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Reclamos de la hoja que siguen en estado Asignado vuelven a Recibido (estado previo a la asignación).
+     */
+    private function revertirReclamosAsignadosDeRutaARecibido(int $rutaId): int
+    {
+        $rutaReclamoModel = new Ruta_reclamoModel();
+        $reclamoModel     = new ReclamoModel();
+        $reclamosRuta     = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
+        $actualizados     = 0;
+
+        foreach ($reclamosRuta as $rutaReclamo) {
+            $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
+            if ($reclamo && ($reclamo['municipalidad_estado'] ?? '') === 'Asignado') {
+                $reclamoModel->update($rutaReclamo['reclamo_id'], [
+                    'municipalidad_estado' => 'Recibido',
+                ]);
+                $actualizados++;
+            }
+        }
+
+        return $actualizados;
+    }
+
+    /**
+     * Otra hoja de ruta activa (no finalizada) ya asignada a la cuadrilla.
+     */
+    private function hojaActivaEnCuadrilla(int $cuadrillaId, ?int $excluirRutaId = null): ?array
+    {
+        $builder = $this->model->where('cuadrilla_id', $cuadrillaId);
+
+        if ($this->tieneEstadoEjecucion) {
+            $builder->where("(COALESCE(estado_ejecucion,'') <> 'finalizada')", null, false);
+        } else {
+            $builder->where('asignada', 1);
+        }
+
+        if ($excluirRutaId !== null) {
+            $builder->where('id !=', $excluirRutaId);
+        }
+
+        $otra = $builder->first();
+
+        return $otra ?: null;
+    }
+
+    /**
+     * Genera el siguiente nombre incremental: "Hoja de Ruta 1", "Hoja de Ruta 2", etc.
+     */
+    private function generarNombreIncrementalHojaRuta(): string
+    {
+        $prefijo = 'Hoja de Ruta ';
+        $maxNum  = 0;
+        $filas   = $this->model->select('nombre')->findAll();
+
+        foreach ($filas as $fila) {
+            $nombre = trim((string) ($fila['nombre'] ?? ''));
+            if (preg_match('/^Hoja de Ruta (\d+)$/iu', $nombre, $coincidencias)) {
+                $maxNum = max($maxNum, (int) $coincidencias[1]);
+            }
+        }
+
+        return $prefijo . ($maxNum + 1);
+    }
+
+    private function errorSiCuadrillaConOtraHoja(int $cuadrillaId, ?int $excluirRutaId = null)
+    {
+        $otra = $this->hojaActivaEnCuadrilla($cuadrillaId, $excluirRutaId);
+        if ($otra === null) {
+            return null;
+        }
+
+        $nombre = $otra['nombre'] ?? ('Hoja #' . $otra['id']);
+
+        return $this->failValidationErrors(
+            'La cuadrilla ya tiene asignada la hoja de ruta "' . $nombre . '". Desasígnela antes de asignar otra.'
+        );
     }
 
     public function index()
     {
         $rutas = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
                             ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
+                            ->where("(COALESCE(ruta.estado_ejecucion,'') <> 'finalizada')", null, false)
                             ->findAll();
-        
+
         return $this->respond($rutas);
     }
 
@@ -84,11 +199,15 @@ class Rutas extends ResourceController
         $ruta = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
                            ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
                            ->find($id);
-        
-        if (!$ruta) {
+
+        if (! $ruta) {
             return $this->failNotFound('Ruta no encontrada');
         }
-        
+
+        if ($this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($ruta) === 'en ejecución') {
+            $ruta['ruta_ejecucion_activa_id'] = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId((int) $ruta['id']);
+        }
+
         return $this->respond($ruta);
     }
 
@@ -101,8 +220,8 @@ class Rutas extends ResourceController
             return $this->failValidationErrors('Faltan datos obligatorios (cantidadReclamos).');
         }
 
-        // Establecer valores por defecto
-        $data['nombre'] = $data['nombre'] ?? 'Hoja de ruta';
+        // Nombre automático incremental
+        $data['nombre'] = $this->generarNombreIncrementalHojaRuta();
         $data['color'] = $data['color'] ?? '#FF6B35';
         $data['asignada'] = 0; // No asignada hasta que se le asigne una cuadrilla
         $data['cuadrilla_id'] = $data['cuadrilla_id'] ?? null;
@@ -122,9 +241,15 @@ class Rutas extends ResourceController
     public function update($id = null)
     {
         $data = $this->request->getJSON(true);
-        
-        if (!$id || empty($data)) {
+
+        if (! $id || empty($data)) {
             return $this->failValidationErrors('Faltan datos obligatorios.');
+        }
+
+        $rutaExistente = $this->model->find($id);
+        $err = $this->errorSiRutaFinalizada($rutaExistente);
+        if ($err !== null) {
+            return $err;
         }
 
         $actualizado = $this->model->update($id, $data);
@@ -139,8 +264,14 @@ class Rutas extends ResourceController
 
     public function delete($id = null)
     {
-        if (!$id || !$this->model->find($id)) {
+        $rutaExistente = $id ? $this->model->find($id) : null;
+        if (! $id || ! $rutaExistente) {
             return $this->failNotFound('Ruta no encontrada.');
+        }
+
+        $err = $this->errorSiRutaFinalizada($rutaExistente);
+        if ($err !== null) {
+            return $err;
         }
 
         // Eliminar también los reclamos asociados
@@ -163,10 +294,10 @@ class Rutas extends ResourceController
             return $this->failValidationErrors('Faltan datos obligatorios (cantidadReclamos).');
         }
 
-        $nombre = $data['nombre'] ?? 'Hoja de ruta';
+        $nombre = $this->generarNombreIncrementalHojaRuta();
         $color = $data['color'] ?? '#FF6B35';
         $cantidadReclamos = (int)$data['cantidadReclamos'];
-        $cuadrillaId = $data['cuadrilla_id'] ?? null;
+        $cuadrillaId = !empty($data['cuadrilla_id']) ? (int) $data['cuadrilla_id'] : null;
         $reclamosManuales = $data['reclamosManuales'] ?? [];
         $primerReclamoManual = $data['primerReclamoManual'] ?? null;
         $modoManual = $data['modoManual'] ?? false;
@@ -224,16 +355,29 @@ class Rutas extends ResourceController
                 $rutaOptimizada = $this->optimizarOrdenRuta($reclamosSeleccionados);
             }
 
+            if ($cuadrillaId) {
+                $errCuadrilla = $this->errorSiCuadrillaConOtraHoja($cuadrillaId);
+                if ($errCuadrilla !== null) {
+                    return $errCuadrilla;
+                }
+            }
+
             // Crear la ruta en la base de datos
             $rutaData = [
                 'nombre' => $nombre,
                 'color' => $color,
                 'cantidadReclamos' => count($rutaOptimizada),
-                'asignada' => 0, // No asignada hasta que se le asigne una cuadrilla
+                'asignada' => $cuadrillaId ? 1 : 0,
                 'cuadrilla_id' => $cuadrillaId,
                 'tiempoEstimado' => $this->calcularTiempoEstimado($rutaOptimizada),
                 'fecha' => date('Y-m-d H:i:s')
             ];
+            if ($this->tieneEstadoEjecucion) {
+                $rutaData['estado_ejecucion'] = $cuadrillaId ? 'asignada' : null;
+            }
+            if ($this->tieneInicioEjecucionAt) {
+                $rutaData['inicio_ejecucion_at'] = null;
+            }
 
             $rutaId = $this->model->insert($rutaData);
             
@@ -296,6 +440,38 @@ class Rutas extends ResourceController
             }
         }
 
+        $ruta      = $this->model->find($id);
+        $sesiones  = [];
+        $enEjec    = $ruta && $this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($ruta) === 'en ejecución';
+        if ($enEjec) {
+            $idsReclamos = [];
+            foreach ($reclamosConDetalles as $rc) {
+                $idr = (int) ($rc['id'] ?? 0);
+                if ($idr > 0) {
+                    $idsReclamos[] = $idr;
+                }
+            }
+            try {
+                // Por reclamo_id: incluye tiempos de hojas/ejecuciones anteriores del mismo reclamo
+                $sesiones = RutaEjecucionHistorialService::computeSesionesReparacionPorReclamoIds($idsReclamos);
+            } catch (\Throwable $e) {
+                log_message('error', 'computeSesionesReparacionPorReclamoIds: ' . $e->getMessage());
+                $sesiones = [];
+            }
+        }
+
+        foreach ($reclamosConDetalles as &$reclamo) {
+            if ($enEjec) {
+                $rid                         = (int) $reclamo['id'];
+                $reclamo['sesion_reparacion'] = $sesiones[$rid] ?? [
+                    'activo'               => false,
+                    'acumulado_ms'         => 0,
+                    'inicio_segmento_at'   => null,
+                ];
+            }
+        }
+        unset($reclamo);
+
         return $this->respond($reclamosConDetalles);
     }
 
@@ -305,21 +481,23 @@ class Rutas extends ResourceController
     private function filtrarReclamosDisponibles($reclamos)
     {
         $rutaReclamoModel = new Ruta_reclamoModel();
-        
-        // Obtener IDs de reclamos que ya están en CUALQUIER ruta (asignada o no asignada)
-        // Una ruta no asignada significa que aún no se asignó a una cuadrilla, pero los reclamos están reservados
-        $reclamosEnRutas = $rutaReclamoModel->select('reclamo_id')
-                                           ->findAll();
-        
-        $reclamosEnRutasIds = array_column($reclamosEnRutas, 'reclamo_id');
-        
-        // Filtrar reclamos disponibles: NO en ninguna ruta Y NO completados
-        return array_filter($reclamos, function($reclamo) use ($reclamosEnRutasIds) {
-            $estaEnRuta = in_array($reclamo['id'], $reclamosEnRutasIds);
+        $db                = \Config\Database::connect();
+
+        $rows = $db->table('ruta_reclamo rr')
+            ->select('rr.reclamo_id')
+            ->join('ruta r', 'r.id = rr.ruta_id')
+            ->where("COALESCE(r.estado_ejecucion, '') != 'finalizada'", null, false)
+            ->get()
+            ->getResultArray();
+
+        $reclamosEnRutasIds = array_column($rows, 'reclamo_id');
+
+        // Filtrar reclamos disponibles: NO en ninguna ruta activa Y NO completados
+        return array_filter($reclamos, function ($reclamo) use ($reclamosEnRutasIds) {
+            $estaEnRuta     = in_array($reclamo['id'], $reclamosEnRutasIds);
             $estaCompletado = ($reclamo['municipalidad_estado'] ?? '') === 'Completado';
-            
-            // Solo disponible si NO está en ninguna ruta Y NO está completado
-            return !$estaEnRuta && !$estaCompletado;
+
+            return ! $estaEnRuta && ! $estaCompletado;
         });
     }
 
@@ -390,31 +568,31 @@ class Rutas extends ResourceController
         if (count($reclamosSeleccionados) >= $cantidad) {
             return array_slice($reclamosSeleccionados, 0, $cantidad);
         }
-        
+
         // Filtrar reclamos ya seleccionados
-        $reclamosDisponibles = array_filter($reclamos, function($reclamo) use ($reclamosSeleccionados) {
-            return !in_array($reclamo['id'], array_column($reclamosSeleccionados, 'id'));
+        $reclamosDisponibles = array_filter($reclamos, function ($reclamo) use ($reclamosSeleccionados) {
+            return ! in_array($reclamo['id'], array_column($reclamosSeleccionados, 'id'));
         });
-        
+
         // Separar reclamos por prioridad (solo Alta y Baja)
-        $reclamosAlta = array_filter($reclamosDisponibles, function($r) {
+        $reclamosAlta = array_filter($reclamosDisponibles, function ($r) {
             return ($r['prioridad'] ?? 'Baja') === 'Alta';
         });
-        $reclamosBaja = array_filter($reclamosDisponibles, function($r) {
+        $reclamosBaja = array_filter($reclamosDisponibles, function ($r) {
             return ($r['prioridad'] ?? 'Baja') === 'Baja';
         });
-        
+
         // Calcular cuántos reclamos necesitamos
         $cantidadNecesaria = $cantidad - count($reclamosSeleccionados);
-        
+
         // Seleccionar reclamos por prioridad
         $reclamosSeleccionados = $this->seleccionarPorPrioridad(
-            $reclamosSeleccionados, 
-            $reclamosAlta, 
-            $reclamosBaja, 
+            $reclamosSeleccionados,
+            $reclamosAlta,
+            $reclamosBaja,
             $cantidadNecesaria
         );
-        
+
         return $reclamosSeleccionados;
     }
 
@@ -1177,8 +1355,18 @@ class Rutas extends ResourceController
         try {
             // Verificar que la ruta existe
             $ruta = $this->model->find($rutaId);
-            if (!$ruta) {
+            if (! $ruta) {
                 return $this->failNotFound('Ruta no encontrada.');
+            }
+
+            $err = $this->errorSiRutaFinalizada($ruta);
+            if ($err !== null) {
+                return $err;
+            }
+
+            $err = $this->errorSiRutaEnEjecucion($ruta);
+            if ($err !== null) {
+                return $err;
             }
 
             // Verificar que la cuadrilla existe
@@ -1188,11 +1376,24 @@ class Rutas extends ResourceController
                 return $this->failNotFound('Cuadrilla no encontrada.');
             }
 
+            $errCuadrilla = $this->errorSiCuadrillaConOtraHoja((int) $cuadrillaId, (int) $rutaId);
+            if ($errCuadrilla !== null) {
+                return $errCuadrilla;
+            }
+
             // Actualizar la ruta para asignarla a la cuadrilla
-            $actualizado = $this->model->update($rutaId, [
+            $datosActualizacionRuta = [
                 'asignada' => 1,
                 'cuadrilla_id' => $cuadrillaId
-            ]);
+            ];
+            if ($this->tieneEstadoEjecucion) {
+                $datosActualizacionRuta['estado_ejecucion'] = 'asignada';
+            }
+            if ($this->tieneInicioEjecucionAt) {
+                $datosActualizacionRuta['inicio_ejecucion_at'] = null;
+            }
+
+            $actualizado = $this->model->update($rutaId, $datosActualizacionRuta);
 
             if ($actualizado === false) {
                 return $this->failServerError('Error al asignar la ruta a la cuadrilla.');
@@ -1248,40 +1449,34 @@ class Rutas extends ResourceController
         try {
             // Verificar que la ruta existe
             $ruta = $this->model->find($rutaId);
-            if (!$ruta) {
+            if (! $ruta) {
                 return $this->failNotFound('Ruta no encontrada.');
             }
 
+            $err = $this->errorSiRutaFinalizada($ruta);
+            if ($err !== null) {
+                return $err;
+            }
+
             // Actualizar la ruta para desasignarla
-            $actualizado = $this->model->update($rutaId, [
+            $datosDesasignacion = [
                 'asignada' => 0,
                 'cuadrilla_id' => null
-            ]);
+            ];
+            if ($this->tieneEstadoEjecucion) {
+                $datosDesasignacion['estado_ejecucion'] = null;
+            }
+            if ($this->tieneInicioEjecucionAt) {
+                $datosDesasignacion['inicio_ejecucion_at'] = null;
+            }
+
+            $actualizado = $this->model->update($rutaId, $datosDesasignacion);
 
             if ($actualizado === false) {
                 return $this->failServerError('Error al desasignar la ruta.');
             }
 
-            // Actualizar el estado de los reclamos de "Asignado" a "Recibido"
-            $rutaReclamoModel = new Ruta_reclamoModel();
-            $reclamoModel = new ReclamoModel();
-            
-            // Obtener todos los reclamos de esta ruta
-            $reclamosRuta = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
-            $reclamosActualizados = 0;
-            
-            foreach ($reclamosRuta as $rutaReclamo) {
-                // Obtener el reclamo
-                $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
-                
-                // Si el estado es "Asignado", cambiarlo a "Recibido"
-                if ($reclamo && $reclamo['municipalidad_estado'] === 'Asignado') {
-                    $reclamoModel->update($rutaReclamo['reclamo_id'], [
-                        'municipalidad_estado' => 'Recibido'
-                    ]);
-                    $reclamosActualizados++;
-                }
-            }
+            $reclamosActualizados = $this->revertirReclamosAsignadosDeRutaARecibido($rutaId);
 
             $rutaActualizada = $this->model->find($rutaId);
 
@@ -1322,12 +1517,24 @@ class Rutas extends ResourceController
             // Extraer IDs de todas las cuadrillas
             $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
 
-            // Obtener rutas asignadas a cualquiera de esas cuadrillas
+            // Obtener rutas asignadas a cualquiera de esas cuadrillas (no finalizadas)
             $rutas = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
                                 ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
                                 ->whereIn('ruta.cuadrilla_id', $cuadrillaIds)
                                 ->where('ruta.asignada', 1)
+                                ->where("(COALESCE(ruta.estado_ejecucion,'') <> 'finalizada')", null, false)
                                 ->findAll();
+
+            // Agregar bandera de jefe según la asignación del operario en esa cuadrilla
+            $asignacionesPorCuadrilla = [];
+            foreach ($asignaciones as $asignacion) {
+                $asignacionesPorCuadrilla[$asignacion['cuadrilla_id']] = (int)($asignacion['es_jefe'] ?? 0);
+            }
+
+            foreach ($rutas as &$ruta) {
+                $ruta['operario_es_jefe'] = (int)($asignacionesPorCuadrilla[$ruta['cuadrilla_id']] ?? 0);
+                $ruta['estado_ejecucion'] = $this->normalizarEstadoEjecucion($ruta);
+            }
 
             return $this->respond($rutas);
 
@@ -1335,6 +1542,436 @@ class Rutas extends ResourceController
             log_message('error', 'Error al obtener rutas del operario: ' . $e->getMessage());
             return $this->failServerError('Error interno al obtener las rutas: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Inicia la ejecución de una hoja de ruta para operario jefe.
+     */
+    public function iniciarEjecucionOperario()
+    {
+        $session = \Config\Services::session();
+        $userId = (int)$session->get('user_id');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        $data = $this->request->getJSON(true);
+        $rutaId = isset($data['ruta_id']) ? (int)$data['ruta_id'] : 0;
+        if (!$rutaId) {
+            return $this->failValidationErrors('Debe enviar ruta_id.');
+        }
+
+        try {
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+            if (empty($asignaciones)) {
+                return $this->failForbidden('No tiene cuadrillas asignadas.');
+            }
+
+            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
+            $esJefePorCuadrilla = [];
+            foreach ($asignaciones as $asig) {
+                $esJefePorCuadrilla[$asig['cuadrilla_id']] = (int)($asig['es_jefe'] ?? 0);
+            }
+
+            $ruta = $this->model->where('id', $rutaId)
+                ->whereIn('cuadrilla_id', $cuadrillaIds)
+                ->where('asignada', 1)
+                ->first();
+
+            if (!$ruta) {
+                return $this->failForbidden('No tiene permisos sobre esta hoja de ruta.');
+            }
+
+            if ((int)($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
+                return $this->failForbidden('Solo el jefe de cuadrilla puede iniciar la ejecución de la hoja de ruta.');
+            }
+
+            if (!$this->tieneEstadoEjecucion) {
+                return $this->failServerError('Falta la columna estado_ejecucion en tabla ruta.');
+            }
+
+            $estadoActual = $this->normalizarEstadoEjecucion($ruta);
+            if ($estadoActual === 'en ejecución') {
+                $rutaActual = $this->model->find($rutaId);
+                if ($rutaActual) {
+                    $rutaActual['estado_ejecucion'] = $this->normalizarEstadoEjecucion($rutaActual);
+                }
+                $rutaOut = $rutaActual ?? $ruta;
+                $ejId    = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId($rutaId);
+
+                return $this->respond([
+                    'mensaje'           => 'La hoja de ruta ya está en ejecución.',
+                    'ruta'              => $rutaOut,
+                    'ruta_ejecucion_id' => $ejId,
+                ]);
+            }
+
+            $ahora = date('Y-m-d H:i:s');
+            $datosUpdate = ['estado_ejecucion' => 'en ejecución'];
+            if ($this->tieneInicioEjecucionAt) {
+                $datosUpdate['inicio_ejecucion_at'] = $ahora;
+            }
+
+            $this->model->update($rutaId, $datosUpdate);
+
+            $ejecucionModel = new RutaEjecucionModel();
+            $ejecucionModel->insert([
+                'ruta_id'      => $rutaId,
+                'cuadrilla_id' => ! empty($ruta['cuadrilla_id']) ? (int) $ruta['cuadrilla_id'] : null,
+                'inicio_at'    => $ahora,
+                'fin_at'       => null,
+            ]);
+            $rutaEjecucionId = (int) $ejecucionModel->getInsertID();
+            RutaEjecucionHistorialService::insertEvent(
+                $rutaEjecucionId,
+                RutaEjecucionHistorialService::TIPO_RUTA_INICIO,
+                null,
+                $userId,
+                null
+            );
+
+            $rutaActualizada = $this->model->find($rutaId);
+            $rutaActualizada['estado_ejecucion'] = $this->normalizarEstadoEjecucion($rutaActualizada);
+            $rutaActualizada['ruta_ejecucion_activa_id'] = $rutaEjecucionId;
+
+            return $this->respond([
+                'mensaje'              => 'Hoja de ruta iniciada en ejecución.',
+                'ruta'                 => $rutaActualizada,
+                'ruta_ejecucion_id'    => $rutaEjecucionId,
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al iniciar ejecución de ruta: ' . $e->getMessage());
+            return $this->failServerError('Error interno al iniciar ejecución.');
+        }
+    }
+
+    /**
+     * Finaliza la ejecución de la hoja de ruta: cierra historial, desasigna cuadrilla y marca la ruta como finalizada.
+     */
+    public function finalizarEjecucionOperario()
+    {
+        $session = \Config\Services::session();
+        $userId = (int) $session->get('user_id');
+
+        if (! $userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        $data   = $this->request->getJSON(true);
+        $rutaId = isset($data['ruta_id']) ? (int) $data['ruta_id'] : 0;
+        if (! $rutaId) {
+            return $this->failValidationErrors('Debe enviar ruta_id.');
+        }
+
+        try {
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones            = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+            if (empty($asignaciones)) {
+                return $this->failForbidden('No tiene cuadrillas asignadas.');
+            }
+
+            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
+            $esJefePorCuadrilla = [];
+            foreach ($asignaciones as $asig) {
+                $esJefePorCuadrilla[$asig['cuadrilla_id']] = (int) ($asig['es_jefe'] ?? 0);
+            }
+
+            $ruta = $this->model->where('id', $rutaId)
+                ->whereIn('cuadrilla_id', $cuadrillaIds)
+                ->where('asignada', 1)
+                ->first();
+
+            if (! $ruta) {
+                return $this->failForbidden('No tiene permisos sobre esta hoja de ruta.');
+            }
+
+            if ((int) ($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
+                return $this->failForbidden('Solo el jefe de cuadrilla puede finalizar la ejecución de la hoja de ruta.');
+            }
+
+            if (! $this->tieneEstadoEjecucion) {
+                return $this->failServerError('Falta la columna estado_ejecucion en tabla ruta.');
+            }
+
+            $estadoActual = $this->normalizarEstadoEjecucion($ruta);
+            if ($estadoActual !== 'en ejecución') {
+                return $this->failValidationErrors(['estado' => 'La hoja de ruta no está en ejecución.']);
+            }
+
+            $reclamosEnObra = RutaEjecucionHistorialService::findReclamosConObraActivaEnEjecucionActiva($rutaId);
+            if ($reclamosEnObra !== []) {
+                $refs = array_map(static function (array $r): string {
+                    $mid = $r['municipalidad_id'] ?? null;
+
+                    return ($mid !== null && $mid !== '') ? '#' . $mid : 'ID ' . $r['reclamo_id'];
+                }, $reclamosEnObra);
+
+                return $this->failValidationErrors([
+                    'reclamos' => 'No se puede finalizar la hoja mientras haya reclamos con trabajo en curso. '
+                        . 'Marcá cada uno como Pendiente o Completado antes de continuar: '
+                        . implode(', ', $refs),
+                ]);
+            }
+
+            $db             = \Config\Database::connect();
+            $ejecucionModel = new RutaEjecucionModel();
+            $ahoraFin       = date('Y-m-d H:i:s');
+
+            $db->transStart();
+
+            $ejec = $ejecucionModel->where('ruta_id', $rutaId)->where('fin_at', null)->orderBy('id', 'DESC')->first();
+            if (! $ejec) {
+                $ini = ($this->tieneInicioEjecucionAt && ! empty($ruta['inicio_ejecucion_at']))
+                    ? $ruta['inicio_ejecucion_at']
+                    : $ahoraFin;
+                $ejecucionModel->insert([
+                    'ruta_id'      => $rutaId,
+                    'cuadrilla_id' => ! empty($ruta['cuadrilla_id']) ? (int) $ruta['cuadrilla_id'] : null,
+                    'inicio_at'    => $ini,
+                    'fin_at'       => null,
+                ]);
+                $ejec = ['id' => $ejecucionModel->getInsertID()];
+            }
+
+            $ejecId = (int) $ejec['id'];
+            $ejecucionModel->update($ejecId, ['fin_at' => $ahoraFin]);
+
+            RutaEjecucionHistorialService::insertEvent(
+                $ejecId,
+                RutaEjecucionHistorialService::TIPO_RUTA_FIN,
+                null,
+                $userId,
+                null
+            );
+
+            $datosUpdate = [
+                'estado_ejecucion' => 'finalizada',
+                'asignada'         => 0,
+                'cuadrilla_id'     => null,
+            ];
+            if ($this->tieneInicioEjecucionAt) {
+                $datosUpdate['inicio_ejecucion_at'] = null;
+            }
+            $this->model->update($rutaId, $datosUpdate);
+
+            $reclamosRevertidos = $this->revertirReclamosAsignadosDeRutaARecibido($rutaId);
+
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                return $this->failServerError('Error al cerrar la ejecución de la hoja de ruta.');
+            }
+
+            $rutaActualizada = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
+                ->join('cuadrilla', 'cuadrilla.id = ruta.cuadrilla_id', 'left')
+                ->find($rutaId);
+            $rutaActualizada['estado_ejecucion'] = $this->normalizarEstadoEjecucion($rutaActualizada);
+
+            return $this->respond([
+                'mensaje'              => 'Ejecución finalizada. La hoja quedó archivada y desasignada.',
+                'ruta'                 => $rutaActualizada,
+                'ruta_ejecucion_id'    => $ejecId,
+                'reclamos_revertidos'  => $reclamosRevertidos,
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al finalizar ejecución de ruta: ' . $e->getMessage());
+            return $this->failServerError('Error interno al finalizar ejecución.');
+        }
+    }
+
+    /**
+     * ID de ejecución activa (sin cerrar) para una hoja en curso. Operario de la cuadrilla o supervisor/admin.
+     */
+    public function getEjecucionActiva($rutaId = null)
+    {
+        $rutaId = (int) $rutaId;
+        if (! $rutaId) {
+            return $this->failValidationErrors('ID de ruta requerido.');
+        }
+
+        $session = \Config\Services::session();
+        $userId  = (int) $session->get('user_id');
+        $role    = (string) ($session->get('role') ?? '');
+
+        if (! $userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        $ruta = $this->model->find($rutaId);
+        if (! $ruta) {
+            return $this->failNotFound('Ruta no encontrada.');
+        }
+
+        if ($role === '3') {
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones             = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+            $cuadrillaIds             = array_column($asignaciones, 'cuadrilla_id');
+            if (empty($ruta['cuadrilla_id']) || ! in_array((int) $ruta['cuadrilla_id'], array_map('intval', $cuadrillaIds), true)) {
+                return $this->failForbidden('No tiene permisos sobre esta hoja de ruta.');
+            }
+        } elseif (! in_array($role, ['1', '2'], true)) {
+            return $this->failForbidden('No autorizado.');
+        }
+
+        if ($this->normalizarEstadoEjecucion($ruta) !== 'en ejecución') {
+            return $this->respond(['ruta_ejecucion_id' => null]);
+        }
+
+        $id = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId($rutaId);
+
+        return $this->respond(['ruta_ejecucion_id' => $id]);
+    }
+
+    /**
+     * Registra inicio o fin de trabajo sobre un reclamo durante una ejecución (solo jefe de cuadrilla, ruta en ejecución).
+     */
+    public function registrarEventoEjecucionOperario()
+    {
+        $session = \Config\Services::session();
+        $userId  = (int) $session->get('user_id');
+        if (! $userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        $data      = $this->request->getJSON(true);
+        $tipo      = isset($data['tipo']) ? (string) $data['tipo'] : '';
+        $reclamoId = isset($data['reclamo_id']) ? (int) $data['reclamo_id'] : 0;
+
+        $tiposOk = [
+            RutaEjecucionHistorialService::TIPO_RECLAMO_INICIO,
+            RutaEjecucionHistorialService::TIPO_RECLAMO_FIN,
+        ];
+        if (! in_array($tipo, $tiposOk, true) || $reclamoId <= 0) {
+            return $this->failValidationErrors('tipo o reclamo_id inválidos.');
+        }
+
+        $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+        $asignaciones            = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+        if (empty($asignaciones)) {
+            return $this->failForbidden('No tiene cuadrillas asignadas.');
+        }
+
+        $cuadrillaIds       = array_column($asignaciones, 'cuadrilla_id');
+        $esJefePorCuadrilla = [];
+        foreach ($asignaciones as $asig) {
+            $esJefePorCuadrilla[$asig['cuadrilla_id']] = (int) ($asig['es_jefe'] ?? 0);
+        }
+
+        $vinculo = RutaEjecucionHistorialService::findRutaReclamoLinkRutaAsignada($reclamoId);
+        if (! $vinculo) {
+            return $this->failForbidden('El reclamo no está en una hoja de ruta asignada.');
+        }
+
+        $ruta = $this->model->where('id', (int) $vinculo['ruta_id'])
+            ->whereIn('cuadrilla_id', $cuadrillaIds)
+            ->where('asignada', 1)
+            ->first();
+        if (! $ruta) {
+            return $this->failForbidden('No tiene permisos sobre esta hoja de ruta.');
+        }
+
+        if ((int) ($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
+            return $this->failForbidden('Solo el jefe de cuadrilla puede registrar estos eventos.');
+        }
+
+        if ($this->normalizarEstadoEjecucion($ruta) !== 'en ejecución') {
+            return $this->failForbidden('La hoja de ruta no está en ejecución.');
+        }
+
+        $ejId = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId((int) $ruta['id']);
+        if (! $ejId) {
+            return $this->failValidationErrors('No hay ejecución activa registrada para esta hoja.');
+        }
+
+        RutaEjecucionHistorialService::insertEvent($ejId, $tipo, $reclamoId, $userId, null);
+
+        return $this->respond(['mensaje' => 'Evento registrado.']);
+    }
+
+    /**
+     * Listado de ejecuciones finalizadas (historial) para supervisor o administrador.
+     */
+    public function historialEjecuciones()
+    {
+        $role = (string) (\Config\Services::session()->get('role') ?? '');
+        if (! in_array($role, ['1', '2'], true)) {
+            return $this->failForbidden('Solo supervisores pueden consultar el historial de ejecuciones.');
+        }
+
+        $db = \Config\Database::connect();
+        $rows = $db->table('ruta_ejecucion re')
+            ->select('re.id, re.ruta_id, re.cuadrilla_id, re.inicio_at, re.fin_at, r.nombre AS ruta_nombre, r.color AS ruta_color, c.nombre AS cuadrilla_nombre')
+            ->join('ruta r', 'r.id = re.ruta_id', 'left')
+            ->join('cuadrilla c', 'c.id = re.cuadrilla_id', 'left')
+            ->where('re.fin_at IS NOT NULL', null, false)
+            ->orderBy('re.fin_at', 'DESC')
+            ->limit(500)
+            ->get()
+            ->getResultArray();
+
+        return $this->respond($rows);
+    }
+
+    /**
+     * Detalle de una ejecución (cabecera + eventos ordenados) para supervisor o administrador.
+     */
+    public function historialEjecucionDetalle($ejecucionId = null)
+    {
+        $role = (string) (\Config\Services::session()->get('role') ?? '');
+        if (! in_array($role, ['1', '2'], true)) {
+            return $this->failForbidden('Solo supervisores pueden consultar el historial de ejecuciones.');
+        }
+
+        $ejecucionId = (int) $ejecucionId;
+        if (! $ejecucionId) {
+            return $this->failValidationErrors('ID de ejecución requerido.');
+        }
+
+        $db = \Config\Database::connect();
+
+        $cab = $db->table('ruta_ejecucion re')
+            ->select('re.*, r.nombre AS ruta_nombre, r.color AS ruta_color, c.nombre AS cuadrilla_nombre')
+            ->join('ruta r', 'r.id = re.ruta_id', 'left')
+            ->join('cuadrilla c', 'c.id = re.cuadrilla_id', 'left')
+            ->where('re.id', $ejecucionId)
+            ->get()
+            ->getRowArray();
+
+        if (! $cab) {
+            return $this->failNotFound('Ejecución no encontrada.');
+        }
+
+        $eventos = $db->table('ruta_ejecucion_evento e')
+            ->select('e.*, u.nombre AS usuario_nombre, rec.municipalidad_id AS reclamo_municipalidad_id')
+            ->join('usuario u', 'u.id = e.usuario_id', 'left')
+            ->join('reclamo rec', 'rec.id = e.reclamo_id', 'left')
+            ->where('e.ruta_ejecucion_id', $ejecucionId)
+            ->orderBy('e.ocurrido_at', 'ASC')
+            ->orderBy('e.id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        foreach ($eventos as &$ev) {
+            if (! empty($ev['metadata'])) {
+                $decoded = json_decode($ev['metadata'], true);
+                $ev['metadata'] = is_array($decoded) ? $decoded : null;
+            }
+        }
+
+        return $this->respond([
+            'ejecucion' => $cab,
+            'eventos'   => $eventos,
+        ]);
+    }
+
+    private function normalizarEstadoEjecucion(array $ruta): string
+    {
+        if ($this->tieneEstadoEjecucion && !empty($ruta['estado_ejecucion'])) {
+            return $ruta['estado_ejecucion'];
+        }
+
+        return ((int)($ruta['asignada'] ?? 0) === 1) ? 'asignada' : 'sin asignar';
     }
 
     /**
@@ -1362,9 +1999,10 @@ class Rutas extends ResourceController
             // Extraer IDs de todas las cuadrillas
             $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
 
-            // Obtener rutas asignadas a cualquiera de esas cuadrillas
+            // Obtener rutas asignadas a cualquiera de esas cuadrillas (no finalizadas)
             $rutas = $this->model->whereIn('cuadrilla_id', $cuadrillaIds)
                                 ->where('asignada', 1)
+                                ->where("(COALESCE(estado_ejecucion,'') <> 'finalizada')", null, false)
                                 ->findAll();
 
             if (empty($rutas)) {
@@ -1495,8 +2133,13 @@ class Rutas extends ResourceController
                                ->where('asignada', 1)
                                ->first();
 
-            if (!$ruta) {
+            if (! $ruta) {
                 return $this->failForbidden('No tiene permisos para modificar esta ruta.');
+            }
+
+            $err = $this->errorSiRutaFinalizada($ruta);
+            if ($err !== null) {
+                return $err;
             }
 
             // Verificar que el reclamo existe y tiene estado "Recibido"

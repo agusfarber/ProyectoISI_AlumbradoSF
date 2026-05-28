@@ -3,6 +3,10 @@ const app = Vue.createApp({
         return {
             reclamos: [],
             rutas: [],
+            rutasPanel: [],
+            rutaSeleccionadaId: null,
+            vistaOperarioActual: 'panel', // panel | detalle
+            modoVistaRuta: 'lista', // lista | mapa
             reclamoSeleccionado: {},
             
             // Variables para filtros - Comentadas para HU futura
@@ -39,6 +43,15 @@ const app = Vue.createApp({
             
             // Mapa Mapbox
             mapaRutasMapbox: null,
+
+            // Mapa Google en vista detalle operario
+            mapaDetalleGoogle: null,
+            marcadoresDetalleGoogle: [],
+            directionsRendererDetalleGoogle: null,
+
+            /** Mini mapas en panel de hojas (operario) */
+            mapasPreviewOperario: {},
+            reclamosCachePorRutaId: {},
             
             // API Key de Mapbox
             mapboxToken: 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw',
@@ -72,7 +85,25 @@ const app = Vue.createApp({
             mostrarHistorialMateriales: false,
             cargandoMateriales: false,
             detalleMaterial: null,
-            cargandoDetalleMaterial: false
+            cargandoDetalleMaterial: false,
+
+            /** Reloj para cronómetro de ejecución (persistente vía inicio_ejecucion_at del servidor) */
+            ahoraCronometro: Date.now(),
+            _tickCronometro: null,
+
+            /** Sesión de reparación en obra por reclamo (solo cliente; clave = id reclamo) */
+            reparacionPorReclamoId: {},
+
+            /** ID de fila ruta_ejecucion abierta (servidor); para eventos de reclamo durante la ejecución */
+            rutaEjecucionActivaId: null,
+
+            /** Modal acciones: solo pestaña materiales (operario) */
+            modalAccionesSoloMateriales: false,
+
+            observacionEjecucionTexto: '',
+            historialObservacionesEjecucion: [],
+            cargandoObservacionesEjecucion: false,
+            guardandoObservacionEjecucion: false
         };
     },
 
@@ -96,11 +127,12 @@ const app = Vue.createApp({
             // Definir el orden de prioridad de los estados
             const ordenEstados = {
                 'Asignado': 1,
-                'En ejecución': 2,
-                'Completado': 3,
-                'Recibido': 4,
-                'En plan': 5,
-                'Error de datos': 6
+                'Pendiente': 2,
+                'En ejecución': 3,
+                'Completado': 4,
+                'Recibido': 5,
+                'En plan': 6,
+                'Error de datos': 7
             };
             
             // Ordenar por estado y luego por fecha de modificación (más reciente primero)
@@ -130,6 +162,77 @@ const app = Vue.createApp({
         reclamosPendientes() {
             return this.totalReclamos - this.reclamosCompletados;
         },
+
+        reclamosOrdenRuta() {
+            if (!this.reclamos || this.reclamos.length === 0) {
+                return [];
+            }
+
+            const reclamosOrdenados = [...this.reclamos];
+            return reclamosOrdenados.sort((a, b) => {
+                const posA = Number(a.posicion ?? 999999);
+                const posB = Number(b.posicion ?? 999999);
+
+                if (posA === posB) {
+                    const fechaA = new Date(a.municipalidad_fechaModificacion || a.municipalidad_fechaInicio || 0);
+                    const fechaB = new Date(b.municipalidad_fechaModificacion || b.municipalidad_fechaInicio || 0);
+                    return fechaB - fechaA;
+                }
+
+                return posA - posB;
+            });
+        },
+
+        rutaSeleccionada() {
+            if (!this.rutaSeleccionadaId) return null;
+            return this.rutasPanel.find(r => r.id == this.rutaSeleccionadaId) || null;
+        },
+
+        estadoRutaSeleccionada() {
+            if (!this.rutaSeleccionada) return 'sin asignar';
+            return this.claveEstadoEjecucionRuta(this.rutaSeleccionada);
+        },
+
+        rutaSeleccionadaEnEjecucion() {
+            return this.estadoRutaSeleccionada === 'en ejecución';
+        },
+
+        reclamosConObraActivaEnRuta() {
+            if (!this.reclamos || !this.reclamos.length) {
+                return [];
+            }
+            return this.reclamos.filter((r) => {
+                const s = this.sesionReparacionReclamo(r);
+                return s && s.activo;
+            });
+        },
+
+        puedeFinalizarEjecucionRutaSeleccionada() {
+            return this.reclamosConObraActivaEnRuta.length === 0;
+        },
+
+        idsCuadrillasOperario() {
+            return this.rutas.map(r => r.cuadrilla_id).filter(Boolean);
+        },
+
+        idsCuadrillasComoJefe() {
+            return this.rutas
+                .filter(r => Number(r.operario_es_jefe) === 1)
+                .map(r => r.cuadrilla_id)
+                .filter(Boolean);
+        },
+
+        puedeOperarRutaSeleccionada() {
+            if (!this.esOperario) return true;
+            if (!this.rutaSeleccionada) return false;
+            return this.idsCuadrillasOperario.includes(this.rutaSeleccionada.cuadrilla_id);
+        },
+
+        puedeEditarTareasRutaSeleccionada() {
+            if (!this.esOperario) return true;
+            if (!this.rutaSeleccionada) return false;
+            return this.idsCuadrillasComoJefe.includes(this.rutaSeleccionada.cuadrilla_id) && this.rutaSeleccionadaEnEjecucion;
+        },
         
         // Verifica si el usuario es operario
         esOperario() {
@@ -137,17 +240,20 @@ const app = Vue.createApp({
         },
 
         puedeGuardarAccion() {
+            if (!this.puedeEditarTareasRutaSeleccionada) return false;
             const tieneEstado = !!this.nuevoEstado;
             const tieneObservacion = this.nuevaObservacion && this.nuevaObservacion.trim().length > 0;
             return tieneEstado || tieneObservacion;
         },
         
         puedeGuardarMaterial() {
+            if (!this.puedeEditarTareasRutaSeleccionada) return false;
             // Solo el material es obligatorio, la cantidad es opcional
             return !!this.materialSeleccionado.material_id;
         },
         
         puedeGuardarMaterialNuevo() {
+            if (!this.puedeEditarTareasRutaSeleccionada) return false;
             // Para crear material nuevo, solo el nombre es obligatorio
             return !!this.materialNuevo.nombre && this.materialNuevo.nombre.trim().length > 0;
         },
@@ -160,9 +266,27 @@ const app = Vue.createApp({
                 return this.puedeGuardarMaterial();
             }
         },
-        
-        puedeGuardarTiempoReparacion() {
-            return this.tiempoReparacion.valor && this.tiempoReparacion.valor > 0;
+
+        puedeGuardarObservacionEjecucion() {
+            if (!this.puedeEditarTareasRutaSeleccionada) return false;
+            if (this.rutaEjecucionActivaId == null) return false;
+            return (this.observacionEjecucionTexto || '').trim().length > 0;
+        }
+    },
+
+    watch: {
+        vistaOperarioActual(val) {
+            if (!this.esOperario) return;
+            if (val === 'panel') {
+                this.$nextTick(() => this.inicializarMapasPreviewOperario());
+            } else {
+                this.limpiarMapasPreviewOperario();
+            }
+        },
+        rutasPanel() {
+            if (this.esOperario && this.vistaOperarioActual === 'panel') {
+                this.$nextTick(() => this.inicializarMapasPreviewOperario());
+            }
         }
     },
 
@@ -193,6 +317,1015 @@ const app = Vue.createApp({
             } catch (error) {
                 console.error('Error al obtener reclamos:', error);
                 this.mostrarMensaje('Error al cargar los reclamos', 'error');
+            }
+        },
+
+        async obtenerReclamosPorRutaSeleccionada() {
+            if (!this.rutaSeleccionadaId) {
+                this.reclamos = [];
+                return;
+            }
+
+            try {
+                const response = await axios.get(BASE_URL + 'api/rutas/' + this.rutaSeleccionadaId + '/reclamos');
+                const rutaActual = this.rutaSeleccionada;
+                const reclamosConRuta = (response.data || []).map(reclamo => ({
+                    ...reclamo,
+                    ruta_id: this.rutaSeleccionadaId,
+                    ruta_nombre: rutaActual?.nombre || reclamo.ruta_nombre || 'Ruta',
+                    ruta_color: rutaActual?.color || reclamo.ruta_color || '#808080'
+                }));
+
+                this.reclamos = this.eliminarDuplicadosReclamos(reclamosConRuta);
+                this.aplicarSesionesReparacionDesdeReclamos(this.reclamos);
+
+                await this.sincronizarRutaEjecucionActivaId();
+
+                if (this.esOperario && this.modoVistaRuta === 'mapa') {
+                    this.$nextTick(() => this.inicializarMapaDetalleOperarioGoogle());
+                }
+            } catch (error) {
+                console.error('Error al obtener reclamos de la ruta seleccionada:', error);
+                this.reclamos = [];
+                this.reparacionPorReclamoId = {};
+                this.mostrarMensaje('Error al cargar los reclamos de la hoja de ruta', 'error');
+            }
+        },
+
+        async obtenerTodasLasRutas() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/rutas');
+                this.rutasPanel = response.data || [];
+                if (this.esOperario && this.vistaOperarioActual === 'panel') {
+                    await this.$nextTick();
+                    this.inicializarMapasPreviewOperario();
+                }
+            } catch (error) {
+                console.error('Error al obtener hojas de ruta:', error);
+                this.rutasPanel = [];
+                this.mostrarMensaje('Error al cargar las hojas de ruta', 'error');
+            }
+        },
+
+        esRutaDeMiCuadrilla(ruta) {
+            if (!ruta || !ruta.cuadrilla_id) return false;
+            return this.idsCuadrillasOperario.includes(ruta.cuadrilla_id);
+        },
+
+        async seleccionarRuta(ruta) {
+            if (!ruta || !ruta.id) return;
+            this.limpiarMapasPreviewOperario();
+            this.limpiarSesionesReparacionReclamos();
+            this.rutaSeleccionadaId = ruta.id;
+            this.vistaOperarioActual = 'detalle';
+            this.modoVistaRuta = 'lista';
+            await this.obtenerReclamosPorRutaSeleccionada();
+        },
+
+        async iniciarEjecucionRutaSeleccionada() {
+            if (!this.rutaSeleccionadaId) return;
+            try {
+                const response = await axios.post(BASE_URL + 'api/rutas/operario/iniciar-ejecucion', {
+                    ruta_id: this.rutaSeleccionadaId
+                });
+
+                const rutaActualizada = response.data?.ruta || null;
+                if (rutaActualizada) {
+                    this.rutasPanel = this.rutasPanel.map(r => Number(r.id) === Number(rutaActualizada.id)
+                        ? { ...r, ...rutaActualizada }
+                        : r);
+                    this.rutas = this.rutas.map(r => Number(r.id) === Number(rutaActualizada.id)
+                        ? { ...r, ...rutaActualizada }
+                        : r);
+                } else {
+                    this.rutasPanel = this.rutasPanel.map(r => Number(r.id) === Number(this.rutaSeleccionadaId)
+                        ? { ...r, estado_ejecucion: 'en ejecución' }
+                        : r);
+                }
+
+                this.rutaEjecucionActivaId = response.data?.ruta_ejecucion_id ?? null;
+                if (this.rutaEjecucionActivaId == null) {
+                    await this.sincronizarRutaEjecucionActivaId();
+                }
+
+                if (this.vistaOperarioActual === 'detalle' && this.rutaSeleccionadaId) {
+                    await this.obtenerReclamosPorRutaSeleccionada();
+                } else {
+                    this.limpiarSesionesReparacionReclamos();
+                }
+                this.mostrarMensaje(response.data?.mensaje || 'Hoja de ruta iniciada en ejecución.', 'success');
+            } catch (error) {
+                console.error('Error al iniciar ejecución de ruta:', error);
+                const mensaje = error?.response?.data?.message || 'No se pudo iniciar la ejecución de la hoja de ruta.';
+                this.mostrarMensaje(mensaje, 'error');
+            }
+        },
+
+        async finalizarEjecucionRutaSeleccionada() {
+            if (!this.rutaSeleccionadaId) return;
+            const activos = this.reclamosConObraActivaEnRuta;
+            if (activos.length > 0) {
+                const refs = activos.map((r) => '#' + (r.municipalidad_id || r.id)).join(', ');
+                this.mostrarMensaje(
+                    'No se puede finalizar la hoja mientras haya reclamos con trabajo en curso. '
+                    + 'Marcá cada uno como Pendiente o Completado antes de continuar: ' + refs,
+                    'warning'
+                );
+                return;
+            }
+            try {
+                const response = await axios.post(BASE_URL + 'api/rutas/operario/finalizar-ejecucion', {
+                    ruta_id: this.rutaSeleccionadaId
+                });
+
+                const rutaActualizada = response.data?.ruta || null;
+                const idFin = this.rutaSeleccionadaId;
+                const esFinalizada = rutaActualizada
+                    ? this.claveEstadoEjecucionRuta(rutaActualizada) === 'finalizada'
+                    : false;
+
+                if (rutaActualizada && !esFinalizada) {
+                    this.rutasPanel = this.rutasPanel.map(r => Number(r.id) === Number(rutaActualizada.id)
+                        ? { ...r, ...rutaActualizada }
+                        : r);
+                    this.rutas = this.rutas.map(r => Number(r.id) === Number(rutaActualizada.id)
+                        ? { ...r, ...rutaActualizada }
+                        : r);
+                } else if (rutaActualizada && esFinalizada) {
+                    this.rutasPanel = this.rutasPanel.filter(r => Number(r.id) !== Number(idFin));
+                    this.rutas = this.rutas.filter(r => Number(r.id) !== Number(idFin));
+                }
+
+                this.rutaEjecucionActivaId = null;
+                this.limpiarSesionesReparacionReclamos();
+
+                if (esFinalizada) {
+                    this.rutaSeleccionadaId = null;
+                    this.reclamos = [];
+                    this.vistaOperarioActual = 'panel';
+                    this.limpiarMapaDetalleOperarioGoogle();
+                }
+
+                this.mostrarMensaje(response.data?.mensaje || 'Ejecución finalizada.', 'success');
+            } catch (error) {
+                console.error('Error al finalizar ejecución de ruta:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo finalizar la ejecución de la hoja de ruta.';
+                this.mostrarMensaje(mensaje, 'error');
+            }
+        },
+
+        esEstadoEjecucionRuta(ruta) {
+            if (!ruta) return false;
+            const e = (ruta.estado_ejecucion || '').toString().trim().toLowerCase();
+            return e === 'en ejecución' || e === 'en ejecucion';
+        },
+
+        textoSobreColorRuta(hex) {
+            if (!hex || typeof hex !== 'string') return '#fff';
+            let h = hex.trim().replace('#', '');
+            if (h.length === 3) {
+                h = h.split('').map(c => c + c).join('');
+            }
+            if (h.length !== 6) return '#fff';
+            const r = parseInt(h.slice(0, 2), 16);
+            const g = parseInt(h.slice(2, 4), 16);
+            const b = parseInt(h.slice(4, 6), 16);
+            if ([r, g, b].some(n => Number.isNaN(n))) return '#fff';
+            const luminancia = 0.299 * r + 0.587 * g + 0.114 * b;
+            return luminancia > 165 ? '#1a1a1a' : '#fff';
+        },
+
+        claveEstadoEjecucionRuta(ruta) {
+            if (!ruta) return 'sin asignar';
+            const fallback = Number(ruta.asignada) === 1 ? 'asignada' : 'sin asignar';
+            const raw = (ruta.estado_ejecucion || fallback).toString().trim().toLowerCase();
+            if (raw === 'en ejecución' || raw === 'en ejecucion') return 'en ejecución';
+            if (raw === 'asignada') return 'asignada';
+            if (raw === 'finalizada') return 'finalizada';
+            return 'sin asignar';
+        },
+
+        textoEstadoEjecucionRuta(ruta) {
+            const k = this.claveEstadoEjecucionRuta(ruta);
+            if (k === 'en ejecución') return 'En ejecución';
+            if (k === 'asignada') return 'Asignada';
+            if (k === 'finalizada') return 'Finalizada';
+            return 'Sin asignar';
+        },
+
+        claseBadgeEstadoEjecucionRuta(ruta) {
+            const k = this.claveEstadoEjecucionRuta(ruta);
+            if (k === 'en ejecución') return 'bg-success';
+            if (k === 'asignada') return 'bg-warning text-dark';
+            if (k === 'finalizada') return 'bg-dark';
+            return 'bg-secondary';
+        },
+
+        tiempoTranscurridoEjecucion(ruta) {
+            if (!this.esEstadoEjecucionRuta(ruta)) return '';
+            const ini = ruta.inicio_ejecucion_at;
+            if (!ini) return '—';
+            const t0 = new Date(String(ini).replace(' ', 'T')).getTime();
+            if (Number.isNaN(t0)) return '—';
+            const sec = Math.max(0, Math.floor((this.ahoraCronometro - t0) / 1000));
+            return this.formatearSegundosCronometro(sec);
+        },
+
+        formatearSegundosCronometro(totalSeconds) {
+            const pad = n => String(n).padStart(2, '0');
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${pad(h)}:${pad(m)}:${pad(s)}`;
+        },
+
+        iniciarRelojEjecucionOperario() {
+            if (!this.esOperario || this._tickCronometro) return;
+            this._tickCronometro = setInterval(() => {
+                this.ahoraCronometro = Date.now();
+                this.refrescarCompanionsObraMapaDetalleOperario();
+                this.refrescarCronometrosInfoWindowMapaDetalleOperario();
+            }, 1000);
+        },
+
+        detenerRelojEjecucionOperario() {
+            if (this._tickCronometro) {
+                clearInterval(this._tickCronometro);
+                this._tickCronometro = null;
+            }
+        },
+
+        volverAPanelRutas() {
+            this.limpiarSesionesReparacionReclamos();
+            this.rutaEjecucionActivaId = null;
+            this.vistaOperarioActual = 'panel';
+            this.rutaSeleccionadaId = null;
+            this.reclamos = [];
+            this.limpiarMapaDetalleOperarioGoogle();
+            this.$nextTick(() => this.inicializarMapasPreviewOperario());
+        },
+
+        limpiarMapasPreviewOperario() {
+            Object.values(this.mapasPreviewOperario).forEach((ref) => {
+                if (!ref) return;
+                ref.markers?.forEach((m) => m.setMap(null));
+                if (ref.directionsRenderer) {
+                    ref.directionsRenderer.setMap(null);
+                }
+            });
+            this.mapasPreviewOperario = {};
+        },
+
+        async obtenerReclamosRutaCache(rutaId) {
+            if (this.reclamosCachePorRutaId[rutaId]) {
+                return this.reclamosCachePorRutaId[rutaId];
+            }
+            const response = await axios.get(BASE_URL + 'api/rutas/' + rutaId + '/reclamos');
+            const reclamos = response.data || [];
+            this.reclamosCachePorRutaId[rutaId] = reclamos;
+            return reclamos;
+        },
+
+        coordenadasReclamoPreview(reclamo) {
+            if (!reclamo?.coordenadas?.lat || !reclamo?.coordenadas?.lng) {
+                return null;
+            }
+            const lat = parseFloat(reclamo.coordenadas.lat);
+            const lng = parseFloat(reclamo.coordenadas.lng);
+            if (Number.isNaN(lat) || Number.isNaN(lng)) {
+                return null;
+            }
+            return { lat, lng };
+        },
+
+        async esperarGoogleMapsOperario(timeoutMs = 15000) {
+            const inicio = Date.now();
+            while (!(window.google && window.google.maps)) {
+                if (Date.now() - inicio > timeoutMs) {
+                    throw new Error('Timeout esperando Google Maps');
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+        },
+
+        async inicializarMapasPreviewOperario() {
+            if (!this.esOperario || this.vistaOperarioActual !== 'panel') {
+                return;
+            }
+            this.limpiarMapasPreviewOperario();
+            await this.$nextTick();
+            try {
+                await this.esperarGoogleMapsOperario();
+            } catch (error) {
+                console.warn('Google Maps no disponible para vistas previas del operario:', error);
+                return;
+            }
+            for (const ruta of this.rutasPanel) {
+                if (this.vistaOperarioActual !== 'panel') {
+                    break;
+                }
+                await this.cargarMapaPreviewOperario(ruta);
+                await new Promise((resolve) => setTimeout(resolve, 80));
+            }
+        },
+
+        async cargarMapaPreviewOperario(ruta) {
+            const elId = 'mapaPreviewOperarioRuta-' + ruta.id;
+            const el = document.getElementById(elId);
+            if (!el || !window.google?.maps) {
+                return;
+            }
+
+            try {
+                const reclamos = await this.obtenerReclamosRutaCache(ruta.id);
+                const colorRuta = ruta.color || '#FF6B35';
+                const map = new google.maps.Map(el, {
+                    center: { lat: -31.427, lng: -62.082 },
+                    zoom: 13,
+                    disableDefaultUI: true,
+                    gestureHandling: 'none',
+                    clickableIcons: false,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    zoomControl: false,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    styles: [
+                        {
+                            featureType: 'poi',
+                            elementType: 'labels',
+                            stylers: [{ visibility: 'off' }]
+                        }
+                    ]
+                });
+
+                const markers = [];
+                const bounds = new google.maps.LatLngBounds();
+
+                for (const reclamo of reclamos) {
+                    const coords = this.coordenadasReclamoPreview(reclamo);
+                    if (!coords) continue;
+                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                    const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
+                    const marker = new google.maps.Marker({
+                        position: coords,
+                        map,
+                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
+                        zIndex: 100
+                    });
+                    marker._marcadorRecorridoPrincipal = true;
+                    markers.push(marker);
+                    bounds.extend(coords);
+                }
+
+                if (markers.length > 0) {
+                    map.fitBounds(bounds, 20);
+                }
+
+                let directionsRenderer = null;
+                const principales = markers.filter((m) => m._marcadorRecorridoPrincipal);
+                if (principales.length >= 2) {
+                    directionsRenderer = new google.maps.DirectionsRenderer({
+                        suppressMarkers: true,
+                        polylineOptions: {
+                            strokeColor: colorRuta,
+                            strokeOpacity: 0.95,
+                            strokeWeight: 3
+                        }
+                    });
+                    directionsRenderer.setMap(map);
+                    await this.trazarRutaPreviewOperario(
+                        directionsRenderer,
+                        principales.map((m) => m.getPosition())
+                    );
+                }
+
+                this.mapasPreviewOperario = {
+                    ...this.mapasPreviewOperario,
+                    [ruta.id]: { map, markers, directionsRenderer }
+                };
+            } catch (error) {
+                console.error('Error al cargar vista previa de ruta (operario)', ruta.id, error);
+            }
+        },
+
+        trazarRutaPreviewOperario(directionsRenderer, coordenadas) {
+            if (!coordenadas || coordenadas.length < 2) {
+                return Promise.resolve();
+            }
+            const directionsService = new google.maps.DirectionsService();
+            const origin = coordenadas[0];
+            const destination = coordenadas[coordenadas.length - 1];
+            const waypoints = coordenadas.slice(1, -1).map((coord) => ({
+                location: coord,
+                stopover: true
+            }));
+
+            return new Promise((resolve, reject) => {
+                directionsService.route(
+                    {
+                        origin,
+                        destination,
+                        waypoints: coordenadas.length > 2 ? waypoints : [],
+                        travelMode: google.maps.TravelMode.DRIVING,
+                        optimizeWaypoints: false
+                    },
+                    (result, status) => {
+                        if (status === 'OK') {
+                            directionsRenderer.setDirections(result);
+                            resolve(result);
+                        } else {
+                            reject(new Error('Error al obtener direcciones: ' + status));
+                        }
+                    }
+                );
+            });
+        },
+
+        async sincronizarRutaEjecucionActivaId() {
+            this.rutaEjecucionActivaId = null;
+            if (!this.esOperario || !this.rutaSeleccionadaId) {
+                return;
+            }
+            if (!this.rutaSeleccionadaEnEjecucion) {
+                return;
+            }
+            try {
+                const r = await axios.get(BASE_URL + 'api/rutas/' + this.rutaSeleccionadaId + '/ejecucion-activa');
+                this.rutaEjecucionActivaId = r.data?.ruta_ejecucion_id ?? null;
+            } catch (e) {
+                console.warn('No se pudo obtener ejecución activa:', e);
+            }
+        },
+
+        async registrarEventoEjecucionReclamo(tipo, reclamo) {
+            if (!this.puedeEditarTareasRutaSeleccionada || !reclamo || reclamo.id == null) {
+                return;
+            }
+            await axios.post(BASE_URL + 'api/rutas/operario/ejecucion-evento', {
+                tipo,
+                reclamo_id: reclamo.id
+            });
+        },
+
+        limpiarSesionesReparacionReclamos() {
+            this.reparacionPorReclamoId = {};
+        },
+
+        /**
+         * Restaura cronómetros de reclamo desde el servidor (eventos inicio/fin), para que sigan al reabrir sesión o la app.
+         */
+        aplicarSesionesReparacionDesdeReclamos(reclamos) {
+            if (!this.esOperario || !reclamos || reclamos.length === 0) {
+                this.reparacionPorReclamoId = {};
+                return;
+            }
+            const primera = reclamos[0];
+            if (!Object.prototype.hasOwnProperty.call(primera, 'sesion_reparacion')) {
+                this.reparacionPorReclamoId = {};
+                return;
+            }
+            const m = {};
+            for (const r of reclamos) {
+                if ((r.municipalidad_estado || '').trim() === 'Completado') {
+                    continue;
+                }
+                const sr = r.sesion_reparacion;
+                if (!sr) {
+                    continue;
+                }
+                const acum = Number(sr.acumulado_ms) || 0;
+                const activo = !!sr.activo;
+                if (!activo && acum <= 0) {
+                    if ((r.municipalidad_estado || '').trim() !== 'Pendiente') {
+                        continue;
+                    }
+                }
+                let inicioMs = this.ahoraCronometro;
+                if (activo && sr.inicio_segmento_at) {
+                    const t = new Date(String(sr.inicio_segmento_at).replace(' ', 'T')).getTime();
+                    if (!Number.isNaN(t)) {
+                        inicioMs = t;
+                    }
+                }
+                m[r.id] = {
+                    activo,
+                    inicioSegmentoMs: inicioMs,
+                    acumuladoMs: acum
+                };
+            }
+            this.reparacionPorReclamoId = m;
+        },
+
+        sesionReparacionReclamo(reclamo) {
+            if (!reclamo || reclamo.id == null) return null;
+            return this.reparacionPorReclamoId[reclamo.id] || null;
+        },
+
+        tiempoMsSesionReparacionReclamo(reclamo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (!s) return 0;
+            let ms = s.acumuladoMs || 0;
+            if (s.activo) {
+                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            }
+            return Math.max(0, ms);
+        },
+
+        _aplicarCierreSegmentoReclamoLocal(reclamo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (!s || !s.activo) return;
+            const delta = Date.now() - s.inicioSegmentoMs;
+            this.reparacionPorReclamoId = {
+                ...this.reparacionPorReclamoId,
+                [reclamo.id]: {
+                    activo: false,
+                    inicioSegmentoMs: s.inicioSegmentoMs,
+                    acumuladoMs: s.acumuladoMs + delta
+                }
+            };
+        },
+
+        async sincronizarEstadoReclamoEnEjecucion(reclamo) {
+            if (!reclamo || reclamo.id == null) return;
+            const est = (reclamo.municipalidad_estado || '').trim();
+            if (est === 'En ejecución') {
+                return;
+            }
+            const datos = {
+                ...reclamo,
+                municipalidad_estado: 'En ejecución',
+                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina(),
+                prioridad: 'Alta'
+            };
+            await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
+            const idx = this.reclamos.findIndex(r => r.id === reclamo.id);
+            if (idx !== -1) {
+                this.reclamos[idx].municipalidad_estado = 'En ejecución';
+                this.reclamos[idx].prioridad = 'Alta';
+                this.reclamos[idx].municipalidad_fechaModificacion = datos.municipalidad_fechaModificacion;
+            }
+        },
+
+        async iniciarReparacionReclamo(reclamo) {
+            if (!reclamo || reclamo.id == null) return;
+            if (!this.puedeEditarTareasRutaSeleccionada) return;
+            if (this.sesionReparacionReclamo(reclamo)) return;
+            try {
+                await this.sincronizarEstadoReclamoEnEjecucion(reclamo);
+                await this.registrarEventoEjecucionReclamo('ejecucion_reclamo_inicio', reclamo);
+            } catch (error) {
+                console.error('Error al iniciar reclamo en obra:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo iniciar el trabajo en el reclamo.';
+                this.mostrarMensaje(mensaje, 'error');
+                return;
+            }
+            this.reparacionPorReclamoId = {
+                ...this.reparacionPorReclamoId,
+                [reclamo.id]: {
+                    activo: true,
+                    inicioSegmentoMs: Date.now(),
+                    acumuladoMs: 0
+                }
+            };
+            if (this.esOperario && this.modoVistaRuta === 'mapa' && this.mapaDetalleGoogle) {
+                this.$nextTick(() => this.dibujarRutaDetalleOperarioGoogle());
+            }
+        },
+
+        puedeMostrarIniciarReparacionReclamo(reclamo) {
+            if (!reclamo || reclamo.id == null) return false;
+            if (this.sesionReparacionReclamo(reclamo)) return false;
+            const est = (reclamo.municipalidad_estado || '').trim();
+            if (est === 'Completado' || est === 'Pendiente') return false;
+            const sr = reclamo.sesion_reparacion;
+            if (sr && (sr.activo || (Number(sr.acumulado_ms) || 0) > 0)) {
+                return false;
+            }
+            return true;
+        },
+
+        puedeMostrarContinuarReparacionReclamo(reclamo) {
+            if (!reclamo || reclamo.id == null) return false;
+            const est = (reclamo.municipalidad_estado || '').trim();
+            return est === 'Pendiente' || est === 'En ejecución';
+        },
+
+        async ejecutarCierreReclamoObra(reclamo, tipo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (!s || !s.activo) {
+                this.mostrarMensaje('No hay trabajo en curso en este reclamo.', 'warning');
+                return;
+            }
+            const msTotal = this.tiempoMsSesionReparacionReclamo(reclamo);
+            const minutos = Math.max(1, Math.round(msTotal / 60000));
+
+            try {
+                await this.registrarEventoEjecucionReclamo('ejecucion_reclamo_fin', reclamo);
+            } catch (error) {
+                console.error('Error al registrar fin de reclamo en ejecución:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo registrar el fin de trabajo en el reclamo.';
+                this.mostrarMensaje(mensaje, 'error');
+                return;
+            }
+
+            this._aplicarCierreSegmentoReclamoLocal(reclamo);
+
+            const datos = {
+                ...reclamo,
+                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
+            };
+            if (tipo === 'completado') {
+                datos.municipalidad_estado = 'Completado';
+                datos.prioridad = null;
+            } else {
+                datos.municipalidad_estado = 'Pendiente';
+                datos.prioridad = 'Alta';
+            }
+
+            try {
+                await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
+            } catch (error) {
+                console.error('Error al actualizar reclamo:', error);
+                this.mostrarMensaje(error?.response?.data?.message || 'No se pudo actualizar el reclamo.', 'error');
+                await this.obtenerReclamosPorRutaSeleccionada();
+                return;
+            }
+
+            try {
+                await axios.post(BASE_URL + 'api/reclamos/' + reclamo.id + '/tiempo-reparacion', {
+                    tiempo_reparacion_minutos: minutos
+                });
+            } catch (error) {
+                console.warn('Tiempo de reparación automático:', error);
+                this.mostrarMensaje('Reclamo actualizado, pero no se pudo guardar el tiempo de reparación automático.', 'warning');
+            }
+
+            await this.obtenerReclamosPorRutaSeleccionada();
+            this.mostrarMensaje(
+                tipo === 'completado'
+                    ? 'Reclamo completado. Tiempo de reparación registrado automáticamente.'
+                    : 'Reclamo en estado Pendiente para continuar otro día. Tiempo de esta salida registrado.',
+                'success'
+            );
+        },
+
+        async continuarReparacionReclamo(reclamo) {
+            if (!reclamo || reclamo.id == null) return;
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (!s || s.activo) return;
+            try {
+                await this.sincronizarEstadoReclamoEnEjecucion(reclamo);
+                await this.registrarEventoEjecucionReclamo('ejecucion_reclamo_inicio', reclamo);
+            } catch (error) {
+                console.error('Error al registrar continuación de reclamo en ejecución:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo registrar la continuación de trabajo en el reclamo.';
+                this.mostrarMensaje(mensaje, 'error');
+                return;
+            }
+            this.reparacionPorReclamoId = {
+                ...this.reparacionPorReclamoId,
+                [reclamo.id]: {
+                    activo: true,
+                    inicioSegmentoMs: Date.now(),
+                    acumuladoMs: s.acumuladoMs
+                }
+            };
+            if (this.esOperario && this.modoVistaRuta === 'mapa' && this.mapaDetalleGoogle) {
+                this.$nextTick(() => this.dibujarRutaDetalleOperarioGoogle());
+            }
+        },
+
+        onModalAccionesOculto() {
+            this.modalAccionesSoloMateriales = false;
+        },
+
+        abrirModalMaterialesReclamo(reclamo) {
+            if (!this.puedeEditarTareasRutaSeleccionada) {
+                this.mostrarMensaje('Solo el jefe de cuadrilla puede registrar materiales.', 'warning');
+                return;
+            }
+            if (!this.sesionReparacionReclamo(reclamo)) {
+                this.mostrarMensaje('Inicie el reclamo en obra para registrar materiales.', 'warning');
+                return;
+            }
+            this.reclamoSeleccionado = { ...reclamo };
+            this.modalAccionesSoloMateriales = true;
+            this.materialSeleccionado = {
+                tipo_id: '',
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            };
+            this.materialNuevo = { tipo_id: '', nombre: '', cantidad: null };
+            this.modoMaterialNuevo = false;
+            this.materialesFiltrados = [];
+            this.historialMateriales = [];
+            this.mostrarHistorialMateriales = false;
+
+            const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
+            modal.show();
+            this.$nextTick(() => {
+                const materialesTab = document.getElementById('materiales-tab');
+                const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
+                const materialesPane = document.getElementById('materiales');
+                const cambiarEstadoPane = document.getElementById('cambiar-estado');
+                if (materialesTab && materialesPane) {
+                    if (cambiarEstadoTab) {
+                        cambiarEstadoTab.classList.remove('active');
+                        cambiarEstadoTab.setAttribute('aria-selected', 'false');
+                    }
+                    if (cambiarEstadoPane) {
+                        cambiarEstadoPane.classList.remove('show', 'active');
+                    }
+                    materialesTab.classList.add('active');
+                    materialesTab.setAttribute('aria-selected', 'true');
+                    materialesPane.classList.add('show', 'active');
+                }
+            });
+        },
+
+        abrirModalObservacionesEjecucionReclamo(reclamo) {
+            if (!this.puedeEditarTareasRutaSeleccionada) {
+                this.mostrarMensaje('Solo el jefe de cuadrilla puede registrar observaciones.', 'warning');
+                return;
+            }
+            if (!this.sesionReparacionReclamo(reclamo)) {
+                this.mostrarMensaje('Inicie el reclamo en obra para registrar observaciones.', 'warning');
+                return;
+            }
+            if (this.rutaEjecucionActivaId == null) {
+                this.mostrarMensaje('No hay ejecución activa de la hoja. Espere a sincronizar o reinicie la vista.', 'warning');
+                return;
+            }
+            this.reclamoSeleccionado = { ...reclamo };
+            this.observacionEjecucionTexto = '';
+            this.historialObservacionesEjecucion = [];
+            const modal = new bootstrap.Modal(document.getElementById('modalObservacionesEjecucionReclamo'));
+            modal.show();
+            this.cargarHistorialObservacionesEjecucion();
+        },
+
+        async cargarHistorialObservacionesEjecucion() {
+            if (!this.reclamoSeleccionado?.id || this.rutaEjecucionActivaId == null) {
+                return;
+            }
+            this.cargandoObservacionesEjecucion = true;
+            try {
+                const r = await axios.get(
+                    `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones`,
+                    { params: { ruta_ejecucion_id: this.rutaEjecucionActivaId } }
+                );
+                this.historialObservacionesEjecucion = Array.isArray(r.data) ? r.data : [];
+            } catch (error) {
+                console.error('Error al cargar observaciones de ejecución:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo cargar el historial de observaciones.';
+                this.mostrarMensaje(mensaje, 'error');
+                this.historialObservacionesEjecucion = [];
+            } finally {
+                this.cargandoObservacionesEjecucion = false;
+            }
+        },
+
+        async guardarObservacionEjecucion() {
+            const texto = (this.observacionEjecucionTexto || '').trim();
+            if (!texto || this.rutaEjecucionActivaId == null || !this.reclamoSeleccionado?.id) {
+                return;
+            }
+            this.guardandoObservacionEjecucion = true;
+            try {
+                await axios.post(
+                    `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones`,
+                    {
+                        texto,
+                        ruta_ejecucion_id: this.rutaEjecucionActivaId
+                    }
+                );
+                this.observacionEjecucionTexto = '';
+                this.mostrarMensaje('Observación registrada.', 'success');
+                await this.cargarHistorialObservacionesEjecucion();
+            } catch (error) {
+                console.error('Error al guardar observación de ejecución:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo guardar la observación.';
+                this.mostrarMensaje(mensaje, 'error');
+            } finally {
+                this.guardandoObservacionEjecucion = false;
+            }
+        },
+
+        abrirModalCambioEstadoSupervisor(reclamo) {
+            if (this.esOperario) {
+                return;
+            }
+            this.reclamoSeleccionado = { ...reclamo };
+            this.modalAccionesSoloMateriales = false;
+            this.nuevoEstado = '';
+            this.nuevaObservacion = '';
+            this.tiempoReparacion = { valor: null, unidad: 'minutos' };
+            this.tiempoReparacionRegistrado = null;
+            this.historialReclamo = [];
+            this.mostrarHistorialEstado = false;
+            this.materialSeleccionado = {
+                tipo_id: '',
+                material_id: '',
+                cantidad: null,
+                observacion: ''
+            };
+            this.materialNuevo = { tipo_id: '', nombre: '', cantidad: null };
+            this.modoMaterialNuevo = false;
+            this.materialesFiltrados = [];
+            this.historialMateriales = [];
+            this.mostrarHistorialMateriales = false;
+
+            const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
+            modal.show();
+            this.$nextTick(() => {
+                const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
+                const materialesTab = document.getElementById('materiales-tab');
+                const cambiarEstadoPane = document.getElementById('cambiar-estado');
+                const materialesPane = document.getElementById('materiales');
+                if (cambiarEstadoTab && materialesTab && cambiarEstadoPane && materialesPane) {
+                    materialesTab.classList.remove('active');
+                    materialesPane.classList.remove('show', 'active');
+                    cambiarEstadoTab.classList.add('active');
+                    cambiarEstadoPane.classList.add('show', 'active');
+                    cambiarEstadoTab.setAttribute('aria-selected', 'true');
+                    materialesTab.setAttribute('aria-selected', 'false');
+                }
+            });
+        },
+
+        textoCronometroReparacionReclamo(reclamo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (!s) return '';
+            let ms = s.acumuladoMs;
+            if (s.activo) {
+                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            }
+            const sec = Math.max(0, Math.floor(ms / 1000));
+            return this.formatearSegundosCronometro(sec);
+        },
+
+        cambiarModoVistaRuta(modo) {
+            this.modoVistaRuta = modo;
+            if (modo === 'mapa') {
+                this.$nextTick(() => this.inicializarMapaDetalleOperarioGoogle());
+            }
+        },
+
+        limpiarMapaDetalleOperarioGoogle() {
+            this.marcadoresDetalleGoogle.forEach(marker => {
+                marker.setMap(null);
+                google.maps.event.clearInstanceListeners(marker);
+            });
+            this.marcadoresDetalleGoogle = [];
+
+            if (this.directionsRendererDetalleGoogle) {
+                this.directionsRendererDetalleGoogle.setMap(null);
+                this.directionsRendererDetalleGoogle = null;
+            }
+
+            if (this.mapaDetalleGoogle) {
+                google.maps.event.clearInstanceListeners(this.mapaDetalleGoogle);
+                this.mapaDetalleGoogle = null;
+            }
+        },
+
+        async inicializarMapaDetalleOperarioGoogle() {
+            const contenedor = document.getElementById('mapaRutaDetalleOperarioGoogle');
+            if (!contenedor) return;
+
+            const centro = { lat: -31.426516, lng: -62.110954 };
+            this.mapaDetalleGoogle = new google.maps.Map(contenedor, {
+                zoom: 13,
+                center: centro,
+                mapTypeId: 'roadmap',
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    },
+                    {
+                        featureType: "poi.business",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+
+            await this.dibujarRutaDetalleOperarioGoogle();
+        },
+
+        async dibujarRutaDetalleOperarioGoogle() {
+            if (!this.mapaDetalleGoogle) return;
+
+            this.marcadoresDetalleGoogle.forEach((marker) => {
+                marker.setMap(null);
+                google.maps.event.clearInstanceListeners(marker);
+            });
+            this.marcadoresDetalleGoogle = [];
+            if (this.directionsRendererDetalleGoogle) {
+                this.directionsRendererDetalleGoogle.setMap(null);
+                this.directionsRendererDetalleGoogle = null;
+            }
+
+            const reclamosConCoords = (this.reclamosOrdenRuta || []).filter(r => r.coordenadas && r.coordenadas.lat && r.coordenadas.lng);
+            const bounds = new google.maps.LatLngBounds();
+            const waypoints = [];
+
+            reclamosConCoords.forEach((reclamo) => {
+                const lat = parseFloat(reclamo.coordenadas.lat);
+                const lng = parseFloat(reclamo.coordenadas.lng);
+                if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+                const position = { lat, lng };
+                const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
+                const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
+                const marker = new google.maps.Marker({
+                    position,
+                    map: this.mapaDetalleGoogle,
+                    title: `Posición ${reclamo.posicion}: Reclamo #${reclamo.municipalidad_id}`,
+                    icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
+                    zIndex: 1000
+                });
+
+                const infowindow = new google.maps.InfoWindow();
+
+                marker.addListener('click', () => {
+                    const rActual = (this.reclamos || []).find((x) => Number(x.id) === Number(reclamo.id)) || reclamo;
+                    const contenido = this.construirInfoWindowContentMapaDetalleOperario(rActual);
+                    infowindow.setContent(contenido);
+                    infowindow.open(this.mapaDetalleGoogle, marker);
+                    this.$nextTick(() => this.refrescarCronometrosInfoWindowMapaDetalleOperario());
+                });
+
+                marker._reclamoIdDetalle = reclamo.id;
+                if (this.reclamoMuestraCamionObraMapaDetalle(reclamo)) {
+                    const hms = this.textoCronometroReparacionReclamo(reclamo);
+                    const offsetLng = 0.00032;
+                    const companion = new google.maps.Marker({
+                        position: { lat, lng: lng + offsetLng },
+                        map: this.mapaDetalleGoogle,
+                        title: `En obra — ${hms}`,
+                        icon: this.crearIconoCamionHmsDataUrl(hms),
+                        zIndex: 1001,
+                        optimized: false
+                    });
+                    marker._companionObraMapa = companion;
+                    this.marcadoresDetalleGoogle.push(companion);
+                }
+
+                this.marcadoresDetalleGoogle.push(marker);
+                bounds.extend(position);
+                waypoints.push(position);
+            });
+
+            if (waypoints.length >= 2) {
+                const directionsService = new google.maps.DirectionsService();
+                this.directionsRendererDetalleGoogle = new google.maps.DirectionsRenderer({
+                    map: this.mapaDetalleGoogle,
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: this.rutaSeleccionada?.color || this.rutaSeleccionada?.ruta_color || '#FF6B35',
+                        strokeWeight: 4,
+                        strokeOpacity: 0.8
+                    }
+                });
+
+                const origin = waypoints[0];
+                const destination = waypoints[waypoints.length - 1];
+                const intermediateWaypoints = waypoints.slice(1, -1).map(w => ({ location: w, stopover: true }));
+
+                try {
+                    const result = await directionsService.route({
+                        origin,
+                        destination,
+                        waypoints: intermediateWaypoints,
+                        travelMode: google.maps.TravelMode.DRIVING
+                    });
+                    this.directionsRendererDetalleGoogle.setDirections(result);
+                } catch (error) {
+                    console.error('Error al trazar la ruta detalle en Google Maps:', error);
+                }
+            }
+
+            if (waypoints.length > 0) {
+                this.mapaDetalleGoogle.fitBounds(bounds);
+            } else {
+                this.mapaDetalleGoogle.setCenter({ lat: -31.426516, lng: -62.110954 });
+                this.mapaDetalleGoogle.setZoom(13);
             }
         },
         
@@ -226,70 +1359,14 @@ const app = Vue.createApp({
         },
 
         /**
-         * Abre el modal de acciones
+         * Compatibilidad: solo supervisores usan el modal de cambio de estado.
          */
         cambiarEstado(reclamo) {
-            this.reclamoSeleccionado = { ...reclamo };
-            this.nuevoEstado = '';
-            this.nuevaObservacion = '';
-            this.tiempoReparacion = {
-                valor: null,
-                unidad: 'minutos'
-            };
-            this.tiempoReparacionRegistrado = null;
-            this.historialReclamo = []; // Limpiar historial anterior
-            this.mostrarHistorialEstado = false; // Ocultar historial inicialmente
-            
-            // Limpiar datos de materiales
-            this.materialSeleccionado = {
-                tipo_id: '',
-                material_id: '',
-                cantidad: null,
-                observacion: ''
-            };
-            this.materialNuevo = {
-                tipo_id: '',
-                nombre: '',
-                cantidad: null
-            };
-            this.modoMaterialNuevo = false; // Iniciar en modo material existente
-            this.materialesFiltrados = [];
-            this.historialMateriales = [];
-            this.mostrarHistorialMateriales = false;
-            
-            // Mostrar el modal
-            const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
-            modal.show();
-            
-            // Asegurar que la pestaña "Cambiar Estado" esté activa
-            this.$nextTick(() => {
-                // Activar la pestaña "Cambiar Estado"
-                const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
-                const materialesTab = document.getElementById('materiales-tab');
-                const tiempoReparacionTab = document.getElementById('tiempo-reparacion-tab');
-                const cambiarEstadoPane = document.getElementById('cambiar-estado');
-                const materialesPane = document.getElementById('materiales');
-                const tiempoReparacionPane = document.getElementById('tiempo-reparacion');
-                
-                if (cambiarEstadoTab && materialesTab && tiempoReparacionTab && cambiarEstadoPane && materialesPane && tiempoReparacionPane) {
-                    // Remover clases activas de todas las pestañas
-                    cambiarEstadoTab.classList.remove('active');
-                    materialesTab.classList.remove('active');
-                    tiempoReparacionTab.classList.remove('active');
-                    cambiarEstadoPane.classList.remove('show', 'active');
-                    materialesPane.classList.remove('show', 'active');
-                    tiempoReparacionPane.classList.remove('show', 'active');
-                    
-                    // Activar la pestaña "Cambiar Estado"
-                    cambiarEstadoTab.classList.add('active');
-                    cambiarEstadoPane.classList.add('show', 'active');
-                    
-                    // Actualizar atributos ARIA
-                    cambiarEstadoTab.setAttribute('aria-selected', 'true');
-                    materialesTab.setAttribute('aria-selected', 'false');
-                    tiempoReparacionTab.setAttribute('aria-selected', 'false');
-                }
-            });
+            if (this.esOperario) {
+                this.mostrarMensaje('Use los botones Listo o Pendiente junto al reclamo en la hoja en ejecución.', 'info');
+                return;
+            }
+            this.abrirModalCambioEstadoSupervisor(reclamo);
         },
 
         /**
@@ -321,7 +1398,7 @@ const app = Vue.createApp({
                 }
 
                 // Actualizar prioridad según el nuevo estado
-                if (nuevoEstadoSeleccionado === 'En ejecución') {
+                if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
                     datosActualizacion.prioridad = 'Alta';
                 } else if (nuevoEstadoSeleccionado === 'Completado') {
                     datosActualizacion.prioridad = null;
@@ -338,7 +1415,7 @@ const app = Vue.createApp({
                         this.reclamos[index].municipalidad_estado = nuevoEstadoSeleccionado;
                     
                         // También actualizar la prioridad en la lista local
-                        if (nuevoEstadoSeleccionado === 'En ejecución') {
+                        if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
                             this.reclamos[index].prioridad = 'Alta';
                         } else if (nuevoEstadoSeleccionado === 'Completado') {
                             this.reclamos[index].prioridad = null;
@@ -349,7 +1426,7 @@ const app = Vue.createApp({
                 this.reclamoSeleccionado.municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
                 if (nuevoEstadoSeleccionado) {
                     this.reclamoSeleccionado.municipalidad_estado = nuevoEstadoSeleccionado;
-                    if (nuevoEstadoSeleccionado === 'En ejecución') {
+                    if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
                         this.reclamoSeleccionado.prioridad = 'Alta';
                     } else if (nuevoEstadoSeleccionado === 'Completado') {
                         this.reclamoSeleccionado.prioridad = null;
@@ -385,8 +1462,12 @@ const app = Vue.createApp({
                         modalAcciones.hide();
                     }
                     
-                    // Recargar los reclamos para actualizar la lista (eliminar el reclamo cerrado)
-                    this.obtenerReclamos();
+                    // Recargar los reclamos para actualizar la lista
+                    if (this.esOperario && this.rutaSeleccionadaId) {
+                        this.obtenerReclamosPorRutaSeleccionada();
+                    } else {
+                        this.obtenerReclamos();
+                    }
                 } else {
                     // Error genérico
                     const mensajeError = error.response && error.response.data.message 
@@ -435,7 +1516,8 @@ const app = Vue.createApp({
         getCardClass(reclamo) {
             const estado = reclamo.municipalidad_estado;
             if (estado === 'Recibido') return 'border-secondary'; // Gris #808080
-            if (estado === 'Asignado') return 'border-danger'; // Rojo #FF0000
+            if (estado === 'Asignado') return 'border-info'; // Celeste #0DCAF0
+            if (estado === 'Pendiente') return 'border-danger'; // Rojo #FF0000
             if (estado === 'En ejecución') return 'border-warning'; // Amarillo #FFD700
             if (estado === 'Completado') return 'border-success'; // Verde #198754
             if (estado === 'En plan') return 'border-secondary'; // Gris #808080
@@ -449,7 +1531,8 @@ const app = Vue.createApp({
         getEstadoBadgeClass(estado) {
             switch (estado) {
                 case 'Recibido': return 'bg-secondary'; // Gris #808080
-                case 'Asignado': return 'bg-danger'; // Rojo #FF0000
+                case 'Asignado': return 'bg-info text-dark'; // Celeste #0DCAF0
+                case 'Pendiente': return 'bg-danger'; // Rojo #FF0000
                 case 'En ejecución': return 'bg-warning'; // Amarillo #FFD700
                 case 'Completado': return 'bg-success'; // Verde #00FF00
                 case 'En plan': return 'bg-secondary'; // Gris #808080
@@ -464,7 +1547,8 @@ const app = Vue.createApp({
         getEstadoTextClass(estado) {
             switch (estado) {
                 case 'Recibido': return 'text-secondary'; // Gris #808080
-                case 'Asignado': return 'text-danger'; // Rojo #FF0000
+                case 'Asignado': return 'text-info'; // Celeste #0DCAF0
+                case 'Pendiente': return 'text-danger'; // Rojo #FF0000
                 case 'En ejecución': return 'text-warning'; // Amarillo #FFD700
                 case 'Completado': return 'text-success'; // Verde #198754
                 case 'En plan': return 'text-secondary'; // Gris #808080
@@ -583,6 +1667,11 @@ const app = Vue.createApp({
          * Abre el modal del mapa de rutas
          */
         async verMapaRutas() {
+            if (this.esOperario) {
+                // El mapa del operario muestra todas las rutas de su cuadrilla.
+                await this.obtenerReclamos();
+            }
+
             const modal = new bootstrap.Modal(document.getElementById('modalMapaRutas'));
             modal.show();
 
@@ -690,7 +1779,7 @@ const app = Vue.createApp({
                         position: position,
                         map: this.mapaRutas,
                         title: `Posición ${reclamo.posicion}: Reclamo #${reclamo.municipalidad_id}${colorPrioridad !== null ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
-                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad),
+                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
                         zIndex: 1000
                     });
 
@@ -870,6 +1959,10 @@ const app = Vue.createApp({
             
             // Resetear proveedor
             this.proveedorMapaRutas = 'google';
+
+            if (this.esOperario && this.rutaSeleccionadaId) {
+                this.obtenerReclamosPorRutaSeleccionada();
+            }
         },
 
         /**
@@ -878,7 +1971,8 @@ const app = Vue.createApp({
         getColorEstado(estado) {
             const colores = {
                 'Recibido': '#808080',
-                'Asignado': '#FF0000',
+                'Asignado': '#0DCAF0',
+                'Pendiente': '#FF0000',
                 'En ejecución': '#FFD700',
                 'Completado': '#198754',
                 'En plan': '#808080',
@@ -898,11 +1992,52 @@ const app = Vue.createApp({
             return null; // Sin borde especial para Media y Baja
         },
 
+        normalizarMotivoReclamo(motivo) {
+            return (motivo || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+        },
+
+        iconoMotivoReclamo(motivo) {
+            const motivoNormalizado = this.normalizarMotivoReclamo(motivo);
+
+            if (motivoNormalizado.includes('semaforo')) return '🚦';
+            if (motivoNormalizado.includes('rama')) return '🌳';
+            if (motivoNormalizado.includes('cable')) return '🔌';
+            if (motivoNormalizado.includes('poste')) return '⚠️';
+            if (motivoNormalizado.includes('columna')) return '⚠️';
+            if (motivoNormalizado.includes('agotada')) return '💡';
+            if (motivoNormalizado.includes('quemada') || motivoNormalizado.includes('rota')) return '💡';
+
+            return '💡';
+        },
+
+        escaparTextoSvg(texto) {
+            return (texto || '')
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        },
+
+        crearSvgBadgeMotivo(motivo, x, y, radio = 6, fontSize = 9) {
+            if (!motivo) return '';
+            const icono = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+
+            return `
+                <circle cx="${x}" cy="${y}" r="${radio}" fill="#FFFFFF" stroke="#ADB5BD" stroke-width="1"/>
+                <text x="${x + 0.4}" y="${y + 0.5}" text-anchor="middle" dominant-baseline="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif" font-size="${fontSize}">${icono}</text>
+            `;
+        },
+
         /**
          * Crea un icono numerado para los marcadores de la ruta (igual que en rutas.js)
          * Si tiene prioridad Alta, muestra animación de pulso
          */
-        crearIconoNumerado(numero, colorEstado, colorPrioridad) {
+        crearIconoNumerado(numero, colorEstado, colorPrioridad, motivo = null) {
             const tienePrioridadAlta = colorPrioridad !== null;
             
             if (tienePrioridadAlta) {
@@ -924,6 +2059,7 @@ const app = Vue.createApp({
                             <circle cx="20" cy="20" r="15" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
                             <!-- Número -->
                             <text x="20" y="25" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">${numero}</text>
+                            ${this.crearSvgBadgeMotivo(motivo, 31, 9, 7, 10)}
                         </svg>
                     `)}`,
                     scaledSize: new google.maps.Size(40, 40),
@@ -936,12 +2072,67 @@ const app = Vue.createApp({
                         <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
                             <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
+                            ${this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
                         </svg>
                     `)}`,
                     scaledSize: new google.maps.Size(32, 32),
                     anchor: new google.maps.Point(16, 16)
                 };
             }
+        },
+
+        /** Icono camión + cronómetro (misma idea que vista supervisor en rutas). */
+        crearIconoCamionHmsDataUrl(hms) {
+            const esc = String(hms).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const truck = String.fromCodePoint(0x1F69A);
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="92" height="38" viewBox="0 0 92 38">
+                <rect x="1" y="1" width="90" height="36" rx="8" fill="#212529" stroke="#ffc107" stroke-width="2"/>
+                <text x="10" y="26" font-size="15">${truck}</text>
+                <text x="34" y="25" font-size="11" font-family="monospace" fill="#ffc107">${esc}</text>
+            </svg>`;
+            return {
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+                scaledSize: new google.maps.Size(92, 38),
+                anchor: new google.maps.Point(4, 19)
+            };
+        },
+
+        reclamoMuestraCamionObraMapaDetalle(reclamo) {
+            if (!reclamo || reclamo.id == null) return false;
+            if (!this.rutaSeleccionadaEnEjecucion) return false;
+            if (String(reclamo.municipalidad_estado || '').trim() !== 'En ejecución') return false;
+            return !!this.sesionReparacionReclamo(reclamo);
+        },
+
+        refrescarCompanionsObraMapaDetalleOperario() {
+            if (!this.mapaDetalleGoogle || !this.marcadoresDetalleGoogle?.length) return;
+            this.marcadoresDetalleGoogle.forEach((m) => {
+                if (!m._companionObraMapa || m._reclamoIdDetalle == null) return;
+                const r = (this.reclamos || []).find((x) => Number(x.id) === Number(m._reclamoIdDetalle));
+                if (!r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
+                    m._companionObraMapa.setMap(null);
+                    m._companionObraMapa = null;
+                    return;
+                }
+                const hms = this.textoCronometroReparacionReclamo(r);
+                m._companionObraMapa.setIcon(this.crearIconoCamionHmsDataUrl(hms));
+            });
+        },
+
+        /** Actualiza HH:MM:SS en el globo del mapa (el HTML del InfoWindow no es reactivo). */
+        refrescarCronometrosInfoWindowMapaDetalleOperario() {
+            document.querySelectorAll('[data-map-iw-crono-reclamo-id]').forEach((el) => {
+                const rid = parseInt(el.getAttribute('data-map-iw-crono-reclamo-id'), 10);
+                if (Number.isNaN(rid)) {
+                    return;
+                }
+                const r = (this.reclamos || []).find((x) => Number(x.id) === rid);
+                if (!r || !this.sesionReparacionReclamo(r)) {
+                    el.textContent = '—';
+                    return;
+                }
+                el.textContent = this.textoCronometroReparacionReclamo(r);
+            });
         },
 
         /**
@@ -962,6 +2153,137 @@ const app = Vue.createApp({
                     <p style="margin-bottom: 4px;"><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
                 </div>
             `;
+        },
+
+        /**
+         * InfoWindow del mapa de hoja (operario): datos + mismas acciones que en vista lista.
+         */
+        construirInfoWindowContentMapaDetalleOperario(reclamo) {
+            const wrap = document.createElement('div');
+            wrap.className = 'map-detalle-iw';
+            wrap.innerHTML = this.crearContenidoInfoWindow(reclamo);
+
+            if (!this.esOperario || !this.puedeEditarTareasRutaSeleccionada) {
+                return wrap;
+            }
+
+            const acciones = document.createElement('div');
+            acciones.className = 'map-detalle-iw-acciones border-top pt-2 mt-2 d-flex flex-wrap align-items-center gap-1';
+
+            const rid = String(reclamo.id);
+
+            if (this.puedeMostrarIniciarReparacionReclamo(reclamo)) {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'btn btn-sm btn-success';
+                b.innerHTML = '<i class="bi bi-play-fill text-white"></i> Iniciar';
+                b.setAttribute('data-map-accion', 'iniciar');
+                b.setAttribute('data-reclamo-id', rid);
+                acciones.appendChild(b);
+            }
+
+            const ses = this.sesionReparacionReclamo(reclamo);
+            if (ses) {
+                const crono = document.createElement('span');
+                crono.className = 'badge bg-dark font-monospace map-detalle-iw-crono';
+                crono.setAttribute('data-map-iw-crono-reclamo-id', rid);
+                crono.textContent = this.textoCronometroReparacionReclamo(reclamo);
+                crono.title = 'Tiempo en obra';
+                acciones.appendChild(crono);
+
+                const bMat = document.createElement('button');
+                bMat.type = 'button';
+                bMat.className = 'btn btn-sm btn-outline-secondary';
+                bMat.innerHTML = '<i class="bi bi-box-seam"></i>';
+                bMat.title = 'Materiales utilizados';
+                bMat.setAttribute('data-map-accion', 'materiales');
+                bMat.setAttribute('data-reclamo-id', rid);
+                acciones.appendChild(bMat);
+
+                const bObs = document.createElement('button');
+                bObs.type = 'button';
+                bObs.className = 'btn btn-sm btn-outline-secondary';
+                bObs.innerHTML = '<i class="bi bi-chat-left-text"></i>';
+                bObs.title = 'Observaciones en esta ejecución';
+                bObs.setAttribute('data-map-accion', 'observaciones');
+                bObs.setAttribute('data-reclamo-id', rid);
+                acciones.appendChild(bObs);
+
+                if (ses.activo) {
+                    const bOk = document.createElement('button');
+                    bOk.type = 'button';
+                    bOk.className = 'btn btn-sm btn-success';
+                    bOk.innerHTML = '<i class="bi bi-check-lg"></i>';
+                    bOk.title = 'Marcar como completado';
+                    bOk.setAttribute('data-map-accion', 'completado');
+                    bOk.setAttribute('data-reclamo-id', rid);
+                    acciones.appendChild(bOk);
+
+                    const bPen = document.createElement('button');
+                    bPen.type = 'button';
+                    bPen.className = 'btn btn-sm btn-warning text-dark';
+                    bPen.innerHTML = '<i class="bi bi-pause-circle"></i>';
+                    bPen.title = 'Pendiente para otro día';
+                    bPen.setAttribute('data-map-accion', 'pendiente');
+                    bPen.setAttribute('data-reclamo-id', rid);
+                    acciones.appendChild(bPen);
+                } else if (this.puedeMostrarContinuarReparacionReclamo(reclamo)) {
+                    const bCont = document.createElement('button');
+                    bCont.type = 'button';
+                    bCont.className = 'btn btn-sm btn-success';
+                    bCont.innerHTML = '<i class="bi bi-play-fill text-white"></i>';
+                    bCont.title = 'Continuar ejecución';
+                    bCont.setAttribute('data-map-accion', 'continuar');
+                    bCont.setAttribute('data-reclamo-id', rid);
+                    acciones.appendChild(bCont);
+                }
+            }
+
+            if (acciones.childNodes.length) {
+                wrap.appendChild(acciones);
+            }
+
+            wrap.addEventListener('click', (e) => this.onMapaDetalleInfoWindowAccion(e));
+
+            return wrap;
+        },
+
+        onMapaDetalleInfoWindowAccion(e) {
+            const btn = e.target.closest('[data-map-accion]');
+            if (!btn) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const rid = parseInt(btn.getAttribute('data-reclamo-id'), 10);
+            const accion = btn.getAttribute('data-map-accion');
+            const r = (this.reclamos || []).find((x) => Number(x.id) === rid);
+            if (!r || r.id == null) {
+                return;
+            }
+            if (accion === 'iniciar') {
+                void this.iniciarReparacionReclamo(r);
+                return;
+            }
+            if (accion === 'materiales') {
+                this.abrirModalMaterialesReclamo(r);
+                return;
+            }
+            if (accion === 'observaciones') {
+                this.abrirModalObservacionesEjecucionReclamo(r);
+                return;
+            }
+            if (accion === 'completado') {
+                void this.ejecutarCierreReclamoObra(r, 'completado');
+                return;
+            }
+            if (accion === 'pendiente') {
+                void this.ejecutarCierreReclamoObra(r, 'pendiente');
+                return;
+            }
+            if (accion === 'continuar') {
+                void this.continuarReparacionReclamo(r);
+            }
         },
 
         /**
@@ -1691,7 +3013,20 @@ const app = Vue.createApp({
 },
 
     async mounted() {
-        await this.obtenerReclamos();
-        await this.obtenerRutasOperario();
+        if (this.esOperario) {
+            await this.obtenerRutasOperario();
+            await this.obtenerTodasLasRutas();
+            this.iniciarRelojEjecucionOperario();
+            await this.$nextTick();
+            this.inicializarMapasPreviewOperario();
+        } else {
+            await this.obtenerReclamos();
+            await this.obtenerRutasOperario();
+        }
+    },
+
+    beforeUnmount() {
+        this.detenerRelojEjecucionOperario();
+        this.limpiarMapasPreviewOperario();
     }
 });

@@ -40,6 +40,14 @@
 <!-- SweetAlert2 debe cargarse antes del archivo JavaScript específico de la página -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
 
+<?php
+$esPaginaMapaReclamos = !empty($jsPageFile)
+    && preg_match('#/mapa_(google|mapbox)\.js$#', (string) $jsPageFile);
+if ($esPaginaMapaReclamos):
+?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<?php endif; ?>
+
 <?php if (isset($title) && (strtolower($title) === 'analisis' || strtolower($title) === 'análisis')): ?>
 <!-- ApexCharts para gráficos -->
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>

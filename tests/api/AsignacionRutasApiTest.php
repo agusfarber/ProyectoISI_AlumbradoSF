@@ -310,6 +310,54 @@ class AsignacionRutasApiTest extends CIUnitTestCase
 
     /**
      * Test 5: HU-022
+     * Nombre: No permitir dos hojas activas en la misma cuadrilla
+     */
+    public function testNoAsignarDosRutasActivasAMismaCuadrilla()
+    {
+        $db = \Config\Database::connect();
+
+        $dataAsignacion = [
+            'ruta_id' => 1,
+            'cuadrilla_id' => 1,
+        ];
+
+        $resultAsignacion = $this->withBodyFormat('json')
+            ->post('/api/rutas/asignar', $dataAsignacion);
+
+        $resultAsignacion->assertStatus(200);
+
+        $ruta2Id = $db->table('ruta')->insert([
+            'nombre' => 'Ruta Test Segunda',
+            'color' => '#00AA00',
+            'cantidadReclamos' => 3,
+            'asignada' => 0,
+            'cuadrilla_id' => null,
+            'tiempoEstimado' => '01:00:00',
+            'fecha' => date('Y-m-d H:i:s'),
+        ]);
+
+        for ($i = 6; $i <= 8; $i++) {
+            $db->table('ruta_reclamo')->insert([
+                'ruta_id' => $ruta2Id,
+                'reclamo_id' => $i,
+                'posicion' => $i - 5,
+            ]);
+        }
+
+        $resultSegunda = $this->withBodyFormat('json')
+            ->post('/api/rutas/asignar', [
+                'ruta_id' => $ruta2Id,
+                'cuadrilla_id' => 1,
+            ]);
+
+        $resultSegunda->assertStatus(400);
+        $response = json_decode($resultSegunda->response()->getBody(), true);
+        $this->assertArrayHasKey('messages', $response);
+        $this->assertStringContainsString('ya tiene asignada', strtolower($response['messages']['error'] ?? ''));
+    }
+
+    /**
+     * Test 6: HU-022
      * Nombre: Desasignación de ruta de una cuadrilla
      * Ubicación: tests/api/AsignacionRutasApiTest.php::testDesasignarRutaDeCuadrilla
      * Objetivo: Verificar que el supervisor puede desasignar una ruta de una cuadrilla, volviendo los reclamos a estado "Recibido"

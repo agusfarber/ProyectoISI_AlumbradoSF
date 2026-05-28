@@ -881,3 +881,197 @@ table.dataTable > tbody > tr > td {
     margin-right: 1rem !important; /* Ajusta este valor para el espaciado deseado */
     margin-left: 1rem !important;
 }
+
+/* Filtro por estado — mapa de calor (HU-014) */
+.mapa-reclamos-contenedor {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 2rem);
+    min-height: 640px;
+}
+
+body.pagina-mapa-reclamos .content-wrapper {
+    padding: 0 !important;
+}
+
+body.pagina-mapa-reclamos .main-content {
+    padding: 0 !important;
+}
+
+body.pagina-mapa-reclamos #app.container-fluid {
+    padding: 0 !important;
+    max-width: none;
+}
+
+body.pagina-mapa-reclamos .mapa-reclamos-contenedor {
+    height: 100vh;
+    min-height: 100vh;
+}
+
+.mapa-reclamos-contenedor #map {
+    width: 100%;
+    height: 100%;
+}
+
+.mapa-reclamos-toolbar {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    max-width: calc(100% - 1rem);
+}
+
+.mapa-reclamos-toolbar .dropdown,
+.mapa-reclamos-toolbar .btn,
+.mapa-reclamos-toolbar button {
+    pointer-events: auto;
+}
+
+.mapa-filtro-estados-toggle,
+.mapa-filtro-prioridad-toggle,
+.mapa-exportar-imagen-btn,
+.mapa-lista-toggle,
+.mapa-cambiar-proveedor-btn {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    font-weight: 500;
+}
+
+.mapa-exportar-imagen-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.mapa-filtro-estados-menu,
+.mapa-filtro-prioridad-menu {
+    min-width: 210px;
+    font-size: 0.85rem;
+}
+
+.mapa-filtro-estados-menu .form-check-label,
+.mapa-filtro-prioridad-menu .form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.mapa-motivo-marker {
+    width: 32px;
+    height: 32px;
+    display: block;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.mapa-motivo-marker svg {
+    display: block;
+}
+
+.mapa-reclamos-lista-overlay {
+    position: absolute;
+    top: 3.1rem;
+    right: 0.5rem;
+    z-index: 6;
+    width: min(320px, calc(100% - 1rem));
+    max-height: min(420px, calc(100% - 4rem));
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.mapa-reclamos-lista-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 0.82rem;
+    background: #fff;
+}
+
+.mapa-reclamos-lista-search {
+    padding: 0.45rem 0.55rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    background: #fff;
+}
+
+.mapa-reclamos-lista-body {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 0.35rem;
+}
+
+.mapa-reclamos-lista-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.35rem;
+    border-radius: 0.45rem;
+    text-align: left;
+}
+
+.mapa-reclamos-lista-item:hover {
+    background: rgba(13, 110, 253, 0.08);
+}
+
+.mapa-reclamos-lista-icon {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.mapa-reclamos-lista-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+.mapa-reclamos-lista-text small {
+    color: #6c757d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mapa-reclamos-lista-actions {
+    flex: 0 0 auto;
+    display: inline-flex;
+    gap: 0.35rem;
+    color: #6c757d;
+}
+
+.mapa-reclamos-lista-actions .bi {
+    cursor: pointer;
+}
+
+.mapa-popup-reclamo {
+    min-width: 220px;
+    text-align: left;
+}
+
+.mapa-popup-reclamo p,
+.mapa-popup-reclamo h6 {
+    text-align: left;
+}
+
+.mapa-popup-acciones {
+    justify-content: center;
+}

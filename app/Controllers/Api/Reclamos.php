@@ -11,6 +11,11 @@ use App\Models\Material_reclamoModel;
 use App\Models\Tipo_materialModel;
 use App\Models\Tiempo_reparacionModel;
 use App\Models\Tiempo_promedio_motivoModel;
+use App\Models\Ruta_reclamoModel;
+use App\Models\RutaModel;
+use App\Models\CuadrillaOperariosModel;
+use App\Models\RutaEjecucionReclamoObservacionModel;
+use App\Libraries\RutaEjecucionHistorialService;
 
 class Reclamos extends ResourceController
 {
@@ -85,6 +90,11 @@ class Reclamos extends ResourceController
 
         if (!$id || empty($data)) {
             return $this->failValidationErrors('Faltan datos obligatorios.');
+        }
+
+        $permisoEdicion = $this->validarPermisoEdicionOperario((int)$id);
+        if ($permisoEdicion !== true) {
+            return $permisoEdicion;
         }
 
         // Capturar y limpiar observación si se envía
@@ -164,6 +174,23 @@ class Reclamos extends ResourceController
         if ($hayCambioEstado || $observacion !== null) {
             $nroReclamo = $reclamoActual['municipalidad_id'] ?? $data['municipalidad_id'] ?? '';
             $this->registrarCambioEstado($nroReclamo, $estadoAnterior, $estadoFinal, $observacion);
+        }
+
+        if ($hayCambioEstado) {
+            $ejId = RutaEjecucionHistorialService::findActiveEjecucionIdByReclamoId((int) $id);
+            if ($ejId !== null) {
+                $uid = (int) (session()->get('user_id') ?? 0);
+                RutaEjecucionHistorialService::insertEvent(
+                    $ejId,
+                    RutaEjecucionHistorialService::TIPO_RECLAMO_ESTADO,
+                    (int) $id,
+                    $uid > 0 ? $uid : null,
+                    [
+                        'estado_anterior' => $estadoAnterior,
+                        'estado_nuevo'    => $estadoFinal,
+                    ]
+                );
+            }
         }
 
         // Procesar y guardar la dirección del reclamo si cambió o es nueva
@@ -522,6 +549,11 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('ID de reclamo requerido.');
             }
 
+            $permisoEdicion = $this->validarPermisoEdicionOperario((int)$reclamoId);
+            if ($permisoEdicion !== true) {
+                return $permisoEdicion;
+            }
+
             // Verificar que el reclamo existe
             $reclamo = $this->model->find($reclamoId);
             if (!$reclamo) {
@@ -787,6 +819,11 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('ID de reclamo requerido.');
             }
 
+            $permisoEdicion = $this->validarPermisoEdicionOperario((int)$reclamoId);
+            if ($permisoEdicion !== true) {
+                return $permisoEdicion;
+            }
+
             $data = $this->request->getJSON(true);
 
             // Validar datos obligatorios
@@ -966,5 +1003,225 @@ class Reclamos extends ResourceController
             log_message('error', 'Error al obtener tiempos promedio: ' . $e->getMessage());
             return $this->failServerError('Error al obtener los tiempos promedio de reparación.');
         }
+    }
+
+    /**
+     * Lista observaciones de obra de un reclamo (todas las ejecuciones / hojas de ruta).
+     * ruta_ejecucion_id valida el contexto de la hoja en curso; el listado no se limita a esa ejecución.
+     */
+    public function getEjecucionObservacionesReclamo($reclamoId = null)
+    {
+        try {
+            if (! $reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            $permisoEdicion = $this->validarPermisoEdicionOperario((int) $reclamoId);
+            if ($permisoEdicion !== true) {
+                return $permisoEdicion;
+            }
+
+            $reclamoId = (int) $reclamoId;
+            $reclamo   = $this->model->find($reclamoId);
+            if (! $reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $rutaEjecucionId = $this->request->getGet('ruta_ejecucion_id');
+            if ($rutaEjecucionId === null || $rutaEjecucionId === '') {
+                return $this->failValidationErrors('Parámetro ruta_ejecucion_id requerido.');
+            }
+
+            $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, (int) $rutaEjecucionId);
+            if ($ctx === null) {
+                return $this->failForbidden('No se encontró la ejecución indicada para este reclamo o no coincide con la hoja en curso.');
+            }
+
+            $db = \Config\Database::connect();
+            $rows = $db->table('ruta_ejecucion_reclamo_observacion o')
+                ->select('o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, r.nombre as ruta_nombre, r.color as ruta_color')
+                ->join('usuario u', 'u.id = o.usuario_id', 'left')
+                ->join('ruta r', 'r.id = o.ruta_id', 'left')
+                ->where('o.reclamo_id', $reclamoId)
+                ->orderBy('o.created_at', 'DESC')
+                ->orderBy('o.id', 'DESC')
+                ->get()
+                ->getResultArray();
+
+            return $this->respond($rows);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al listar observaciones de ejecución: ' . $e->getMessage());
+
+            return $this->failServerError('Error al obtener las observaciones.');
+        }
+    }
+
+    /**
+     * Registra una observación sobre el reclamo durante la ejecución actual de la hoja de ruta.
+     */
+    public function guardarEjecucionObservacionReclamo($reclamoId = null)
+    {
+        try {
+            if (! $reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            $permisoEdicion = $this->validarPermisoEdicionOperario((int) $reclamoId);
+            if ($permisoEdicion !== true) {
+                return $permisoEdicion;
+            }
+
+            $reclamoId = (int) $reclamoId;
+            $reclamo   = $this->model->find($reclamoId);
+            if (! $reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $data                  = $this->request->getJSON(true) ?? [];
+            $rutaEjecucionIdCliente = isset($data['ruta_ejecucion_id']) ? (int) $data['ruta_ejecucion_id'] : 0;
+            if ($rutaEjecucionIdCliente < 1) {
+                return $this->failValidationErrors('ruta_ejecucion_id es obligatorio.');
+            }
+
+            $texto = isset($data['texto']) ? trim((string) $data['texto']) : '';
+            if ($texto === '') {
+                return $this->failValidationErrors('El texto de la observación es obligatorio.');
+            }
+
+            $len = function_exists('mb_strlen') ? mb_strlen($texto, 'UTF-8') : strlen($texto);
+            if ($len > 4000) {
+                return $this->failValidationErrors('La observación no puede superar los 4000 caracteres.');
+            }
+
+            $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, $rutaEjecucionIdCliente);
+            if ($ctx === null) {
+                return $this->failForbidden('La ejecución no es válida para esta hoja y reclamo, o la ruta no está en ejecución.');
+            }
+
+            $usuarioId = session()->get('user_id');
+            if (! $usuarioId) {
+                $usuarioId = 0;
+            }
+
+            $obsModel = new RutaEjecucionReclamoObservacionModel();
+            $ahora    = date('Y-m-d H:i:s');
+            $obsModel->insert([
+                'ruta_ejecucion_id' => $ctx['ruta_ejecucion_id'],
+                'ruta_id'           => $ctx['ruta_id'],
+                'reclamo_id'        => $reclamoId,
+                'texto'             => $texto,
+                'usuario_id'        => (int) $usuarioId > 0 ? (int) $usuarioId : null,
+                'created_at'        => $ahora,
+            ]);
+            $id = (int) $obsModel->getInsertID();
+            if ($id < 1) {
+                return $this->failServerError('Error al guardar la observación.');
+            }
+
+            $db  = \Config\Database::connect();
+            $row = $db->table('ruta_ejecucion_reclamo_observacion o')
+                ->select('o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, r.nombre as ruta_nombre, r.color as ruta_color')
+                ->join('usuario u', 'u.id = o.usuario_id', 'left')
+                ->join('ruta r', 'r.id = o.ruta_id', 'left')
+                ->where('o.id', $id)
+                ->get()
+                ->getRowArray();
+
+            return $this->respondCreated($row ?? ['id' => $id]);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar observación de ejecución: ' . $e->getMessage());
+
+            return $this->failServerError('Error al guardar la observación.');
+        }
+    }
+
+    /**
+     * @return array{ruta_ejecucion_id: int, ruta_id: int, reclamo_id: int}|null
+     */
+    private function resolverContextoObservacionEjecucionReclamo(int $reclamoId, int $rutaEjecucionIdCliente): ?array
+    {
+        $link = RutaEjecucionHistorialService::findRutaReclamoLinkRutaAsignada($reclamoId);
+        if (! $link) {
+            return null;
+        }
+
+        $rutaId = (int) $link['ruta_id'];
+        $activa = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId($rutaId);
+        if (! $activa || $activa !== $rutaEjecucionIdCliente) {
+            return null;
+        }
+
+        $db = \Config\Database::connect();
+        $ej = $db->table('ruta_ejecucion')
+            ->where('id', $activa)
+            ->where('fin_at', null)
+            ->get()
+            ->getRowArray();
+        if (! $ej || (int) $ej['ruta_id'] !== $rutaId) {
+            return null;
+        }
+
+        return [
+            'ruta_ejecucion_id' => $activa,
+            'ruta_id'           => $rutaId,
+            'reclamo_id'        => $reclamoId,
+        ];
+    }
+
+    /**
+     * Si el usuario es operario, solo el jefe de su cuadrilla puede editar acciones.
+     */
+    private function validarPermisoEdicionOperario(int $reclamoId)
+    {
+        $session = session();
+        $userId = (int)($session->get('user_id') ?? 0);
+        $role = (string)($session->get('role') ?? '');
+
+        if (!$userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        // Supervisores y administradores mantienen permisos de edición.
+        if ($role !== '3') {
+            return true;
+        }
+
+        $rutaModel = new RutaModel();
+        $cuadrillaOperariosModel = new CuadrillaOperariosModel();
+
+        $vinculoRuta = RutaEjecucionHistorialService::findRutaReclamoLinkRutaAsignada($reclamoId);
+        if (! $vinculoRuta) {
+            return $this->failForbidden('El reclamo no está en ninguna hoja de ruta asignada a cuadrilla.');
+        }
+
+        $ruta = $rutaModel->find($vinculoRuta['ruta_id']);
+        if (!$ruta || (int)($ruta['asignada'] ?? 0) !== 1 || empty($ruta['cuadrilla_id'])) {
+            return $this->failForbidden('La hoja de ruta del reclamo no está asignada.');
+        }
+
+        $db = \Config\Database::connect();
+        $tieneEstadoEjecucion = $db->fieldExists('estado_ejecucion', 'ruta');
+        $estadoRuta = $tieneEstadoEjecucion
+            ? ($ruta['estado_ejecucion'] ?? 'asignada')
+            : 'asignada';
+
+        if ($estadoRuta !== 'en ejecución') {
+            return $this->failForbidden('La hoja de ruta está asignada, pero aún no inició su ejecución.');
+        }
+
+        $asignacion = $cuadrillaOperariosModel
+            ->where('usuario_id', $userId)
+            ->where('cuadrilla_id', $ruta['cuadrilla_id'])
+            ->first();
+
+        if (!$asignacion) {
+            return $this->failForbidden('No tiene permisos para editar tareas de esta cuadrilla.');
+        }
+
+        if ((int)($asignacion['es_jefe'] ?? 0) !== 1) {
+            return $this->failForbidden('Solo el jefe de cuadrilla puede editar las tareas de esta hoja de ruta.');
+        }
+
+        return true;
     }
 }

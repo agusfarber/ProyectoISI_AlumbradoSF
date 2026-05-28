@@ -33,12 +33,12 @@ class RutasApiTest extends CIUnitTestCase
     {
         // Datos de entrada para generar una ruta
         $data = [
-            'nombre' => 'Ruta de Prueba',
             'color' => '#FF6B35',
             'cantidadReclamos' => 2,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         // Realizar petición POST al endpoint de generación
@@ -65,8 +65,8 @@ class RutasApiTest extends CIUnitTestCase
         $this->assertArrayHasKey('asignada', $rutaData);
         $this->assertArrayHasKey('color', $rutaData);
         
-        // Verificar datos específicos
-        $this->assertEquals('Ruta de Prueba', $rutaData['nombre']);
+        // Verificar datos específicos (nombre asignado automáticamente)
+        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $rutaData['nombre']);
         $this->assertEquals('#FF6B35', $rutaData['color']);
         $this->assertEquals(2, $rutaData['cantidadReclamos']);
         $this->assertEquals(0, $rutaData['asignada']); // Debe estar no asignada
@@ -79,7 +79,7 @@ class RutasApiTest extends CIUnitTestCase
         $rutaModel = new RutaModel();
         $ruta = $rutaModel->find($rutaData['id']);
         $this->assertNotNull($ruta);
-        $this->assertEquals('Ruta de Prueba', $ruta['nombre']);
+        $this->assertEquals($rutaData['nombre'], $ruta['nombre']);
     }
 
     /**
@@ -95,7 +95,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         // Realizar petición POST al endpoint de generación
@@ -171,7 +172,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 1, // Solicitar solo 1 para este test específico
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         // Realizar petición POST al endpoint de generación
@@ -248,7 +250,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 5,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         $resultRuta1 = $this->withBodyFormat('json')
@@ -273,7 +276,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 6,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         $resultRuta2 = $this->withBodyFormat('json')
@@ -362,54 +366,30 @@ class RutasApiTest extends CIUnitTestCase
     }
 
     /**
-     * HU-020: Test de validación - Crear ruta sin nombre
+     * HU-020: Test de nombre automático incremental sin enviar nombre en el payload
      * Tipo: API
      */
-    public function testValidacionRutaSinNombre()
+    public function testGenerarRutaNombreAutomaticoIncremental()
     {
-        // Caso 1: Nombre vacío
-        $datosNombreVacio = [
-            'nombre' => '',
+        $datosBase = [
             'color' => '#FF6B35',
             'cantidadReclamos' => 2,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
-        $resultVacio = $this->withBodyFormat('json')
-                            ->post('/api/rutas/generar', $datosNombreVacio);
+        $result1 = $this->withBodyFormat('json')->post('/api/rutas/generar', $datosBase);
+        $result1->assertStatus(201);
+        $ruta1 = json_decode($result1->response()->getBody(), true)['ruta'];
+        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $ruta1['nombre']);
 
-        echo "\n=== INTENTO 1: NOMBRE VACÍO ===\n";
-        echo "Status: " . $resultVacio->response()->getStatusCode() . "\n";
-        echo "Body: " . $resultVacio->response()->getBody() . "\n";
-        echo "================================\n";
-
-        $resultVacio->assertStatus(400);
-        $responseVacio = json_decode($resultVacio->response()->getBody(), true);
-        $this->assertArrayHasKey('message', $responseVacio);
-
-        // Caso 2: Nombre null
-        $datosNombreNull = [
-            'nombre' => null,
-            'color' => '#FF6B35',
-            'cantidadReclamos' => 2,
-            'reclamosManuales' => [],
-            'primerReclamoManual' => null,
-            'modoManual' => false
-        ];
-
-        $resultNull = $this->withBodyFormat('json')
-                           ->post('/api/rutas/generar', $datosNombreNull);
-
-        echo "\n=== INTENTO 2: NOMBRE NULL ===\n";
-        echo "Status: " . $resultNull->response()->getStatusCode() . "\n";
-        echo "Body: " . $resultNull->response()->getBody() . "\n";
-        echo "==============================\n";
-
-        $resultNull->assertStatus(400);
-        $responseNull = json_decode($resultNull->response()->getBody(), true);
-        $this->assertArrayHasKey('message', $responseNull);
+        $result2 = $this->withBodyFormat('json')->post('/api/rutas/generar', $datosBase);
+        $result2->assertStatus(201);
+        $ruta2 = json_decode($result2->response()->getBody(), true)['ruta'];
+        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $ruta2['nombre']);
+        $this->assertNotEquals($ruta1['nombre'], $ruta2['nombre']);
     }
 
     /**
@@ -425,7 +405,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 0,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         $resultCero = $this->withBodyFormat('json')
@@ -457,7 +438,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => -5,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         $resultNegativa = $this->withBodyFormat('json')
@@ -507,7 +489,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => $cantidadExcesiva,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
 
         $result = $this->withBodyFormat('json')
@@ -555,7 +538,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 2,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear1 = $this->withBodyFormat('json')
@@ -572,7 +556,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear2 = $this->withBodyFormat('json')
@@ -620,10 +605,10 @@ class RutasApiTest extends CIUnitTestCase
             );
         }
         
-        // Verificar que las rutas específicas están en la lista por nombre
+        // Verificar que las rutas creadas están en la lista por nombre
         $nombresEnLista = array_column($response, 'nombre');
-        $this->assertContains('Ruta Test Listado 1', $nombresEnLista, 'Debe incluir la Ruta Test Listado 1');
-        $this->assertContains('Ruta Test Listado 2', $nombresEnLista, 'Debe incluir la Ruta Test Listado 2');
+        $this->assertContains($rutasCreadas[0]['nombre'], $nombresEnLista);
+        $this->assertContains($rutasCreadas[1]['nombre'], $nombresEnLista);
     }
 
     /**
@@ -639,7 +624,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear = $this->withBodyFormat('json')
@@ -670,7 +656,7 @@ class RutasApiTest extends CIUnitTestCase
         
         // Verificar que los valores coinciden con lo creado
         $this->assertEquals($rutaId, $response['id'], 'El ID debe coincidir');
-        $this->assertEquals('Ruta Test Detalles', $response['nombre'], 'El nombre debe coincidir');
+        $this->assertEquals($rutaCreada['nombre'], $response['nombre'], 'El nombre debe coincidir');
         $this->assertEquals(3, $response['cantidadReclamos'], 'La cantidad debe ser 3');
         $this->assertEquals('#FF6B35', $response['color'], 'El color debe coincidir');
         $this->assertEquals(0, $response['asignada'], 'Debe estar sin asignar');
@@ -690,7 +676,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 4,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear = $this->withBodyFormat('json')
@@ -802,7 +789,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 4,
             'reclamosManuales' => $reclamosSeleccionados,
             'primerReclamoManual' => null,
-            'modoManual' => true
+            'modoManual' => true,
+            'cuadrilla_id' => 1,
         ];
         
         $result = $this->withBodyFormat('json')
@@ -852,7 +840,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $result1 = $this->withBodyFormat('json')
@@ -890,7 +879,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => $reclamosConflictivos,
             'primerReclamoManual' => null,
-            'modoManual' => true
+            'modoManual' => true,
+            'cuadrilla_id' => 1,
         ];
         
         $result2 = $this->withBodyFormat('json')
@@ -944,7 +934,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 3,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear = $this->withBodyFormat('json')
@@ -1031,7 +1022,8 @@ class RutasApiTest extends CIUnitTestCase
             'cantidadReclamos' => 4,
             'reclamosManuales' => [],
             'primerReclamoManual' => null,
-            'modoManual' => false
+            'modoManual' => false,
+            'cuadrilla_id' => 1,
         ];
         
         $resultCrear = $this->withBodyFormat('json')
@@ -1048,7 +1040,7 @@ class RutasApiTest extends CIUnitTestCase
         $reclamosCreados = $responseCrear['reclamos'];
         $rutaId = $rutaCreada['id'];
         
-        $this->assertEquals('Ruta Test Flujo Completo', $rutaCreada['nombre']);
+        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $rutaCreada['nombre']);
         $this->assertEquals(4, $rutaCreada['cantidadReclamos']);
         $this->assertCount(4, $reclamosCreados, 'Debe tener 4 reclamos');
         
@@ -1062,7 +1054,7 @@ class RutasApiTest extends CIUnitTestCase
         
         // Verificar que los detalles coinciden con la ruta creada
         $this->assertEquals($rutaId, $responseDetalles['id']);
-        $this->assertEquals('Ruta Test Flujo Completo', $responseDetalles['nombre']);
+        $this->assertEquals($rutaCreada['nombre'], $responseDetalles['nombre']);
         $this->assertEquals(4, $responseDetalles['cantidadReclamos']);
         $this->assertEquals('#9C27B0', $responseDetalles['color']);
         $this->assertEquals(0, $responseDetalles['asignada'], 'Debe estar sin asignar');

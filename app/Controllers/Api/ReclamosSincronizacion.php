@@ -10,7 +10,7 @@ use App\Models\DireccionModel;
 class ReclamosSincronizacion extends ResourceController
 {
     protected $format = 'json';
-    private $apiExternaUrl = 'https://reclamostesting.sanfrancisco.gov.ar/api/3.0/reclamos/';
+    private $apiExternaUrl = 'https://reclamos.sanfrancisco.gov.ar/api/3.0/reclamos/';
     
     // API Keys para geocodificación
     private $googleMapsApiKey = 'AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg';
@@ -381,7 +381,7 @@ class ReclamosSincronizacion extends ResourceController
             $tokenBase64 = base64_encode($credencialesString);
 
             // Construir URL
-            $url = $this->apiExternaUrl . '/' . $numeroReclamo;
+            $url = rtrim($this->apiExternaUrl, '/') . '/' . $numeroReclamo;
 
             // Hacer petición a la API externa usando cURL
             $ch = curl_init();

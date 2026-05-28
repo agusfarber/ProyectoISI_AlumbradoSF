@@ -33,6 +33,7 @@ const app = Vue.createApp({
             syncFechaDesde: '',
             syncFechaHasta: '',
             numeroReclamo: '',
+            syncOpcionActiva: 'fechas',
             // Variables para progreso
             sincronizando: false,
             progresoActual: 0,
@@ -79,12 +80,33 @@ const app = Vue.createApp({
             this.tabla = $('#tabla_reclamos').DataTable({
                 data: this.reclamos,
                 responsive: true,
-                
+                pageLength: 30,
+                pagingType: 'simple_numbers',
+                lengthMenu: [
+                    [15, 30, 50, 100],
+                    ['15 por página', '30 por página', '50 por página', '100 por página']
+                ],
+                language: {
+                    processing: 'Procesando...',
+                    search: '',
+                    searchPlaceholder: 'Buscar reclamo...',
+                    lengthMenu: '_MENU_',
+                    zeroRecords: 'No se encontraron reclamos',
+                    emptyTable: 'Todavía no hay reclamos cargados',
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ reclamos',
+                    infoEmpty: 'Sin reclamos para mostrar',
+                    infoFiltered: '(filtrado de _MAX_ reclamos)',
+                    loadingRecords: 'Cargando...',
+                    paginate: {
+                        previous: 'Anterior',
+                        next: 'Siguiente'
+                    }
+                },
 
                 columns: [
                     {
                         data: 'municipalidad_id',
-                        className: 'text-start',
+                        className: 'text-start text-nowrap',
                         render: (data, type, row) => {
                             return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
                         }
@@ -95,17 +117,17 @@ const app = Vue.createApp({
                     },
                     {
                         data: 'municipalidad_fechaInicio',
-                        className: 'text-start',
+                        className: 'text-start text-nowrap',
                         render: (data) => this.formatearFecha(data)
                     },
                     {
                         data: 'municipalidad_fechaModificacion',
-                        className: 'text-start',
+                        className: 'text-start text-nowrap',
                         render: (data) => this.formatearFecha(data)
                     },
                     { 
                         data: 'municipalidad_estado',
-                        className: 'text-start',
+                        className: 'text-start text-nowrap',
                         render: (data, type, row) => {
                             // Si el reclamo está cerrado, mostrar "Cerrado" en lugar de "Completado"
                             if (row.cerrado == 1 && data === 'Completado') {
@@ -113,12 +135,13 @@ const app = Vue.createApp({
                             }
                             // Colorear según estado
                             const estadoClass = {
-                                'Recibido': 'bg-info',
-                                'Asignado': 'bg-primary',
+                                'Recibido': 'bg-secondary',
+                                'Asignado': 'bg-info text-dark',
+                                'Pendiente': 'bg-danger',
                                 'En ejecución': 'bg-warning text-dark',
                                 'Completado': 'bg-success',
                                 'En plan': 'bg-secondary',
-                                'Error de datos': 'bg-danger'
+                                'Error de datos': 'bg-secondary'
                             };
                             const badgeClass = estadoClass[data] || 'bg-secondary';
                             return `<span class="badge ${badgeClass}">${data}</span>`;
@@ -150,8 +173,16 @@ const app = Vue.createApp({
                     }
                     */
                 ],
+                columnDefs: [
+                    { defaultContent: '-', targets: '_all' }
+                ],
                 // Ordenamiento inicial por 'Fecha de Inicio' (columna 2) en orden descendente
-                order: [[2, 'desc']]
+                order: [[2, 'desc']],
+                initComplete: function () {
+                    const wrapper = $('#tabla_reclamos_wrapper');
+                    wrapper.find('.dt-length select').addClass('form-select form-select-sm');
+                    wrapper.find('.dt-search input').addClass('form-control form-control-sm').attr('aria-label', 'Buscar reclamo');
+                }
             });
 
             $('#tabla_reclamos tbody').off('click', '.ver-reclamo-id').on('click', '.ver-reclamo-id', (e) => {
@@ -436,6 +467,20 @@ const app = Vue.createApp({
                 console.error('Error al convertir fecha para BD:', error);
                 return fechaInput;
             }
+        },
+
+        /**
+         * Abre el panel de sincronización con la opción elegida desde el menú.
+         */
+        mostrarOpcionesSincronizacion(opcion) {
+            this.syncOpcionActiva = opcion;
+
+            this.$nextTick(() => {
+                const panel = document.getElementById('sincronizacionAvanzadaPanel');
+                if (panel && window.bootstrap) {
+                    bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
+                }
+            });
         },
 
         /**

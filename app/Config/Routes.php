@@ -39,6 +39,8 @@ $routes->get('api/reclamos/(:num)/materiales', 'Api\\Reclamos::getMaterialesRecl
 $routes->get('api/reclamos/materiales/(:num)/detalle', 'Api\\Reclamos::getDetalleMaterialReclamo/$1');
 $routes->get('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::getTiempoReparacion/$1');
 $routes->post('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::guardarTiempoReparacionEndpoint/$1');
+$routes->get('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::getEjecucionObservacionesReclamo/$1');
+$routes->post('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::guardarEjecucionObservacionReclamo/$1');
 $routes->get('api/reclamos/tiempos-promedio', 'Api\\Reclamos::getTiemposPromedio');
 $routes->resource('api/reclamos');
 // Endpoints para Tipos de Materiales
@@ -74,6 +76,12 @@ $routes->post('api/rutas/desasignar/(:num)', 'Api\\Rutas::desasignarDeCuadrilla/
 $routes->get('api/rutas/operario/mis-rutas', 'Api\\Rutas::getRutasPorOperario');
 $routes->get('api/rutas/operario/mis-reclamos', 'Api\\Rutas::getReclamosPorOperario');
 $routes->get('api/rutas/operario/reclamos-recibidos', 'Api\\Rutas::getReclamosRecibidos');
+$routes->post('api/rutas/operario/iniciar-ejecucion', 'Api\\Rutas::iniciarEjecucionOperario');
+$routes->post('api/rutas/operario/finalizar-ejecucion', 'Api\\Rutas::finalizarEjecucionOperario');
+$routes->post('api/rutas/operario/ejecucion-evento', 'Api\\Rutas::registrarEventoEjecucionOperario');
+$routes->get('api/rutas/(:num)/ejecucion-activa', 'Api\\Rutas::getEjecucionActiva/$1');
+$routes->get('api/rutas/ejecuciones/historial', 'Api\\Rutas::historialEjecuciones');
+$routes->get('api/rutas/ejecuciones/(:num)/detalle', 'Api\\Rutas::historialEjecucionDetalle/$1');
 $routes->post('api/rutas/operario/add-reclamo', 'Api\\Rutas::añadirReclamoARuta');
 $routes->resource('api/rutas');
 // Endpoint Cierre de Reclamos

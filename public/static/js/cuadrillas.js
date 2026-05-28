@@ -5,7 +5,8 @@ const app = Vue.createApp({
             cuadrillas: [],
             cuadrilla: {
                 nombre: '',
-                descripcion: ''
+                descripcion: '',
+                jefeOperarioId: ''
             },
             cuadrillaSeleccionada: '',
             operariosDisponiblesParaEdicion: [],
@@ -67,7 +68,12 @@ const app = Vue.createApp({
                         data: 'operarios',
                         render: (data) => {
                             if (data && data.length > 0) {
-                                return data.map(op => `<span class="badge bg-primary me-1 mb-1">${op.nombre}</span>`).join('');
+                                return data.map(op => {
+                                    const esJefe = Number(op.es_jefe) === 1;
+                                    const clase = esJefe ? 'bg-success' : 'bg-primary';
+                                    const icono = esJefe ? '<i class="bi bi-person-badge-fill text-white me-1"></i>' : '';
+                                    return `<span class="badge ${clase} me-1 mb-1">${icono}${op.nombre}</span>`;
+                                }).join('');
                             }
                             return '<span class="text-muted">Sin operarios asignados</span>';
                         }
@@ -185,7 +191,8 @@ const app = Vue.createApp({
         abrirFormulario() {
             this.cuadrilla = {
                 nombre: '',
-                descripcion: ''
+                descripcion: '',
+                jefeOperarioId: ''
             };
             new bootstrap.Modal(document.getElementById('modalCuadrilla')).show();
         },
@@ -200,6 +207,8 @@ const app = Vue.createApp({
             }
 
             this.cuadrilla = { ...cuadrilla };
+            const jefeActual = (this.cuadrilla.operarios || []).find(op => Number(op.es_jefe) === 1);
+            this.cuadrilla.jefeOperarioId = jefeActual ? jefeActual.id : '';
             
             // Cargar operarios disponibles para edición (excluyendo los ya asignados)
             await this.cargarOperariosDisponiblesParaEdicion();
@@ -288,10 +297,16 @@ const app = Vue.createApp({
                 if (!esNuevo) {
                     const operariosIds = this.cuadrilla.operarios ? 
                         this.cuadrilla.operarios.map(op => op.id).filter(id => id !== undefined && id !== null) : [];
+
+                    if (operariosIds.length > 0 && !this.cuadrilla.jefeOperarioId) {
+                        this.mostrarMensaje('Debe seleccionar un jefe de cuadrilla', 'warning');
+                        return;
+                    }
                     
                     await axios.post(BASE_URL + 'api/cuadrillas/asignar', {
                         cuadrillaId: this.cuadrilla.id,
-                        operarios: operariosIds
+                        operarios: operariosIds,
+                        jefeOperarioId: this.cuadrilla.jefeOperarioId || null
                     });
                 }
                 
@@ -299,7 +314,7 @@ const app = Vue.createApp({
                 bootstrap.Modal.getInstance(document.getElementById('modalCuadrilla')).hide();
                 
                 // Limpiar formulario
-                this.cuadrilla = { nombre: '', descripcion: '' };
+                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '' };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
                 
@@ -394,7 +409,7 @@ const app = Vue.createApp({
                 await this.obtenerCuadrillas();
                 
                 // Limpiar formulario
-                this.cuadrilla = { nombre: '', descripcion: '' };
+                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '' };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
                 
@@ -469,6 +484,7 @@ const app = Vue.createApp({
                     if (!this.cuadrilla.operarios) {
                         this.cuadrilla.operarios = [];
                     }
+                    operario.es_jefe = 0;
                     this.cuadrilla.operarios.push(operario);
                 }
             });
@@ -481,11 +497,30 @@ const app = Vue.createApp({
 
         // Quitar operario de la cuadrilla
         quitarOperario(operarioId) {
+            if (Number(this.cuadrilla.jefeOperarioId) === Number(operarioId)) {
+                this.cuadrilla.jefeOperarioId = '';
+            }
             // Eliminar operario del array local directamente sin confirmación
             this.cuadrilla.operarios = this.cuadrilla.operarios.filter(op => op.id !== operarioId);
             // Recargar operarios disponibles para mostrar el operario removido
             this.cargarOperariosDisponiblesParaEdicion();
             this.mostrarMensaje('Operario removido correctamente', 'success');
+        },
+
+        // Asignar/Quitar jefe de cuadrilla desde la fila del operario
+        toggleJefeOperario(operarioId) {
+            if (Number(this.cuadrilla.jefeOperarioId) === Number(operarioId)) {
+                this.cuadrilla.jefeOperarioId = '';
+                this.mostrarMensaje('Jefe de cuadrilla removido', 'warning');
+                return;
+            }
+
+            this.cuadrilla.jefeOperarioId = operarioId;
+            this.mostrarMensaje('Jefe de cuadrilla asignado correctamente', 'success');
+        },
+
+        esJefeOperario(operarioId) {
+            return Number(this.cuadrilla.jefeOperarioId) === Number(operarioId);
         },
 
         /**

@@ -1,5 +1,301 @@
 /* Estilos para la página de Tareas */
 
+@import url('rutas.css');
+
+/* Tarjetas de hojas de ruta — operario (reutiliza layout supervisor) */
+
+.operario-ruta-card--mi-cuadrilla {
+    border-width: 2px;
+    border-color: #198754 !important;
+    box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.22);
+}
+
+.operario-ruta-card--mi-cuadrilla:hover {
+    border-color: #157347 !important;
+}
+
+.operario-ruta-card__cuadrilla-mia {
+    color: #0f5132;
+    font-weight: 700;
+}
+
+.operario-ruta-card__cuadrilla-ico {
+    font-size: 0.9rem;
+    color: #198754;
+    flex-shrink: 0;
+}
+
+.ruta-panel-bloque {
+    cursor: pointer;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.ruta-panel-bloque:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.ruta-panel-bloque--seleccionada {
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.15);
+}
+
+.ruta-panel-bloque--mi-cuadrilla {
+    border-width: 2px;
+    border-color: #198754 !important;
+}
+
+.ruta-panel-titulo {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    padding: 0.65rem 1rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.3;
+    min-width: 0;
+}
+
+.ruta-panel-titulo-nombre {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.ruta-panel-titulo-recuenta {
+    flex: 0 0 auto;
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0.92;
+    white-space: nowrap;
+    align-self: center;
+}
+
+.ruta-panel-cuadrilla-nombre {
+    margin-left: 0.15rem;
+}
+
+.ruta-panel-mi-cuadrilla-ico {
+    margin-left: 0.35rem;
+    font-size: 1rem;
+    color: #198754;
+    vertical-align: -0.1em;
+}
+
+.ruta-panel-subcabecera {
+    background-color: #f8f9fa;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid #dee2e6;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    color: #495057;
+}
+
+.ruta-panel-cuadrilla-linea {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+}
+
+.ruta-panel-cuadrilla-texto {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ruta-panel-estado-inline {
+    flex: 0 0 auto;
+}
+
+.ruta-detalle-encabezado {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ruta-detalle-fila-superior,
+.ruta-detalle-fila-acciones {
+    min-width: 0;
+}
+
+.ruta-detalle-titulo {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: fit-content;
+    max-width: min(100%, 28rem);
+    display: inline-block;
+    padding: 0.45rem 0.85rem;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.25;
+    border-radius: 0.375rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.ruta-detalle-btns-navegacion {
+    flex: 0 0 auto;
+}
+
+.ruta-detalle-acciones-ejecucion {
+    flex: 0 0 auto;
+}
+
+.ruta-detalle-pill {
+    display: inline-block;
+    padding: 0.35rem 0.85rem;
+    font-size: 0.875rem;
+    color: #495057;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 2rem;
+    max-width: 100%;
+}
+
+.ruta-detalle-estado-grupo {
+    flex: 0 0 auto;
+}
+
+.cronometro-ejecucion {
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+}
+
+.ruta-secuencia-container {
+    max-width: 720px;
+    margin: 0 auto 1rem auto;
+}
+
+.reclamo-card-secuencia {
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.reclamo-card-secuencia .card-body {
+    padding: 0.35rem 0.5rem !important;
+}
+
+.ruta-secuencia-cardbody {
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+}
+
+.ruta-secuencia-fila {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+}
+
+.ruta-secuencia-toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-left: auto;
+    max-width: 58%;
+}
+
+.ruta-secuencia-crono-reparacion {
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    padding: 0.32em 0.5em;
+    flex-shrink: 0;
+}
+
+.ruta-secuencia-main {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.ruta-secuencia-id {
+    flex: 0 0 auto;
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #0d6efd;
+    font-variant-numeric: tabular-nums;
+}
+
+.ruta-secuencia-calle {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.8rem;
+    line-height: 1.25;
+    color: #212529;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ruta-secuencia-calle-ico {
+    margin-right: 0.15rem;
+    opacity: 0.65;
+    font-size: 0.75rem;
+}
+
+.ruta-secuencia-btn-acciones {
+    flex: 0 0 auto;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+@media (max-width: 420px) {
+    .ruta-secuencia-btn-text {
+        display: none;
+    }
+
+    .ruta-secuencia-btn-iniciar-text,
+    .ruta-secuencia-btn-continuar-text {
+        display: none;
+    }
+
+    .ruta-secuencia-btn-finalizar-text {
+        display: none;
+    }
+
+    .ruta-secuencia-btn-cierre-text {
+        display: none;
+    }
+
+    .ruta-secuencia-toolbar {
+        max-width: 65%;
+    }
+}
+
+.ruta-secuencia-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.ruta-secuencia-flecha {
+    text-align: center;
+    color: #0d6efd;
+    font-size: 0.75rem;
+    line-height: 1;
+    margin: 0.15rem 0 0.35rem;
+}
+
 .reclamo-card {
     transition: all 0.3s ease;
     cursor: pointer;
@@ -56,7 +352,7 @@
 }
 
 .reclamo-card.border-danger {
-    border-left-color: #FF0000; /* Rojo para Asignado */
+    border-left-color: #FF0000; /* Rojo para Pendiente */
 }
 
 .reclamo-card.border-secondary {
@@ -177,7 +473,7 @@ body #app.container-fluid .badge.bg-success {
 }
 
 .badge.bg-danger {
-    background-color: #FF0000 !important; /* Rojo para Asignado */
+    background-color: #FF0000 !important; /* Rojo para Pendiente */
 }
 
 .badge.bg-secondary {
@@ -229,7 +525,7 @@ body #app.container-fluid .badge.bg-success {
 
 /* Sobrescribir el estilo global de .text-danger en el modal de rutas para eliminar el fondo rosa */
 .rutas-reclamos-scroll .text-danger {
-    color: #FF0000 !important; /* Rojo para Asignado */
+    color: #FF0000 !important; /* Rojo para Pendiente */
     background: transparent !important; /* Eliminar el fondo rosa */
     border-left: none !important; /* Eliminar el borde izquierdo */
     padding: 0 !important; /* Eliminar el padding */
@@ -251,7 +547,7 @@ body #app.container-fluid .badge.bg-success {
 
 /* Asegurar que los badges mantengan sus colores correctos */
 .rutas-reclamos-scroll .badge.bg-danger {
-    background-color: #FF0000 !important; /* Rojo para Asignado */
+    background-color: #FF0000 !important; /* Rojo para Pendiente */
     color: #fff !important;
 }
 
@@ -371,7 +667,7 @@ body #app.container-fluid .badge.bg-success {
 }
 
 #modalAcciones .badge.bg-danger {
-    background-color: #FF0000 !important; /* Rojo para Asignado */
+    background-color: #FF0000 !important; /* Rojo para Pendiente */
     color: #fff !important;
 }
 
@@ -615,4 +911,19 @@ body #app.container-fluid .badge.bg-success {
 
 .btn-success.animating {
     animation: pulse-success 1.5s infinite;
+}
+
+/* InfoWindow mapa detalle hoja (operario) */
+.map-detalle-iw {
+    max-width: 300px;
+    font-size: 0.9rem;
+}
+.map-detalle-iw-acciones .btn {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.42rem;
+    line-height: 1.2;
+}
+.map-detalle-iw-crono {
+    font-size: 0.68rem;
+    padding: 0.28em 0.45em;
 }

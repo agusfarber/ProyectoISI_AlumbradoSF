@@ -100,6 +100,11 @@ class CreateTestTables extends Migration
                 'constraint' => 11,
                 'unsigned' => true,
             ],
+            'es_jefe' => [
+                'type' => 'TINYINT',
+                'constraint' => 1,
+                'default' => 0,
+            ],
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addForeignKey('cuadrilla_id', 'cuadrilla', 'id', 'CASCADE', 'CASCADE');
@@ -265,6 +270,77 @@ class CreateTestTables extends Migration
         $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('ruta_reclamo');
 
+        $this->forge->addField([
+            'id' => [
+                'type'           => 'INT',
+                'constraint'     => 11,
+                'unsigned'       => true,
+                'auto_increment' => true,
+            ],
+            'ruta_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+            ],
+            'cuadrilla_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+                'null'       => true,
+            ],
+            'inicio_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'fin_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->createTable('ruta_ejecucion');
+
+        $this->forge->addField([
+            'id' => [
+                'type'           => 'INT',
+                'constraint'     => 11,
+                'unsigned'       => true,
+                'auto_increment' => true,
+            ],
+            'ruta_ejecucion_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+            ],
+            'tipo' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 64,
+            ],
+            'reclamo_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+                'null'       => true,
+            ],
+            'usuario_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+                'null'       => true,
+            ],
+            'ocurrido_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'metadata' => [
+                'type' => 'TEXT',
+                'null' => true,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addForeignKey('ruta_ejecucion_id', 'ruta_ejecucion', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->createTable('ruta_ejecucion_evento');
+
         // Crear tabla tipo_material para los tests
         $this->forge->addField([
             'id' => [
@@ -353,6 +429,49 @@ class CreateTestTables extends Migration
         // Usuario_id puede ser NULL (sistema) o referenciar un usuario existente
         // No agregamos foreign key porque el código usa 0 para sistema y necesitamos permitir NULL
         $this->forge->createTable('material_reclamo');
+
+        $this->forge->addField([
+            'id' => [
+                'type'           => 'INT',
+                'constraint'     => 11,
+                'unsigned'       => true,
+                'auto_increment' => true,
+            ],
+            'ruta_ejecucion_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+            ],
+            'ruta_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+            ],
+            'reclamo_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+            ],
+            'texto' => [
+                'type' => 'TEXT',
+            ],
+            'usuario_id' => [
+                'type'       => 'INT',
+                'constraint' => 11,
+                'unsigned'   => true,
+                'null'       => true,
+            ],
+            'created_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+        ]);
+        $this->forge->addKey('id', true);
+        $this->forge->addKey(['ruta_ejecucion_id', 'reclamo_id']);
+        $this->forge->addForeignKey('ruta_ejecucion_id', 'ruta_ejecucion', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('ruta_id', 'ruta', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
+        $this->forge->createTable('ruta_ejecucion_reclamo_observacion');
 
         // Crear tabla token103 para credenciales de API externa
         $this->forge->addField([
@@ -505,9 +624,12 @@ class CreateTestTables extends Migration
         $this->forge->dropTable('tiempo_reparacion', true);
         $this->forge->dropTable('historial_reclamo', true);
         $this->forge->dropTable('token103', true);
+        $this->forge->dropTable('ruta_ejecucion_reclamo_observacion', true);
         $this->forge->dropTable('material_reclamo', true);
         $this->forge->dropTable('material', true);
         $this->forge->dropTable('tipo_material', true);
+        $this->forge->dropTable('ruta_ejecucion_evento', true);
+        $this->forge->dropTable('ruta_ejecucion', true);
         $this->forge->dropTable('ruta_reclamo', true);
         $this->forge->dropTable('ruta', true);
         $this->forge->dropTable('direccion', true);
