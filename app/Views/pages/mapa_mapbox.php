@@ -1,92 +1,124 @@
-<div id="app" class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>Mapa de Reclamos - Mapbox</div>
-        <div class="d-flex gap-2">
-            <!-- Filtro por estado 
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-funnel"></i> Filtrar por Estado
-                </button>
-                <div class="dropdown-menu" style="min-width: 200px; font-size: 0.6em; padding: 10px;">
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="filtroTodos" @change="toggleTodosEstados" :checked="estadosSeleccionados.length === 0">
-                        <label class="form-check-label" for="filtroTodos">
-                            <i class="bi bi-eye"></i> Mostrar Todos
-                        </label>
-                    </div>
-                    <hr class="dropdown-divider">
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroRecibido" value="Recibido" @change="toggleEstado" :checked="estadosSeleccionados.includes('Recibido')">
-                        <label class="form-check-label" for="filtroRecibido">
-                            ⚫ Recibido
-                        </label>
-                    </div>
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroAsignado" value="Asignado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Asignado')">
-                        <label class="form-check-label" for="filtroAsignado">
-                            🔴 Asignado
-                        </label>
-                    </div>
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroEnEjecucion" value="En ejecución" @change="toggleEstado" :checked="estadosSeleccionados.includes('En ejecución')">
-                        <label class="form-check-label" for="filtroEnEjecucion">
-                            🟡 En ejecución
-                        </label>
-                    </div>
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroCompletado" value="Completado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Completado')">
-                        <label class="form-check-label" for="filtroCompletado">
-                            🟢 Completado
-                        </label>
-                    </div>
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroEnPlan" value="En plan" @change="toggleEstado" :checked="estadosSeleccionados.includes('En plan')">
-                        <label class="form-check-label" for="filtroEnPlan">
-                            ⚫ En plan
-                        </label>
-                    </div>
-                    <div class="form-check mb-1">
-                        <input class="form-check-input" type="checkbox" id="filtroErrorDatos" value="Error de datos" @change="toggleEstado" :checked="estadosSeleccionados.includes('Error de datos')">
-                        <label class="form-check-label" for="filtroErrorDatos">
-                            ⚫ Error de datos
-                        </label>
-                    </div>
-                </div>
-            </div-->
-            <a href="<?= base_url('/mapa_google'); ?>" class="btn btn-success">
-                <i class="bi bi-geo-alt-fill text-white"></i> Cambiar a Google Maps
-            </a>
-        </div>
-    </div>
+<script>
+    document.body.classList.add('pagina-mapa-reclamos');
+</script>
 
-    <div class="row">
-        <!-- Mapa a la izquierda -->
-        <div class="col-lg-8">
-            <div id="map" style="width: 100%; height: calc(100vh - 200px); min-height: 500px;"></div>
-        </div>
-        
-        <!-- Tabla de reclamos a la derecha -->
-        <div class="col-lg-4">
-            <div class="card h-100">
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: calc(100vh - 200px); overflow-y: auto;">
-                        <table id="tabla_reclamos_mapa" class="table table-bordered table-hover table-sm mb-0">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Domicilio</th>
-                                    <th>Número</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Contenido de la tabla gestionado por DataTables -->
-                            </tbody>
-                        </table>
+<div id="app" class="container-fluid">
+    <div class="mapa-reclamos-contenedor">
+                <div class="mapa-reclamos-toolbar">
+                    <a href="<?= base_url('/mapa_google'); ?>" class="btn btn-sm btn-success shadow-sm mapa-cambiar-proveedor-btn">
+                        <i class="bi bi-geo-alt-fill text-white"></i>
+                        <span class="d-none d-md-inline">Google Maps</span>
+                    </a>
+                    <button type="button"
+                            class="btn btn-sm btn-light shadow-sm mapa-lista-toggle"
+                            @click.stop="mostrarListaReclamosMapa = !mostrarListaReclamosMapa"
+                            title="Mostrar u ocultar reclamos visibles">
+                        <i class="bi bi-list-ul"></i>
+                        <span class="d-none d-md-inline">Reclamos</span>
+                    </button>
+                    <?php if (in_array((string)($userRole ?? ''), ['1', '2', '3'], true)): ?>
+                    <button type="button"
+                            class="btn btn-sm btn-light shadow-sm mapa-exportar-imagen-btn"
+                            @click.stop="exportarMapaImagen"
+                            :disabled="exportandoMapa"
+                            title="Exportar vista del mapa como imagen">
+                        <i class="bi bi-download"></i>
+                        <span class="d-none d-md-inline">Exportar</span>
+                    </button>
+                    <?php endif; ?>
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-light shadow-sm dropdown-toggle mapa-filtro-prioridad-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                            <i class="bi bi-exclamation-triangle"></i> Filtrar por Prioridad
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end mapa-filtro-prioridad-menu p-2">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="filtroTodasPrioridades" @change="toggleTodasPrioridades" :checked="prioridadesSeleccionadas.length === 0">
+                                <label class="form-check-label" for="filtroTodasPrioridades">
+                                    <i class="bi bi-eye"></i> Mostrar todas
+                                </label>
+                            </div>
+                            <hr class="dropdown-divider my-2">
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="filtroPrioridadAlta" value="Alta" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Alta')">
+                                <label class="form-check-label" for="filtroPrioridadAlta">🔺 Alta</label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="filtroPrioridadBaja" value="Baja" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Baja')">
+                                <label class="form-check-label" for="filtroPrioridadBaja">🔻 Baja</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-light shadow-sm dropdown-toggle mapa-filtro-estados-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                            <i class="bi bi-funnel"></i> Filtrar por Estado
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end mapa-filtro-estados-menu p-2">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="filtroTodos" @change="toggleTodosEstados" :checked="estadosSeleccionados.length === 0">
+                                <label class="form-check-label" for="filtroTodos">
+                                    <i class="bi bi-eye"></i> Mostrar todos
+                                </label>
+                            </div>
+                            <hr class="dropdown-divider my-2">
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="filtroRecibido" value="Recibido" @change="toggleEstado" :checked="estadosSeleccionados.includes('Recibido')">
+                                <label class="form-check-label" for="filtroRecibido">⚫ Recibido</label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="filtroAsignado" value="Asignado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Asignado')">
+                                <label class="form-check-label" for="filtroAsignado">🔵 Asignado</label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="filtroPendiente" value="Pendiente" @change="toggleEstado" :checked="estadosSeleccionados.includes('Pendiente')">
+                                <label class="form-check-label" for="filtroPendiente">🔴 Pendiente</label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input" type="checkbox" id="filtroEnEjecucion" value="En ejecución" @change="toggleEstado" :checked="estadosSeleccionados.includes('En ejecución')">
+                                <label class="form-check-label" for="filtroEnEjecucion">🟡 En ejecución</label>
+                            </div>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="filtroCompletado" value="Completado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Completado')">
+                                <label class="form-check-label" for="filtroCompletado">🟢 Completado</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+                <div v-show="mostrarListaReclamosMapa" class="mapa-reclamos-lista-overlay shadow">
+                    <div class="mapa-reclamos-lista-header">
+                        <strong>Reclamos visibles</strong>
+                        <span class="badge bg-secondary">{{ reclamosVisiblesMapa.length }}</span>
+                        <button type="button" class="btn-close btn-close-sm ms-auto" @click="mostrarListaReclamosMapa = false" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="mapa-reclamos-lista-search">
+                        <input
+                            type="search"
+                            class="form-control form-control-sm"
+                            v-model="busquedaReclamosMapa"
+                            placeholder="Buscar por ID, calle o motivo..."
+                        >
+                    </div>
+                    <div class="mapa-reclamos-lista-body">
+                        <button
+                            v-for="reclamo in reclamosVisiblesMapa"
+                            :key="reclamo.id"
+                            type="button"
+                            class="mapa-reclamos-lista-item"
+                            @click="resaltarReclamoEnMapa(reclamo)"
+                        >
+                            <span class="mapa-reclamos-lista-icon" :style="{ backgroundColor: colorEstadoReclamo(reclamo.municipalidad_estado) }">
+                                {{ iconoMotivoReclamo(reclamo.municipalidad_motivo) }}
+                            </span>
+                            <span class="mapa-reclamos-lista-text">
+                                <strong>#{{ reclamo.municipalidad_id }}</strong>
+                                <small>{{ reclamo.municipalidad_domicilio || 'Sin domicilio' }} {{ reclamo.municipalidad_numeroDomicilio || '' }}</small>
+                            </span>
+                        </button>
+                        <p v-if="reclamosVisiblesMapa.length === 0" class="text-muted small text-center my-3">
+                            No hay reclamos visibles con los filtros actuales.
+                        </p>
+                    </div>
+                </div>
+                <div id="map"></div>
     </div>
 
     <!-- Modal Ver Detalles Reclamo -->

@@ -1,3 +1,115 @@
+/* Exportación de mapa — ver mapa_export_imagen.js */
+if (!window.MapaExportImagen) {
+    window.MapaExportImagen = {
+        colorMarcadorPorEstado(estado) {
+            if (estado === 'Recibido') return '#808080';
+            if (estado === 'Asignado') return '#0DCAF0';
+            if (estado === 'Pendiente') return '#FF0000';
+            if (estado === 'En ejecución') return '#FFD700';
+            if (estado === 'Completado') return '#198754';
+            return '#808080';
+        },
+        generarNombreArchivo(prefijo = 'mapa-reclamos') {
+            const ahora = new Date();
+            const fecha = ahora.toISOString().slice(0, 10);
+            const hora = String(ahora.getHours()).padStart(2, '0')
+                + String(ahora.getMinutes()).padStart(2, '0')
+                + String(ahora.getSeconds()).padStart(2, '0');
+            return `${prefijo}-${fecha}-${hora}.png`;
+        },
+        descargarDataUrl(dataUrl, nombreArchivo) {
+            const link = document.createElement('a');
+            link.download = nombreArchivo;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        },
+        esperarMapaListo(map) {
+            return new Promise((resolve) => {
+                const finalizar = () => resolve();
+                const timeout = window.setTimeout(finalizar, 4000);
+                const alListo = () => {
+                    window.clearTimeout(timeout);
+                    if (typeof map.triggerRepaint === 'function') map.triggerRepaint();
+                    if (typeof map.once === 'function') {
+                        map.once('render', finalizar);
+                        window.setTimeout(finalizar, 500);
+                    } else finalizar();
+                };
+                if (map.loaded && map.loaded()) { alListo(); return; }
+                map.once('idle', alListo);
+            });
+        },
+        esMapaMapbox(map) {
+            return !!(map && typeof map.getCanvas === 'function');
+        },
+        marcadorMapboxVisible(marker, debeMostrarMarcador) {
+            const reclamo = marker._reclamo;
+            if (!reclamo || typeof debeMostrarMarcador !== 'function') return false;
+            if (!debeMostrarMarcador(reclamo)) return false;
+            const elemento = marker.getElement();
+            return !!(elemento && elemento.style.display !== 'none');
+        },
+        async exportarMapbox(map, marcadores, debeMostrarMarcador) {
+            await this.esperarMapaListo(map);
+            const mapCanvas = map.getCanvas();
+            const contenedor = map.getContainer();
+            const escalaX = mapCanvas.width / contenedor.clientWidth;
+            const escalaY = mapCanvas.height / contenedor.clientHeight;
+            const composite = document.createElement('canvas');
+            composite.width = mapCanvas.width;
+            composite.height = mapCanvas.height;
+            const ctx = composite.getContext('2d');
+            if (!ctx) throw new Error('No se pudo preparar el lienzo de exportación');
+            ctx.drawImage(mapCanvas, 0, 0);
+            marcadores.forEach((marker) => {
+                if (!this.marcadorMapboxVisible(marker, debeMostrarMarcador)) return;
+                const reclamo = marker._reclamo;
+                const punto = map.project(marker.getLngLat());
+                const x = punto.x * escalaX;
+                const y = punto.y * escalaY;
+                const radio = 9 * Math.max(escalaX, escalaY);
+                const color = this.colorMarcadorPorEstado(reclamo.municipalidad_estado || 'Recibido');
+                ctx.beginPath();
+                ctx.arc(x, y, radio, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2 * Math.max(escalaX, escalaY);
+                ctx.stroke();
+            });
+            return composite.toDataURL('image/png');
+        },
+        esperarGoogleMapListo(googleMap) {
+            return new Promise((resolve) => {
+                if (!googleMap || !window.google?.maps?.event) {
+                    window.setTimeout(resolve, 500);
+                    return;
+                }
+                const timeout = window.setTimeout(resolve, 4000);
+                google.maps.event.addListenerOnce(googleMap, 'idle', () => {
+                    window.clearTimeout(timeout);
+                    window.setTimeout(resolve, 300);
+                });
+            });
+        },
+        async exportarGoogle(elementoMapa, googleMap) {
+            if (typeof html2canvas === 'undefined') throw new Error('La librería de captura no está disponible');
+            if (!elementoMapa) throw new Error('No se encontró el contenedor del mapa');
+            await this.esperarGoogleMapListo(googleMap);
+            const canvas = await html2canvas(elementoMapa, {
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#e5e3df',
+                scale: Math.min(window.devicePixelRatio || 1, 2),
+                logging: false
+            });
+            return canvas.toDataURL('image/png');
+        }
+    };
+}
+
 window.app = Vue.createApp({
     data() {
         return {
@@ -12,11 +124,103 @@ window.app = Vue.createApp({
             direcciones: [], // Cache de direcciones personalizadas
             ubicacionPersonalizada: null, // Para almacenar la ubicación personalizada actual
             filtroEstado: '', // Filtro por estado del reclamo (deprecated)
-            estadosSeleccionados: [], // Array de estados seleccionados para filtrado múltiple
-            cacheCoordenadasReclamos: {} // OPTIMIZACIÓN: Cache de coordenadas por reclamo ID
+            estadosSeleccionados: ['Recibido', 'Asignado', 'Pendiente', 'En ejecución'], // Por defecto sin Completado
+            prioridadesSeleccionadas: ['Alta', 'Baja'], // Por defecto ambas prioridades del filtro
+            exportandoMapa: false,
+            cacheCoordenadasReclamos: {}, // OPTIMIZACIÓN: Cache de coordenadas por reclamo ID
+            mostrarListaReclamosMapa: false,
+            busquedaReclamosMapa: ''
         };
     },
+    computed: {
+        reclamosVisiblesMapa() {
+            const busqueda = this.normalizarTextoBusqueda(this.busquedaReclamosMapa);
+            const reclamosVisibles = this.marcadores
+                .map(marker => marker._reclamo)
+                .filter(reclamo => reclamo && this.debeMostrarMarcador(reclamo));
+
+            if (!busqueda) {
+                return reclamosVisibles;
+            }
+
+            return reclamosVisibles.filter(reclamo => {
+                const texto = this.normalizarTextoBusqueda([
+                    reclamo.municipalidad_id,
+                    reclamo.municipalidad_motivo,
+                    reclamo.municipalidad_estado,
+                    reclamo.municipalidad_domicilio,
+                    reclamo.municipalidad_numeroDomicilio
+                ].join(' '));
+
+                return texto.includes(busqueda);
+            });
+        }
+    },
     methods: {
+        normalizarTextoBusqueda(texto) {
+            return (texto || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .trim();
+        },
+
+        normalizarMotivoReclamo(motivo) {
+            return (motivo || '')
+                .toString()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+        },
+
+        colorEstadoReclamo(estado) {
+            if (estado === 'Recibido') return '#808080';
+            if (estado === 'Asignado') return '#0DCAF0';
+            if (estado === 'Pendiente') return '#FF0000';
+            if (estado === 'En ejecución') return '#FFD700';
+            if (estado === 'Completado') return '#198754';
+            return '#808080';
+        },
+
+        iconoMotivoReclamo(motivo) {
+            const motivoNormalizado = this.normalizarMotivoReclamo(motivo);
+
+            if (motivoNormalizado.includes('semaforo')) return '🚦';
+            if (motivoNormalizado.includes('rama')) return '🌳';
+            if (motivoNormalizado.includes('cable')) return '🔌';
+            if (motivoNormalizado.includes('poste')) return '⚠️';
+            if (motivoNormalizado.includes('columna')) return '⚠️';
+            if (motivoNormalizado.includes('agotada')) return '💡';
+            if (motivoNormalizado.includes('quemada') || motivoNormalizado.includes('rota')) return '💡';
+
+            return '💡';
+        },
+
+        escaparTextoSvg(texto) {
+            return (texto || '')
+                .toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        },
+
+        crearElementoMarcadorMotivo(color, motivo) {
+            const iconoMotivo = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+            const elemento = document.createElement('div');
+            elemento.className = 'mapa-motivo-marker';
+            elemento.title = motivo || 'Reclamo';
+            elemento.innerHTML = `
+                <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M16 2.5C10.75 2.5 6.5 6.75 6.5 12c0 7.1 9.5 17.5 9.5 17.5S25.5 19.1 25.5 12C25.5 6.75 21.25 2.5 16 2.5Z" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
+                    <circle cx="16" cy="12" r="7.4" fill="#FFFFFF" opacity="0.94"/>
+                    <text x="16.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif" font-size="12">${iconoMotivo}</text>
+                </svg>
+            `;
+            return elemento;
+        },
+
         waitForMapbox() {
             return new Promise((resolve, reject) => {
                 const start = Date.now();
@@ -182,6 +386,7 @@ window.app = Vue.createApp({
             let contadorEstados = {
                 'Recibido': 0,
                 'Asignado': 0,
+                'Pendiente': 0,
                 'En ejecución': 0,
                 'Completado': 0,
                 'En plan': 0,
@@ -207,7 +412,7 @@ window.app = Vue.createApp({
 
                     // Crear el contenido del popup
                     const popupContent = `
-                        <div style="min-width: 200px;">
+                        <div class="mapa-popup-reclamo">
                             <h6 style="margin-bottom: 8px;"><strong>Reclamo #${reclamo.municipalidad_id}</strong></h6>
                             <p style="margin-bottom: 4px;"><strong>Motivo:</strong> ${reclamo.municipalidad_motivo || 'No especificado'}</p>
                             <p style="margin-bottom: 4px;"><strong>Estado:</strong> ${reclamo.municipalidad_estado || 'No especificado'}</p>
@@ -215,22 +420,46 @@ window.app = Vue.createApp({
                             <p style="margin-bottom: 4px;"><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
                             <p style="margin-bottom: 4px;"><strong>Fecha:</strong> ${this.formatearFecha(reclamo.municipalidad_fechaInicio)}</p>
                             <p style="margin-bottom: 4px;"><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
-                            
+                            <div class="mapa-popup-acciones d-flex gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-warning mapa-popup-reubicar" data-reclamo-id="${reclamo.id}">
+                                    <i class="bi bi-geo-alt"></i> Reubicar
+                                </button>
+                                <button type="button" class="btn btn-sm btn-primary mapa-popup-detalle" data-reclamo-id="${reclamo.id}">
+                                    <i class="bi bi-card-text text-white"></i> Ver detalle
+                                </button>
+                            </div>
                         </div>
                     `;
 
                     // Crear el marcador con color según estado del reclamo
                     let color = '#808080'; // Gris por defecto
                     if (reclamo.municipalidad_estado === 'Recibido') color = '#808080'; // Gris
-                    else if (reclamo.municipalidad_estado === 'Asignado') color = '#FF0000'; // Rojo
+                    else if (reclamo.municipalidad_estado === 'Asignado') color = '#0DCAF0'; // Celeste
+                    else if (reclamo.municipalidad_estado === 'Pendiente') color = '#FF0000'; // Rojo
                     else if (reclamo.municipalidad_estado === 'En ejecución') color = '#FFD700'; // Amarillo
                     else if (reclamo.municipalidad_estado === 'Completado') color = '#198754'; // Verde Bootstrap success
                     else if (reclamo.municipalidad_estado === 'En plan') color = '#808080'; // Gris
                     else if (reclamo.municipalidad_estado === 'Error de datos') color = '#808080'; // Gris
 
-                    const marker = new mapboxgl.Marker({ color: color })
+                    const popup = new mapboxgl.Popup().setHTML(popupContent);
+                    popup.on('open', () => {
+                        const btnReubicar = document.querySelector(`.mapa-popup-reubicar[data-reclamo-id="${reclamo.id}"]`);
+                        if (btnReubicar) {
+                            btnReubicar.onclick = () => this.iniciarReubicacion(reclamo);
+                        }
+
+                        const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+                        if (btnDetalle) {
+                            btnDetalle.onclick = () => this.verReclamo(reclamo);
+                        }
+                    });
+
+                    const marker = new mapboxgl.Marker({
+                        element: this.crearElementoMarcadorMotivo(color, reclamo.municipalidad_motivo),
+                        anchor: 'bottom'
+                    })
                         .setLngLat([coordenadas.lng, coordenadas.lat])
-                        .setPopup(new mapboxgl.Popup().setHTML(popupContent))
+                        .setPopup(popup)
                         .addTo(this.map);
 
                     // Guardar referencia al reclamo en el marcador
@@ -241,19 +470,23 @@ window.app = Vue.createApp({
 
             console.log(`📍 Marcadores agregados: ${this.marcadores.length} total`);
             console.log(`   - ⚫ Recibido: ${contadorEstados['Recibido']}`);
-            console.log(`   - 🔴 Asignado: ${contadorEstados['Asignado']}`);
+            console.log(`   - 🔵 Asignado: ${contadorEstados['Asignado']}`);
+            console.log(`   - 🔴 Pendiente: ${contadorEstados['Pendiente']}`);
             console.log(`   - 🟡 En ejecución: ${contadorEstados['En ejecución']}`);
             console.log(`   - 🟢 Completado: ${contadorEstados['Completado']}`);
             console.log(`   - ⚫ En plan: ${contadorEstados['En plan']}`);
             console.log(`   - ⚫ Error de datos: ${contadorEstados['Error de datos']}`);
             
-            // Aplicar filtro si está activo
-            if (this.filtroEstado) {
-                this.aplicarFiltroMarcadores();
-            }
+            this.aplicarFiltroMarcadores();
+            this.actualizarTextoBoton();
+            this.actualizarTextoBotonPrioridad();
         },
 
         inicializarTabla() {
+            if (!document.getElementById('tabla_reclamos_mapa')) {
+                return;
+            }
+
             if (this.tabla) {
                 this.tabla.destroy();
             }
@@ -274,7 +507,8 @@ window.app = Vue.createApp({
                             // Determinar el color según el estado
                             let color = '#808080'; // Gris por defecto
                             if (row.municipalidad_estado === 'Recibido') color = '#808080'; // Gris
-                            else if (row.municipalidad_estado === 'Asignado') color = '#FF0000'; // Rojo
+                            else if (row.municipalidad_estado === 'Asignado') color = '#0DCAF0'; // Celeste
+                            else if (row.municipalidad_estado === 'Pendiente') color = '#FF0000'; // Rojo
                             else if (row.municipalidad_estado === 'En ejecución') color = '#FFD700'; // Amarillo
                             else if (row.municipalidad_estado === 'Completado') color = '#198754'; // Verde Bootstrap success
                             else if (row.municipalidad_estado === 'En plan') color = '#808080'; // Gris
@@ -350,29 +584,35 @@ window.app = Vue.createApp({
                 );
 
                 if (marcador) {
-                    // Crear animación usando opacity y box-shadow en lugar de transform
+                    // Centrar el mapa en el marcador, igual que en Google Maps.
+                    this.map.flyTo({
+                        center: [coordenadas.lng, coordenadas.lat],
+                        zoom: Math.max(this.map.getZoom(), 16),
+                        speed: 1.2,
+                        curve: 1.2,
+                        essential: true
+                    });
+
+                    // Crear animación sobre el marcador completo, incluyendo el icono del motivo.
                     const elementoOriginal = marcador.getElement();
                     
                     // Agregar estilos iniciales
-                    elementoOriginal.style.transition = 'opacity 0.2s ease-in-out, box-shadow 0.2s ease-in-out';
+                    elementoOriginal.style.transition = 'margin-top 0.2s ease-in-out';
                     
-                    // Función para hacer el efecto de parpadeo
+                    // Función para hacer el efecto de salto
                     let contador = 0;
                     const intervalo = setInterval(() => {
                         if (contador % 2 === 0) {
-                            elementoOriginal.style.opacity = '0.5';
-                            elementoOriginal.style.boxShadow = '0 0 10px rgba(255, 0, 0, 0.8)';
+                            elementoOriginal.style.marginTop = '-14px';
                         } else {
-                            elementoOriginal.style.opacity = '1';
-                            elementoOriginal.style.boxShadow = 'none';
+                            elementoOriginal.style.marginTop = '0';
                         }
                         contador++;
                         
-                        if (contador >= 6) { // 3 parpadeos completos
+                        if (contador >= 6) { // 3 saltos completos
                             clearInterval(intervalo);
                             // Restaurar estilos originales
-                            elementoOriginal.style.opacity = '1';
-                            elementoOriginal.style.boxShadow = 'none';
+                            elementoOriginal.style.marginTop = '0';
                             elementoOriginal.style.transition = '';
                         }
                     }, 200);
@@ -662,14 +902,15 @@ window.app = Vue.createApp({
             this.aplicarFiltroMarcadores();
             
             // Actualizar el texto del botón del dropdown
-            const dropdownButton = document.querySelector('.dropdown-toggle');
+            const dropdownButton = document.querySelector('.mapa-filtro-estados-toggle');
             if (dropdownButton) {
                 if (estado === '') {
                     dropdownButton.innerHTML = '<i class="bi bi-funnel"></i> Filtrar por Estado';
                 } else {
                     const iconos = {
                         'Recibido': '⚫',
-                        'Asignado': '🔴',
+                        'Asignado': '🔵',
+                        'Pendiente': '🔴',
                         'En ejecución': '🟡',
                         'Completado': '🟢',
                         'En plan': '⚫',
@@ -702,24 +943,80 @@ window.app = Vue.createApp({
                 this.estadosSeleccionados = [];
             } else {
                 // Seleccionar todos los estados disponibles
-                this.estadosSeleccionados = ['Recibido', 'Asignado', 'En ejecución', 'Completado', 'En plan', 'Error de datos'];
+                this.estadosSeleccionados = ['Recibido', 'Asignado', 'Pendiente', 'En ejecución', 'Completado'];
             }
             
             this.aplicarFiltroMarcadores();
             this.actualizarTextoBoton();
         },
 
+        togglePrioridad(event) {
+            const prioridad = event.target.value;
+            const index = this.prioridadesSeleccionadas.indexOf(prioridad);
+
+            if (index > -1) {
+                this.prioridadesSeleccionadas.splice(index, 1);
+            } else {
+                this.prioridadesSeleccionadas.push(prioridad);
+            }
+
+            this.aplicarFiltroMarcadores();
+            this.actualizarTextoBotonPrioridad();
+        },
+
+        toggleTodasPrioridades(event) {
+            if (event.target.checked) {
+                this.prioridadesSeleccionadas = [];
+            } else {
+                this.prioridadesSeleccionadas = ['Alta', 'Baja'];
+            }
+
+            this.aplicarFiltroMarcadores();
+            this.actualizarTextoBotonPrioridad();
+        },
+
+        debeMostrarMarcador(reclamo) {
+            const estadoReclamo = reclamo.municipalidad_estado || 'Recibido';
+            const cumpleEstado = this.estadosSeleccionados.length === 0 || this.estadosSeleccionados.includes(estadoReclamo);
+
+            const prioridadReclamo = (reclamo.prioridad || 'Baja').trim();
+            const cumplePrioridad = this.prioridadesSeleccionadas.length === 0 || this.prioridadesSeleccionadas.includes(prioridadReclamo);
+
+            return cumpleEstado && cumplePrioridad;
+        },
+
+        actualizarTextoBotonPrioridad() {
+            const dropdownButton = document.querySelector('.mapa-filtro-prioridad-toggle');
+            if (!dropdownButton) {
+                return;
+            }
+
+            if (this.prioridadesSeleccionadas.length === 0) {
+                dropdownButton.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Filtrar por Prioridad';
+            } else if (this.prioridadesSeleccionadas.length === 2) {
+                dropdownButton.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Todas las Prioridades';
+            } else {
+                const iconos = {
+                    'Alta': '🔺',
+                    'Baja': '🔻'
+                };
+                const iconosSeleccionados = this.prioridadesSeleccionadas.map(prioridad => iconos[prioridad]).join(' ');
+                dropdownButton.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${iconosSeleccionados}`;
+            }
+        },
+
         actualizarTextoBoton() {
-            const dropdownButton = document.querySelector('.dropdown-toggle');
+            const dropdownButton = document.querySelector('.mapa-filtro-estados-toggle');
             if (dropdownButton) {
                 if (this.estadosSeleccionados.length === 0) {
                     dropdownButton.innerHTML = '<i class="bi bi-funnel"></i> Filtrar por Estado';
-                } else if (this.estadosSeleccionados.length === 6) {
+                } else if (this.estadosSeleccionados.length === 5) {
                     dropdownButton.innerHTML = '<i class="bi bi-funnel"></i> Todos los Estados';
                 } else {
                     const iconos = {
                         'Recibido': '⚫',
-                        'Asignado': '🔴',
+                        'Asignado': '🔵',
+                        'Pendiente': '🔴',
                         'En ejecución': '🟡',
                         'Completado': '🟢',
                         'En plan': '⚫',
@@ -735,10 +1032,7 @@ window.app = Vue.createApp({
             this.marcadores.forEach(marker => {
                 const reclamo = marker._reclamo;
                 if (reclamo) {
-                    const estadoReclamo = reclamo.municipalidad_estado || 'Recibido';
-                    const debeMostrar = this.estadosSeleccionados.length === 0 || this.estadosSeleccionados.includes(estadoReclamo);
-                    
-                    if (debeMostrar) {
+                    if (this.debeMostrarMarcador(reclamo)) {
                         marker.getElement().style.display = 'block';
                     } else {
                         marker.getElement().style.display = 'none';
@@ -755,6 +1049,7 @@ window.app = Vue.createApp({
             let contadorEstados = {
                 'Recibido': 0,
                 'Asignado': 0,
+                'Pendiente': 0,
                 'En ejecución': 0,
                 'Completado': 0,
                 'En plan': 0,
@@ -782,7 +1077,8 @@ window.app = Vue.createApp({
             }
             
             console.log(`   - ⚫ Recibido: ${contadorEstados['Recibido']}`);
-            console.log(`   - 🔴 Asignado: ${contadorEstados['Asignado']}`);
+            console.log(`   - 🔵 Asignado: ${contadorEstados['Asignado']}`);
+            console.log(`   - 🔴 Pendiente: ${contadorEstados['Pendiente']}`);
             console.log(`   - 🟡 En ejecución: ${contadorEstados['En ejecución']}`);
             console.log(`   - 🟢 Completado: ${contadorEstados['Completado']}`);
             console.log(`   - ⚫ En plan: ${contadorEstados['En plan']}`);
@@ -860,7 +1156,8 @@ window.app = Vue.createApp({
                 container: 'map', // ID del contenedor
                 style: 'mapbox://styles/mapbox/streets-v12', // Estilo del mapa
                 center: [lon, lat], // Centro del mapa [longitud, latitud]
-                zoom: 13 // Nivel de zoom
+                zoom: 13, // Nivel de zoom
+                preserveDrawingBuffer: true // Necesario para exportar el mapa como imagen
             });
 
             // Agregar controles de navegación
@@ -994,6 +1291,66 @@ window.app = Vue.createApp({
                     resolve(false);
                 });
             });
+        },
+
+        cerrarMenusToolbarMapa() {
+            document.querySelectorAll('.mapa-reclamos-toolbar .dropdown-menu.show').forEach((menu) => {
+                menu.classList.remove('show');
+            });
+            document.querySelectorAll('.mapa-reclamos-toolbar .dropdown-toggle.show').forEach((toggle) => {
+                toggle.classList.remove('show');
+                toggle.setAttribute('aria-expanded', 'false');
+            });
+        },
+
+        async exportarMapaImagen() {
+            if (this.exportandoMapa) {
+                return;
+            }
+            if (!this.map) {
+                this.mostrarMensaje('El mapa aún no terminó de cargar. Espere un momento e intente de nuevo.', 'warning');
+                return;
+            }
+            if (!window.MapaExportImagen) {
+                this.mostrarMensaje('No se pudo cargar el módulo de exportación del mapa', 'error');
+                return;
+            }
+
+            this.exportandoMapa = true;
+            this.cerrarMenusToolbarMapa();
+            this.mostrarMensaje('Generando imagen del mapa...', 'info');
+
+            try {
+                const esMapbox = window.MapaExportImagen.esMapaMapbox(this.map);
+                let dataUrl;
+
+                if (esMapbox) {
+                    dataUrl = await window.MapaExportImagen.exportarMapbox(
+                        this.map,
+                        this.marcadores,
+                        (reclamo) => this.debeMostrarMarcador(reclamo)
+                    );
+                } else {
+                    dataUrl = await window.MapaExportImagen.exportarGoogle(
+                        document.getElementById('map'),
+                        this.map
+                    );
+                }
+
+                const nombreArchivo = window.MapaExportImagen.generarNombreArchivo(
+                    esMapbox ? 'mapa-reclamos-mapbox' : 'mapa-reclamos-google'
+                );
+                window.MapaExportImagen.descargarDataUrl(dataUrl, nombreArchivo);
+                this.mostrarMensaje(`Imagen exportada correctamente: ${nombreArchivo}`, 'success');
+            } catch (error) {
+                console.error('Error al exportar mapa:', error);
+                this.mostrarMensaje(
+                    'No se pudo exportar el mapa. Espere a que cargue por completo e intente nuevamente.',
+                    'error'
+                );
+            } finally {
+                this.exportandoMapa = false;
+            }
         },
 
         /**

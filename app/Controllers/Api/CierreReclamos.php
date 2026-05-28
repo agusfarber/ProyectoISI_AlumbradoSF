@@ -11,7 +11,7 @@ class CierreReclamos extends ResourceController
 {
     protected $modelName = 'App\Models\ReclamoModel';
     protected $format = 'json';
-    private $apiExternaUrl = 'https://reclamostesting.sanfrancisco.gov.ar/api/3.0/reclamos/';
+    private $apiExternaUrl = 'https://reclamos.sanfrancisco.gov.ar/api/3.0/reclamos/';
 
     public function __construct()
     {

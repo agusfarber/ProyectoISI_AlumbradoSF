@@ -9,7 +9,8 @@ const app = Vue.createApp({
             tablaCerrados: null,
             cargando: false,
             procesando: false,
-            ultimaActualizacion: ''
+            ultimaActualizacion: '',
+            solapaCierre: 'pendientes'
         };
     },
 
@@ -24,6 +25,20 @@ const app = Vue.createApp({
     },
 
     methods: {
+        cambiarSolapaCierre(solapa) {
+            this.solapaCierre = solapa;
+
+            this.$nextTick(() => {
+                if (solapa === 'pendientes' && this.tabla) {
+                    this.tabla.columns.adjust().responsive.recalc();
+                }
+
+                if (solapa === 'cerrados' && this.tablaCerrados) {
+                    this.tablaCerrados.columns.adjust().responsive.recalc();
+                }
+            });
+        },
+
         /**
          * Obtiene los reclamos completados desde la API
          */
@@ -101,21 +116,27 @@ const app = Vue.createApp({
             this.tabla = $('#tabla_cierre_reclamos').DataTable({
                 data: this.reclamosCompletados,
                 responsive: true,
+                pageLength: 30,
                 pagingType: 'simple_numbers',
                 lengthMenu: [
-                    [10, 25, 50, 100],
-                    [10, 25, 50, 100]
+                    [15, 30, 50, 100],
+                    ['15 por página', '30 por página', '50 por página', '100 por página']
                 ],
                 language: {
-                    "processing": "Procesando...",
-                    "lengthMenu": "Mostrar _MENU_ registros",
-                    "zeroRecords": "No se encontraron resultados",
-                    "emptyTable": "Ningún dato disponible en esta tabla",
-                    "infoEmpty": "Mostrando registros del 0 al 0 de un total de 0 registros",
-                    "infoFiltered": "(filtrado de un total de _MAX_ registros)",
-                    "search": "Buscar:",
-                    "loadingRecords": "Cargando...",
-                    "info": "Mostrando _START_ a _END_ de _TOTAL_ registros"
+                    processing: 'Procesando...',
+                    lengthMenu: '_MENU_',
+                    zeroRecords: 'No hay reclamos pendientes con ese criterio',
+                    emptyTable: 'No hay reclamos pendientes de cierre',
+                    infoEmpty: 'Sin reclamos para mostrar',
+                    infoFiltered: '(filtrado de _MAX_ reclamos)',
+                    search: '',
+                    searchPlaceholder: 'Buscar pendiente...',
+                    loadingRecords: 'Cargando...',
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ reclamos',
+                    paginate: {
+                        previous: 'Anterior',
+                        next: 'Siguiente'
+                    }
                 },
                 columns: [
                     {
@@ -156,7 +177,12 @@ const app = Vue.createApp({
                         render: (data) => this.formatearFecha(data)
                     }
                 ],
-                order: [[1, 'asc']] // Ordenar por ID ascendente
+                order: [[1, 'asc']], // Ordenar por ID ascendente
+                initComplete: function () {
+                    const wrapper = $('#tabla_cierre_reclamos_wrapper');
+                    wrapper.find('.dt-length select').addClass('form-select form-select-sm');
+                    wrapper.find('.dt-search input').addClass('form-control form-control-sm').attr('aria-label', 'Buscar reclamo pendiente');
+                }
             });
 
             // Evento para ver detalles al hacer clic en el ID
@@ -194,21 +220,27 @@ const app = Vue.createApp({
             this.tablaCerrados = $('#tabla_reclamos_cerrados').DataTable({
                 data: this.reclamosCerrados,
                 responsive: true,
+                pageLength: 30,
                 pagingType: 'simple_numbers',
                 lengthMenu: [
-                    [10, 25, 50, 100],
-                    [10, 25, 50, 100]
+                    [15, 30, 50, 100],
+                    ['15 por página', '30 por página', '50 por página', '100 por página']
                 ],
                 language: {
-                    "processing": "Procesando...",
-                    "lengthMenu": "Mostrar _MENU_ registros",
-                    "zeroRecords": "No se encontraron resultados",
-                    "emptyTable": "Ningún dato disponible en esta tabla",
-                    "infoEmpty": "Mostrando registros del 0 al 0 de un total de 0 registros",
-                    "infoFiltered": "(filtrado de un total de _MAX_ registros)",
-                    "search": "Buscar:",
-                    "loadingRecords": "Cargando...",
-                    "info": "Mostrando _START_ a _END_ de _TOTAL_ registros"
+                    processing: 'Procesando...',
+                    lengthMenu: '_MENU_',
+                    zeroRecords: 'No hay reclamos cerrados con ese criterio',
+                    emptyTable: 'No hay reclamos cerrados',
+                    infoEmpty: 'Sin reclamos para mostrar',
+                    infoFiltered: '(filtrado de _MAX_ reclamos)',
+                    search: '',
+                    searchPlaceholder: 'Buscar cerrado...',
+                    loadingRecords: 'Cargando...',
+                    info: 'Mostrando _START_ a _END_ de _TOTAL_ reclamos',
+                    paginate: {
+                        previous: 'Anterior',
+                        next: 'Siguiente'
+                    }
                 },
                 columns: [
                     {
@@ -245,7 +277,12 @@ const app = Vue.createApp({
                         render: (data) => this.formatearFecha(data)
                     }
                 ],
-                order: [[0, 'asc']] // Ordenar por ID ascendente
+                order: [[0, 'asc']], // Ordenar por ID ascendente
+                initComplete: function () {
+                    const wrapper = $('#tabla_reclamos_cerrados_wrapper');
+                    wrapper.find('.dt-length select').addClass('form-select form-select-sm');
+                    wrapper.find('.dt-search input').addClass('form-control form-control-sm').attr('aria-label', 'Buscar reclamo cerrado');
+                }
             });
 
             // Evento para ver detalles al hacer clic en el ID

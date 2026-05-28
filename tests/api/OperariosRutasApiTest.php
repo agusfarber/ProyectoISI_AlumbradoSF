@@ -507,7 +507,7 @@ class OperariosRutasApiTest extends CIUnitTestCase
         $rutaReclamoModel = new Ruta_reclamoModel();
         $reclamoModel = new ReclamoModel();
         
-        $estadosValidos = ['Recibido', 'Asignado', 'En ejecución', 'Completado'];
+        $estadosValidos = ['Recibido', 'Asignado', 'Pendiente', 'En ejecución', 'Completado'];
         
         foreach ($rutas as $ruta) {
             $reclamosRuta = $rutaReclamoModel->where('ruta_id', $ruta['id'])->findAll();

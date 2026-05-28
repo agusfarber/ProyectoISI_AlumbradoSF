@@ -22,7 +22,7 @@ class Cuadrillas extends ResourceController
             $db = \Config\Database::connect();
             foreach ($cuadrillas as &$cuadrilla) {
                 $query = $db->table('cuadrilla_operarios AS co')
-                            ->select('u.id, u.nombre, u.email, u.legajo')
+                            ->select('u.id, u.nombre, u.email, u.legajo, co.es_jefe')
                             ->join('usuario AS u', 'u.id = co.usuario_id')
                             ->where('co.cuadrilla_id', $cuadrilla['id'])
                             ->get();
@@ -177,6 +177,8 @@ class Cuadrillas extends ResourceController
             log_message('error', 'ID de cuadrilla no proporcionado');
             return $this->failValidationErrors('ID de cuadrilla es obligatorio.');
         }
+
+        $jefeOperarioId = $data['jefeOperarioId'] ?? null;
         
         // Si no hay operarios, simplemente eliminar todas las asignaciones existentes
         if (empty($data['operarios']) || !is_array($data['operarios'])) {
@@ -189,6 +191,17 @@ class Cuadrillas extends ResourceController
         if (count($data['operarios']) > 4) {
             log_message('error', 'Demasiados operarios: ' . count($data['operarios']));
             return $this->failValidationErrors('Solo se pueden asignar máximo 4 operarios por cuadrilla.');
+        }
+
+        // Si hay operarios asignados, debe existir exactamente un jefe dentro de la cuadrilla
+        if (count($data['operarios']) > 0) {
+            if (empty($jefeOperarioId)) {
+                return $this->failValidationErrors('Debe seleccionar un jefe de cuadrilla.');
+            }
+
+            if (!in_array((int)$jefeOperarioId, array_map('intval', $data['operarios']), true)) {
+                return $this->failValidationErrors('El jefe seleccionado debe pertenecer a la cuadrilla.');
+            }
         }
 
         try {
@@ -210,7 +223,8 @@ class Cuadrillas extends ResourceController
                 // Ahora insertar la nueva asignación
                 $cuadrillaOperariosModel->insert([
                     'cuadrilla_id' => $data['cuadrillaId'],
-                    'usuario_id' => $operarioId
+                    'usuario_id' => $operarioId,
+                    'es_jefe' => ((int)$operarioId === (int)$jefeOperarioId) ? 1 : 0
                 ]);
             }
 

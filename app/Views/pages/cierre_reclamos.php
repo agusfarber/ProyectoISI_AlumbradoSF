@@ -1,76 +1,40 @@
 <div id="app" class="container-fluid">
     <div>Cierre</div>
 
-    <!-- Instrucciones -->
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle me-2"></i>
-        <strong>Instrucciones:</strong> Seleccione uno o varios reclamos completados para cerrarlos formalmente. 
-        Una vez cerrados, los reclamos quedarán bloqueados para edición y se registrará la fecha de cierre.
-    </div>
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: solapaCierre === 'pendientes' }" @click="cambiarSolapaCierre('pendientes')">
+                Completados
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: solapaCierre === 'cerrados' }" @click="cambiarSolapaCierre('cerrados')">
+                Cerrados
+            </button>
+        </li>
+    </ul>
 
-    <!-- Resumen de reclamos -->
-    <div class="row mb-3">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary card-resumen">
-                <div class="card-body p-2">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-list-check fs-4 me-2"></i>
-                        <div>
-                            <small class="d-block">Completados</small>
-                            <strong class="fs-5">{{ reclamosCompletados.length }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success card-resumen">
-                <div class="card-body p-2">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-lock-fill fs-4 me-2"></i>
-                        <div>
-                            <small class="d-block">Cerrados</small>
-                            <strong class="fs-5">{{ reclamosCerrados.length }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!--div class="col-md-3">
-            <div class="card text-white bg-secondary card-resumen">
-                <div class="card-body p-2">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-calendar-event fs-4 me-2"></i>
-                        <div>
-                            <small class="d-block">Actualización</small>
-                            <strong class="fs-6">{{ ultimaActualizacion }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div-->
-    </div>
-
-    <!-- Botones de acción -->
-    <div class="d-flex justify-content-end mb-3">
-        <button class="btn btn-success btn-lg" @click="cerrarReclamosSeleccionados" :disabled="reclamosSeleccionados.length === 0 || procesando">
-            <span v-if="!procesando">
-                <i class="bi bi-lock-fill me-2"></i>Cerrar Reclamos ({{ reclamosSeleccionados.length }})
+    <!-- Reclamos pendientes de cierre -->
+    <div v-show="solapaCierre === 'pendientes'">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <span v-if="reclamosSeleccionados.length > 0" class="badge bg-secondary">
+                {{ reclamosSeleccionados.length }} seleccionado(s)
             </span>
-            <span v-else>
-                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                Procesando...
-            </span>
-        </button>
-    </div>
+            <span v-else class="text-muted small">Seleccioná reclamos completados para cerrar formalmente.</span>
 
-    <!-- Tabla de reclamos completados -->
-    <div class="mb-4">
-        <h5 class="mb-3">
-            <i class="bi bi-list-check me-2"></i>Reclamos Completados (Pendientes de Cierre)
-        </h5>
+            <button class="btn btn-success btn-sm" @click="cerrarReclamosSeleccionados" :disabled="reclamosSeleccionados.length === 0 || procesando">
+                <span v-if="!procesando">
+                    <i class="bi bi-lock-fill me-1"></i>Cerrar seleccionados
+                </span>
+                <span v-else>
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    Cerrando...
+                </span>
+            </button>
+        </div>
+
         <div class="table-responsive">
-            <table id="tabla_cierre_reclamos" class="table table-bordered table-hover w-100">
+            <table id="tabla_cierre_reclamos" class="table table-bordered table-hover table-sm align-middle w-100 mb-0">
                 <thead>
                     <tr>
                         <th style="width: 50px;">
@@ -90,13 +54,13 @@
         </div>
     </div>
 
-    <!-- Tabla de reclamos cerrados -->
-    <div class="mb-4">
-        <h5 class="mb-3">
-            <i class="bi bi-lock-fill me-2"></i>Reclamos Cerrados
-        </h5>
+    <!-- Reclamos cerrados -->
+    <div v-show="solapaCierre === 'cerrados'">
+        <div class="d-flex justify-content-end mb-2">
+            <small class="text-muted">Última actualización: {{ ultimaActualizacion }}</small>
+        </div>
         <div class="table-responsive">
-            <table id="tabla_reclamos_cerrados" class="table table-bordered table-hover w-100">
+            <table id="tabla_reclamos_cerrados" class="table table-bordered table-hover table-sm align-middle w-100 mb-0">
                 <thead>
                     <tr>
                         <th>ID</th>

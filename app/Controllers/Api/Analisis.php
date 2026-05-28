@@ -55,6 +55,7 @@ class Analisis extends ResourceController
         $estadosConfig = [
             'Recibido' => '#6c757d',
             'Asignado' => '#ffc107',
+            'Pendiente' => '#fd7e14',
             'En ejecución' => '#0dcaf0',
             'Completado' => '#198754',
             'En plan' => '#6610f2',

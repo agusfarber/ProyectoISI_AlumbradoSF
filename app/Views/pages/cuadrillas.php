@@ -150,19 +150,37 @@
                             </div>
                             <div class="col-md-5" v-if="cuadrilla.id">
                                 <h6 class="mb-3"><i class="bi bi-people-fill text-primary"></i> <strong>Operarios Asignados</strong></h6>
+                                <small class="text-muted d-block mb-2">
+                                    Toque el ícono <i class="bi bi-person-badge"></i> para asignar jefe. Solo el jefe podrá editar tareas.
+                                </small>
                                 <div class="table-responsive" style="height: 300px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem;">
                                     <table class="table table-hover table-sm mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th style="width: 40%;">Nombre</th>
-                                                <th style="width: 40%;">Legajo</th>
-                                                <th style="width: 20%;" class="text-center">Acciones</th>
+                                                <th style="width: 38%;">Nombre</th>
+                                                <th style="width: 32%;">Legajo</th>
+                                                <th style="width: 12%;" class="text-center">Jefe</th>
+                                                <th style="width: 18%;" class="text-center">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr v-for="operario in cuadrilla.operarios" :key="operario.id">
-                                                <td><strong>{{ operario.nombre }}</strong></td>
+                                                <td>
+                                                    <strong>{{ operario.nombre }}</strong>
+                                                    <span class="badge bg-success ms-1" v-if="esJefeOperario(operario.id)">Jefe</span>
+                                                </td>
                                                 <td>{{ operario.email || operario.legajo }}</td>
+                                                <td class="text-center">
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-sm"
+                                                        :class="esJefeOperario(operario.id) ? 'btn-success' : 'btn-outline-secondary'"
+                                                        :title="esJefeOperario(operario.id) ? 'Quitar como jefe' : 'Asignar como jefe'"
+                                                        @click="toggleJefeOperario(operario.id)"
+                                                    >
+                                                        <i class="bi" :class="esJefeOperario(operario.id) ? 'bi-person-badge-fill text-white' : 'bi-person-badge'"></i>
+                                                    </button>
+                                                </td>
                                                 <td class="text-center">
                                                     <button type="button" class="btn btn-sm btn-danger" @click="quitarOperario(operario.id)" title="Quitar operario">
                                                         <i class="bi bi-trash text-white"></i>
@@ -170,7 +188,7 @@
                                                 </td>
                                             </tr>
                                             <tr v-if="!cuadrilla.operarios || cuadrilla.operarios.length === 0">
-                                                <td colspan="3" class="text-muted text-center py-4">
+                                                <td colspan="4" class="text-muted text-center py-4">
                                                     <i class="bi bi-info-circle"></i> Sin operarios asignados
                                                 </td>
                                             </tr>

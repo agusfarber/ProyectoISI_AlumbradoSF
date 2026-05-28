@@ -5,7 +5,7 @@
     transition: transform 0.2s;
 }
 
-.card:hover {
+.card-resumen:hover {
     transform: translateY(-2px);
 }
 
