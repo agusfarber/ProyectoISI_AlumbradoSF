@@ -28,6 +28,7 @@ $routes->set404Override();
 $routes->get('/', 'Pages::view');
 
 // Endpoint Usuarios
+$routes->post('api/usuarios/(:num)/foto', 'Api\\Usuarios::subirFoto/$1');
 $routes->resource('api/usuarios');
 // Endpoint Roles
 $routes->resource('api/roles');
@@ -41,6 +42,7 @@ $routes->get('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::getTiempoR
 $routes->post('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::guardarTiempoReparacionEndpoint/$1');
 $routes->get('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::getEjecucionObservacionesReclamo/$1');
 $routes->post('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::guardarEjecucionObservacionReclamo/$1');
+$routes->post('api/reclamos/(:num)/ejecucion-observaciones/foto', 'Api\\Reclamos::guardarEjecucionFotoReclamo/$1');
 $routes->get('api/reclamos/tiempos-promedio', 'Api\\Reclamos::getTiemposPromedio');
 $routes->resource('api/reclamos');
 // Endpoints para Tipos de Materiales

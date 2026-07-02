@@ -1,201 +1,390 @@
-/* Estilos específicos para la página de Cierre de Reclamos */
+/* ========================================
+   ESTILOS PARA CIERRE DE RECLAMOS
+   Alineado al patrón visual de cuadrillas y reclamos
+   ======================================== */
 
-.card {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.2s;
+.cierre-page {
+    padding: 0;
+    width: 100%;
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.card-resumen:hover {
-    transform: translateY(-2px);
+.cierre-page-title {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    margin-bottom: 1rem;
 }
 
-/* Estilo para filas seleccionadas */
-.table-success {
-    background-color: #d1e7dd !important;
+/* ---------- Pestañas ---------- */
+.cierre-tabs {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
 }
 
-/* Mejora visual para badges */
-.badge {
-    padding: 0.5em 0.8em;
+.cierre-tabs .nav-item {
+    margin: 0;
+}
+
+.cierre-tabs .nav-link {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    background: var(--color-white);
+    color: var(--color-purple-dark);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.48rem 1.1rem;
+    line-height: 1.2;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cierre-tabs .nav-link:hover:not(.active) {
+    background: #f7f7fb;
+    border-color: var(--color-purple-light);
+    color: var(--color-purple-dark);
+}
+
+.cierre-tabs .nav-link.active {
+    background: var(--gradient-primary);
+    border-color: transparent;
+    color: var(--color-white);
+    box-shadow: var(--shadow-light);
+}
+
+/* ---------- Toolbar ---------- */
+.cierre-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.cierre-toolbar__left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.cierre-toolbar__right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.cierre-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    background: rgba(110, 109, 153, 0.12);
+    color: var(--color-purple-dark);
+}
+
+.cierre-badge i {
+    color: var(--color-purple-medium);
     font-size: 0.85rem;
 }
 
-/* Animación para el spinner de carga */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.cierre-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--color-medium-gray);
 }
 
-.spinner-border {
-    animation: spin 0.75s linear infinite;
+.cierre-meta i {
+    color: var(--color-purple-light);
+    font-size: 0.85rem;
 }
 
-/* Estilos para las tarjetas de resumen (más pequeñas) */
-.card-resumen {
-    min-height: 70px;
-    max-height: 70px;
+/* cierre-btn: estilos en global.css */
+
+/* ---------- Tabla ---------- */
+.cierre-table-section {
+    width: 100%;
 }
 
-.card-resumen .card-body {
-    padding: 0.5rem !important;
-}
-
-.card-resumen small {
-    font-size: 0.75rem;
-    opacity: 0.9;
-}
-
-.card-resumen strong {
+.cierre-table thead th {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    font-size: 0.72rem;
     font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
 }
 
-.card-resumen i {
-    opacity: 0.8;
+.cierre-table thead th.dt-orderable-asc:hover,
+.cierre-table thead th.dt-orderable-desc:hover {
+    outline: 2px solid rgba(255, 255, 255, 0.15);
+    outline-offset: -2px;
 }
 
-.card-body h2 {
-    font-size: 2.5rem;
-    font-weight: 700;
+.cierre-table thead th span.dt-column-order::before,
+.cierre-table thead th span.dt-column-order::after {
+    color: var(--color-white);
+    opacity: 0.35;
 }
 
-.card-body h6 {
-    font-size: 1rem;
+.cierre-table thead th.dt-ordering-asc span.dt-column-order::before,
+.cierre-table thead th.dt-ordering-desc span.dt-column-order::after {
+    opacity: 0.85;
 }
 
-.card-body small {
-    opacity: 0.8;
+.cierre-table tbody td {
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    vertical-align: middle;
 }
 
-/* Mejora para botones */
-.btn {
-    transition: all 0.3s ease;
+.cierre-table tbody tr:hover {
+    background: rgba(110, 109, 153, 0.05);
 }
 
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+.cierre-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
-.btn:active {
-    transform: translateY(0);
-}
-
-/* Estilo para la tabla responsiva */
-.table-responsive {
-    border-radius: 0.5rem;
-    overflow: hidden;
-}
-
-/* Mejora visual para el checkbox principal */
-thead input[type="checkbox"] {
+.cierre-page thead input[type="checkbox"],
+.cierre-page tbody input[type="checkbox"] {
     cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-purple-medium);
+}
+
+.cierre-page thead input[type="checkbox"] {
     width: 18px;
     height: 18px;
 }
 
-tbody input[type="checkbox"] {
-    cursor: pointer;
-    width: 16px;
-    height: 16px;
-}
-
-/* Estilo para los íconos de estado */
-.bi {
-    vertical-align: middle;
-}
-
-/* Mejora para alerts */
-.alert {
-    border-radius: 0.5rem;
-    border: none;
-}
-
-/* Animación de entrada para las notificaciones */
-.mensaje-notificacion {
-    animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-/* Estilo para el modal de confirmación */
-.modal-content {
-    border-radius: 0.75rem;
-    border: none;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-
-.modal-header {
-    border-top-left-radius: 0.75rem;
-    border-top-right-radius: 0.75rem;
-}
-
-/* Mejora para el estado vacío */
-.bi-inbox {
-    animation: float 3s ease-in-out infinite;
-}
-
-@keyframes float {
-    0%, 100% {
-        transform: translateY(0px);
-    }
-    50% {
-        transform: translateY(-10px);
-    }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .card-body h2 {
-        font-size: 1.8rem;
-    }
-    
-    .btn-lg {
-        font-size: 1rem;
-    }
-    
-    .d-flex.justify-content-between {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .d-flex.justify-content-between > div {
-        width: 100%;
-    }
-    
-    .d-flex.justify-content-between button {
-        width: 100%;
-    }
-}
-
-/* Mejora para la tabla en móviles */
-@media (max-width: 576px) {
-    .table {
-        font-size: 0.85rem;
-    }
-    
-    .btn-sm {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.75rem;
-    }
-}
-
-/* Estilo para el enlace del ID del reclamo */
-.ver-reclamo-id {
+/* Links ID reclamo */
+.cierre-page .ver-reclamo-id,
+.cierre-page .ver-reclamo-cerrado-id {
+    color: var(--color-purple-medium) !important;
     font-weight: 700;
-    transition: color 0.2s ease;
+    text-decoration: none !important;
 }
 
-.ver-reclamo-id:hover {
-    color: #0056b3 !important;
+.cierre-page .ver-reclamo-id:hover,
+.cierre-page .ver-reclamo-cerrado-id:hover {
+    color: var(--color-purple-dark) !important;
     text-decoration: underline !important;
 }
 
+/* Badges */
+.cierre-page .badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.3em 0.65em;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+}
+
+.cierre-page .badge.bg-success {
+    background: var(--gradient-secondary) !important;
+    color: var(--color-white) !important;
+}
+
+.cierre-page .badge.bg-primary {
+    background: var(--gradient-primary) !important;
+    color: var(--color-white) !important;
+}
+
+/* DataTables: controles fuera del recuadro, solo la tabla adentro */
+.cierre-page #tabla_cierre_reclamos_wrapper,
+.cierre-page #tabla_reclamos_cerrados_wrapper {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper > .dt-layout-row:first-child,
+.cierre-page #tabla_reclamos_cerrados_wrapper > .dt-layout-row:first-child {
+    margin-bottom: 0.65rem;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper > .dt-layout-row:last-child,
+.cierre-page #tabla_reclamos_cerrados_wrapper > .dt-layout-row:last-child {
+    margin-top: 0.65rem;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-layout-table,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-layout-table {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-layout-table .dt-layout-cell,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-layout-table .dt-layout-cell {
+    padding: 0;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-length select,
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-search input,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-length select,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-search input {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    background: var(--color-white);
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-search input:focus,
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-length select:focus,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-search input:focus,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-length select:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-paging .page-link,
+.cierre-page #tabla_cierre_reclamos_wrapper .dt-paging button,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-paging .page-link,
+.cierre-page #tabla_reclamos_cerrados_wrapper .dt-paging button {
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-purple-medium);
+}
+
+/* ========================================
+   MODAL
+   ======================================== */
+.cierre-modal {
+    border-radius: 14px;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-heavy);
+}
+
+.cierre-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.cierre-modal__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.cierre-modal__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cierre-modal__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.cierre-modal__title h5 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.5px;
+}
+
+.cierre-modal__close {
+    background: transparent;
+    border: none;
+    color: var(--color-medium-gray);
+    font-size: 0.85rem;
+    line-height: 0;
+    padding: 0.35rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.cierre-modal__close:hover {
+    color: var(--color-purple-dark);
+    background-color: rgba(110, 109, 153, 0.12);
+}
+
+.cierre-modal .modal-body {
+    padding: 1rem 1.15rem;
+    max-height: 68vh;
+    overflow-y: auto;
+}
+
+.cierre-modal .modal-body label.fw-bold {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-medium-gray);
+    margin-bottom: 0.2rem;
+}
+
+.cierre-modal .modal-body p {
+    margin: 0 0 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+}
+
+/* cierre-modal__footer: estilos en global.css */
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+    .cierre-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .cierre-toolbar__left,
+    .cierre-toolbar__right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .cierre-toolbar__right {
+        margin-left: 0;
+    }
+
+    .cierre-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

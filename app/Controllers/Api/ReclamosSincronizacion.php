@@ -6,10 +6,12 @@ use CodeIgniter\RESTful\ResourceController;
 use App\Models\Token103Model;
 use App\Models\ReclamoModel;
 use App\Models\DireccionModel;
+use App\Libraries\ReclamoPrioridadService;
 
 class ReclamosSincronizacion extends ResourceController
 {
     protected $format = 'json';
+    private const ESTADO_INVALIDO_SINCRONIZACION = 'Inválido (N/A)';
     private $apiExternaUrl = 'https://reclamos.sanfrancisco.gov.ar/api/3.0/reclamos/';
     
     // API Keys para geocodificación
@@ -99,75 +101,32 @@ class ReclamosSincronizacion extends ResourceController
             }
 
             // La respuesta tiene paginación, obtener todos los resultados
-            $todosLosReclamos = [];
-            $paginaActual = $responseData;
-            
-            if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
-                $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
-            }
-            
-            // Obtener todas las páginas siguientes
-            while (!empty($paginaActual['next'])) {
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $paginaActual['next']);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: Basic ' . $tokenBase64,
-                    'Accept: application/json',
-                    'Content-Type: application/json'
-                ]);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                
-                $nextResponse = curl_exec($ch);
-                curl_close($ch);
-                
-                $paginaActual = json_decode($nextResponse, true);
-                
-                if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
-                    $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
-                }
-            }
+            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $tokenBase64);
+            $todosLosReclamos = $resultadoPaginacion['reclamos'];
+            $respuesta103Cruda = $resultadoPaginacion['paginas_crudas'];
             
             log_message('info', 'Total de reclamos obtenidos en el rango: ' . count($todosLosReclamos));
             
-            // Filtrar solo los de ALUMBRADO PÚBLICO y que sean NUEVOS (ID mayor al último guardado)
-            $reclamosFiltrados = [];
-            $reclamosOmitidos = 0;
-            
-            foreach ($todosLosReclamos as $reclamo) {
-                // Solo ALUMBRADO PÚBLICO
-                if (isset($reclamo['motivo']['tipo']) && $reclamo['motivo']['tipo'] === 'ALUMBRADO PÚBLICO') {
-                    $reclamoMapeado = $this->mapearReclamo($reclamo);
-                    $idReclamo = (int)$reclamoMapeado['municipalidad_id'];
-                    
-                    // Solo agregar si el ID es MAYOR al último guardado (es decir, es nuevo)
-                    if ($idReclamo > $ultimoMunicipalidadId) {
-                        $reclamosFiltrados[] = $reclamoMapeado;
-                    } else {
-                        $reclamosOmitidos++;
-                    }
-                }
-            }
-            
-            log_message('info', 'Total de reclamos de ALUMBRADO PÚBLICO en el rango: ' . (count($reclamosFiltrados) + $reclamosOmitidos));
-            log_message('info', 'Reclamos nuevos (ID > ' . $ultimoMunicipalidadId . '): ' . count($reclamosFiltrados));
-            log_message('info', 'Reclamos omitidos (ya existentes): ' . $reclamosOmitidos);
-            
+            $resultadoFiltrado = $this->filtrarReclamosAlumbradoNuevos($todosLosReclamos, $ultimoMunicipalidadId);
+
+            log_message('info', 'Total de reclamos de ALUMBRADO PÚBLICO en el rango: ' . $resultadoFiltrado['total_alumbrado']);
+            log_message('info', 'Reclamos nuevos (ID > ' . $ultimoMunicipalidadId . '): ' . count($resultadoFiltrado['reclamos']));
+            log_message('info', 'Reclamos omitidos (ya existentes): ' . $resultadoFiltrado['reclamos_omitidos']);
+            log_message('info', 'Reclamos omitidos (estado inválido): ' . $resultadoFiltrado['reclamos_invalidos']);
+
             // Devolver reclamos al frontend para que los procese progresivamente
             return $this->respond([
                 'success' => true,
                 'fecha_desde' => $fechaUltimoReclamo,
                 'fecha_hasta' => $fechaHoy,
                 'total_recibidos' => count($todosLosReclamos),
-                'total_alumbrado' => count($reclamosFiltrados) + $reclamosOmitidos,
-                'reclamos_nuevos' => count($reclamosFiltrados),
-                'reclamos_omitidos' => $reclamosOmitidos,
+                'total_alumbrado' => $resultadoFiltrado['total_alumbrado'],
+                'reclamos_nuevos' => count($resultadoFiltrado['reclamos']),
+                'reclamos_omitidos' => $resultadoFiltrado['reclamos_omitidos'],
+                'reclamos_invalidos' => $resultadoFiltrado['reclamos_invalidos'],
                 'ultimo_id_guardado' => $ultimoMunicipalidadId,
-                'reclamos' => $reclamosFiltrados // Frontend los procesará uno por uno
+                'reclamos' => $resultadoFiltrado['reclamos'], // Frontend los procesará uno por uno
+                'debug_respuesta_103' => $respuesta103Cruda,
             ]);
 
         } catch (\Exception $e) {
@@ -280,76 +239,30 @@ class ReclamosSincronizacion extends ResourceController
             }
 
             // La respuesta tiene paginación, obtener todos los resultados
-            $todosLosReclamos = [];
-            $paginaActual = $responseData;
-            
-            // Procesar primera página
-            if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
-                $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
-            }
-            
-            // Obtener todas las páginas siguientes
-            while (!empty($paginaActual['next'])) {
-                log_message('info', 'Obteniendo siguiente página: ' . $paginaActual['next']);
-                
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, $paginaActual['next']);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Authorization: Basic ' . $tokenBase64,
-                    'Accept: application/json',
-                    'Content-Type: application/json'
-                ]);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-                
-                $nextResponse = curl_exec($ch);
-                curl_close($ch);
-                
-                $paginaActual = json_decode($nextResponse, true);
-                
-                if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
-                    $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
-                }
-            }
+            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $tokenBase64);
+            $todosLosReclamos = $resultadoPaginacion['reclamos'];
+            $respuesta103Cruda = $resultadoPaginacion['paginas_crudas'];
             
             log_message('info', 'Total de reclamos obtenidos (todas las páginas): ' . count($todosLosReclamos));
             
-            // Filtrar solo los de ALUMBRADO PÚBLICO y que sean NUEVOS (ID mayor al último guardado)
-            $reclamosFiltrados = [];
-            $reclamosOmitidos = 0;
-            
-            foreach ($todosLosReclamos as $reclamo) {
-                // Solo ALUMBRADO PÚBLICO
-                if (isset($reclamo['motivo']['tipo']) && $reclamo['motivo']['tipo'] === 'ALUMBRADO PÚBLICO') {
-                    $reclamoMapeado = $this->mapearReclamo($reclamo);
-                    $idReclamo = (int)$reclamoMapeado['municipalidad_id'];
-                    
-                    // Solo agregar si el ID es MAYOR al último guardado (es decir, es nuevo)
-                    if ($idReclamo > $ultimoMunicipalidadId) {
-                        $reclamosFiltrados[] = $reclamoMapeado;
-                    } else {
-                        $reclamosOmitidos++;
-                    }
-                }
-            }
-            
-            log_message('info', 'Total de reclamos de ALUMBRADO PÚBLICO: ' . (count($reclamosFiltrados) + $reclamosOmitidos));
-            log_message('info', 'Reclamos nuevos (ID > ' . $ultimoMunicipalidadId . '): ' . count($reclamosFiltrados));
-            log_message('info', 'Reclamos omitidos (ya existentes): ' . $reclamosOmitidos);
-            
+            $resultadoFiltrado = $this->filtrarReclamosAlumbradoNuevos($todosLosReclamos, $ultimoMunicipalidadId);
+
+            log_message('info', 'Total de reclamos de ALUMBRADO PÚBLICO: ' . $resultadoFiltrado['total_alumbrado']);
+            log_message('info', 'Reclamos nuevos (ID > ' . $ultimoMunicipalidadId . '): ' . count($resultadoFiltrado['reclamos']));
+            log_message('info', 'Reclamos omitidos (ya existentes): ' . $resultadoFiltrado['reclamos_omitidos']);
+            log_message('info', 'Reclamos omitidos (estado inválido): ' . $resultadoFiltrado['reclamos_invalidos']);
+
             // Devolver reclamos al frontend para que los procese progresivamente
             return $this->respond([
                 'success' => true,
                 'total_recibidos' => count($todosLosReclamos),
-                'total_alumbrado' => count($reclamosFiltrados) + $reclamosOmitidos,
-                'reclamos_nuevos' => count($reclamosFiltrados),
-                'reclamos_omitidos' => $reclamosOmitidos,
+                'total_alumbrado' => $resultadoFiltrado['total_alumbrado'],
+                'reclamos_nuevos' => count($resultadoFiltrado['reclamos']),
+                'reclamos_omitidos' => $resultadoFiltrado['reclamos_omitidos'],
+                'reclamos_invalidos' => $resultadoFiltrado['reclamos_invalidos'],
                 'ultimo_id_guardado' => $ultimoMunicipalidadId,
-                'reclamos' => $reclamosFiltrados // Frontend los procesará uno por uno
+                'reclamos' => $resultadoFiltrado['reclamos'], // Frontend los procesará uno por uno
+                'debug_respuesta_103' => $respuesta103Cruda,
             ]);
 
         } catch (\Exception $e) {
@@ -425,6 +338,10 @@ class ReclamosSincronizacion extends ResourceController
                 return $this->fail('El reclamo ' . $numeroReclamo . ' no es de tipo ALUMBRADO PÚBLICO (es: ' . ($reclamo['motivo']['tipo'] ?? 'desconocido') . ')', 400);
             }
 
+            if ($this->esReclamoEstadoInvalido($reclamo['estado_nombre'] ?? null)) {
+                return $this->fail('El reclamo ' . $numeroReclamo . ' tiene estado "' . self::ESTADO_INVALIDO_SINCRONIZACION . '" y no se guardará.', 400);
+            }
+
             // Mapear el reclamo
             $reclamoMapeado = $this->mapearReclamo($reclamo);
 
@@ -455,7 +372,8 @@ class ReclamosSincronizacion extends ResourceController
                 return $this->respond([
                     'success' => true,
                     'accion' => $accion,
-                    'reclamo' => $reclamoMapeado
+                    'reclamo' => $reclamoMapeado,
+                    'debug_respuesta_103' => $reclamo,
                 ]);
 
             } catch (\Exception $e) {
@@ -481,23 +399,31 @@ class ReclamosSincronizacion extends ResourceController
             if (empty($data)) {
                 return $this->failValidationErrors('Datos de reclamo requeridos');
             }
+
+            if ($this->esReclamoEstadoInvalido($data['municipalidad_estado'] ?? null)) {
+                log_message('info', 'Reclamo omitido por estado inválido: ' . ($data['municipalidad_id'] ?? 'sin id'));
+                return $this->respond([
+                    'success' => true,
+                    'accion' => 'omitido',
+                    'motivo' => 'estado_invalido',
+                    'municipalidad_id' => $data['municipalidad_id'] ?? null
+                ]);
+            }
             
-            // Asegurar que se asigne prioridad baja por defecto si no viene
             if (empty($data['prioridad'])) {
                 $data['prioridad'] = 'Baja';
             }
-            
+
             $reclamoModel = new ReclamoModel();
-            
-            // Verificar si el reclamo ya existe
+
             $existente = $reclamoModel->where('municipalidad_id', $data['municipalidad_id'])->first();
-            
+
             if ($existente) {
-                // Actualizar
+                $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad(array_merge($existente, $data));
                 $reclamoModel->update($existente['id'], $data);
                 $accion = 'actualizado';
             } else {
-                // Crear
+                $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($data);
                 $reclamoModel->insert($data);
                 $accion = 'creado';
             }
@@ -523,6 +449,103 @@ class ReclamosSincronizacion extends ResourceController
     }
 
     /**
+     * Recorre la paginación del 103 y devuelve reclamos + JSON crudo por página (solo debug).
+     */
+    private function obtenerTodasLasPaginas103(array $primeraPagina, string $tokenBase64): array
+    {
+        $todosLosReclamos = [];
+        $paginasCrudas = [];
+        $paginaActual = $primeraPagina;
+
+        if (is_array($paginaActual)) {
+            $paginasCrudas[] = $paginaActual;
+            if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
+                $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
+            }
+        }
+
+        while (!empty($paginaActual['next'])) {
+            log_message('info', 'Obteniendo siguiente página: ' . $paginaActual['next']);
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $paginaActual['next']);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Authorization: Basic ' . $tokenBase64,
+                'Accept: application/json',
+                'Content-Type: application/json',
+            ]);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+
+            $nextResponse = curl_exec($ch);
+            curl_close($ch);
+
+            $paginaActual = json_decode($nextResponse, true);
+
+            if (is_array($paginaActual)) {
+                $paginasCrudas[] = $paginaActual;
+                if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
+                    $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
+                }
+            }
+        }
+
+        return [
+            'reclamos' => $todosLosReclamos,
+            'paginas_crudas' => $paginasCrudas,
+        ];
+    }
+
+    /**
+     * Filtra reclamos de ALUMBRADO PÚBLICO nuevos, omitiendo existentes e inválidos.
+     */
+    private function filtrarReclamosAlumbradoNuevos(array $reclamosApi, int $ultimoMunicipalidadId): array
+    {
+        $reclamosFiltrados = [];
+        $reclamosOmitidos = 0;
+        $reclamosInvalidos = 0;
+
+        foreach ($reclamosApi as $reclamo) {
+            if (!isset($reclamo['motivo']['tipo']) || $reclamo['motivo']['tipo'] !== 'ALUMBRADO PÚBLICO') {
+                continue;
+            }
+
+            if ($this->esReclamoEstadoInvalido($reclamo['estado_nombre'] ?? null)) {
+                $reclamosInvalidos++;
+                continue;
+            }
+
+            $reclamoMapeado = $this->mapearReclamo($reclamo);
+            $idReclamo = (int)$reclamoMapeado['municipalidad_id'];
+
+            if ($idReclamo > $ultimoMunicipalidadId) {
+                $reclamosFiltrados[] = $reclamoMapeado;
+            } else {
+                $reclamosOmitidos++;
+            }
+        }
+
+        return [
+            'reclamos' => $reclamosFiltrados,
+            'reclamos_omitidos' => $reclamosOmitidos,
+            'reclamos_invalidos' => $reclamosInvalidos,
+            'total_alumbrado' => count($reclamosFiltrados) + $reclamosOmitidos + $reclamosInvalidos,
+        ];
+    }
+
+    /**
+     * Determina si un reclamo no debe sincronizarse por su estado.
+     */
+    private function esReclamoEstadoInvalido($estado): bool
+    {
+        return trim((string)$estado) === self::ESTADO_INVALIDO_SINCRONIZACION;
+    }
+
+    /**
      * Mapea un reclamo de la API externa a la estructura de nuestra BD
      */
     private function mapearReclamo($reclamoApi)
@@ -541,13 +564,13 @@ class ReclamosSincronizacion extends ResourceController
             'municipalidad_fechaModificacion' => $this->convertirFechaApi($reclamoApi['fecha_modificacion'] ?? null),
             'municipalidad_recepcion' => null, // No viene en la API
             'municipalidad_estado' => $estado,
-            'municipalidad_telefono' => null, // No viene en la API
+            'municipalidad_telefono' => isset($reclamoApi['telefono']) ? (string)$reclamoApi['telefono'] : null,
             'municipalidad_domicilio' => $reclamoApi['calle']['nombre'] ?? '',
             'municipalidad_numeroDomicilio' => (string)($reclamoApi['calle_altura'] ?? ''),
             'municipalidad_entreCalleUno' => $reclamoApi['desde_calle']['nombre'] ?? '',
             'municipalidad_entreCalleDos' => $reclamoApi['hasta_calle']['nombre'] ?? '',
             'municipalidad_ciudadano' => null, // No viene en la API
-            'municipalidad_descripcion' => null, // No viene en la API
+            'municipalidad_descripcion' => isset($reclamoApi['descripcion']) ? (string)$reclamoApi['descripcion'] : null,
             'prioridad' => 'Baja' // Asignar prioridad baja por defecto para reclamos sincronizados
         ];
     }

@@ -51,6 +51,42 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Menús desplegables de la cuenta del usuario (Perfil / Cerrar sesión)
+    // Soporta múltiples instancias (escritorio y móvil)
+    const userMenus = document.querySelectorAll('.user-menu');
+    if (userMenus.length) {
+        const cerrarTodos = () => {
+            userMenus.forEach(menu => {
+                menu.classList.remove('open');
+                const toggle = menu.querySelector('.user-menu__toggle');
+                if (toggle) toggle.setAttribute('aria-expanded', 'false');
+            });
+        };
+
+        userMenus.forEach(menu => {
+            const toggle = menu.querySelector('.user-menu__toggle');
+            if (!toggle) return;
+            toggle.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const estabaAbierto = menu.classList.contains('open');
+                cerrarTodos();
+                if (!estabaAbierto) {
+                    menu.classList.add('open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                }
+            });
+        });
+
+        document.addEventListener('click', function (e) {
+            const dentro = Array.from(userMenus).some(menu => menu.contains(e.target));
+            if (!dentro) cerrarTodos();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') cerrarTodos();
+        });
+    }
+
     // Marcar enlace activo basado en la URL actual
     const currentPath = window.location.pathname;
     const navLinks = document.querySelectorAll('.sidebar .nav-link');

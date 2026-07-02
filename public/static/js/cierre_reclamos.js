@@ -49,9 +49,9 @@ const app = Vue.createApp({
                 const response = await axios.get(url);
 
                 if (response.data.success) {
-                    // Ordenar reclamos de menor a mayor por municipalidad_id
+                    // Ordenar reclamos de mayor a menor por ID
                     this.reclamosCompletados = response.data.reclamos.sort((a, b) => {
-                        return parseInt(a.municipalidad_id) - parseInt(b.municipalidad_id);
+                        return parseInt(b.municipalidad_id) - parseInt(a.municipalidad_id);
                     });
                     this.actualizarFechaActualizacion();
                     
@@ -83,9 +83,9 @@ const app = Vue.createApp({
                 const response = await axios.get(url);
 
                 if (response.data.success) {
-                    // Ordenar reclamos de menor a mayor por municipalidad_id
+                    // Ordenar reclamos de mayor a menor por ID
                     this.reclamosCerrados = response.data.reclamos.sort((a, b) => {
-                        return parseInt(a.municipalidad_id) - parseInt(b.municipalidad_id);
+                        return parseInt(b.municipalidad_id) - parseInt(a.municipalidad_id);
                     });
                     
                     // Inicializar o actualizar la tabla DataTables
@@ -112,10 +112,13 @@ const app = Vue.createApp({
             if (this.tabla) {
                 this.tabla.destroy();
             }
+
+            this.reclamosCompletados.sort((a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10));
             
             this.tabla = $('#tabla_cierre_reclamos').DataTable({
                 data: this.reclamosCompletados,
                 responsive: true,
+                ordering: false,
                 pageLength: 30,
                 pagingType: 'simple_numbers',
                 lengthMenu: [
@@ -150,6 +153,7 @@ const app = Vue.createApp({
                     },
                     {
                         data: 'municipalidad_id',
+                        type: 'num',
                         className: 'text-start',
                         render: (data, type, row) => {
                             return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
@@ -177,7 +181,7 @@ const app = Vue.createApp({
                         render: (data) => this.formatearFecha(data)
                     }
                 ],
-                order: [[1, 'asc']], // Ordenar por ID ascendente
+                order: [[1, 'desc']],
                 initComplete: function () {
                     const wrapper = $('#tabla_cierre_reclamos_wrapper');
                     wrapper.find('.dt-length select').addClass('form-select form-select-sm');
@@ -216,10 +220,13 @@ const app = Vue.createApp({
             if (this.tablaCerrados) {
                 this.tablaCerrados.destroy();
             }
+
+            this.reclamosCerrados.sort((a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10));
             
             this.tablaCerrados = $('#tabla_reclamos_cerrados').DataTable({
                 data: this.reclamosCerrados,
                 responsive: true,
+                ordering: false,
                 pageLength: 30,
                 pagingType: 'simple_numbers',
                 lengthMenu: [
@@ -245,6 +252,7 @@ const app = Vue.createApp({
                 columns: [
                     {
                         data: 'municipalidad_id',
+                        type: 'num',
                         className: 'text-start',
                         render: (data, type, row) => {
                             return `<a href="#" class="ver-reclamo-cerrado-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
@@ -277,7 +285,7 @@ const app = Vue.createApp({
                         render: (data) => this.formatearFecha(data)
                     }
                 ],
-                order: [[0, 'asc']], // Ordenar por ID ascendente
+                order: [[0, 'desc']],
                 initComplete: function () {
                     const wrapper = $('#tabla_reclamos_cerrados_wrapper');
                     wrapper.find('.dt-length select').addClass('form-select form-select-sm');
@@ -531,66 +539,57 @@ const app = Vue.createApp({
          */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
+                let resuelto = false;
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacionCierre" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="modal-content cierre-modal reclamo-confirm-modal">
+                                <div class="cierre-modal__header">
+                                    <div class="cierre-modal__title">
+                                        <span class="cierre-modal__icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="cierre-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-lock-fill text-warning" style="font-size: 3rem;"></i>
-                                        <div class="mt-3">${mensaje}</div>
-                                    </div>
+                                    <p class="reclamo-confirm-modal__message">${mensaje}</p>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelarCierre">
-                                        <i class="bi bi-x-circle me-1"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmarCierre">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar Cierre
-                                    </button>
+                                <div class="cierre-modal__footer cierre-modal__footer--end">
+                                    <button type="button" class="cierre-btn cierre-btn--outline" data-bs-dismiss="modal" id="btnCancelarCierre">Cancelar</button>
+                                    <button type="button" class="cierre-btn cierre-btn--success" id="btnConfirmarCierre"><i class="bi bi-check-lg"></i> Confirmar</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
 
-                // Remover modal anterior si existe
                 $('#modalConfirmacionCierre').remove();
-
-                // Agregar el modal al body
                 $('body').append(modalHtml);
 
-                // Mostrar el modal
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacionCierre'));
                 modal.show();
 
-                // Manejar botones
-                $('#btnConfirmarCierre').on('click', () => {
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
                     modal.hide();
                     setTimeout(() => {
                         $('#modalConfirmacionCierre').remove();
                     }, 300);
-                    resolve(true);
-                });
+                    resolve(resultado);
+                };
 
-                $('#btnCancelarCierre').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacionCierre').remove();
-                    }, 300);
-                    resolve(false);
-                });
+                $('#btnConfirmarCierre').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelarCierre').on('click', () => cerrarConfirmacion(false));
 
-                // Manejar cierre del modal (X o ESC)
                 $('#modalConfirmacionCierre').on('hidden.bs.modal', () => {
                     $('#modalConfirmacionCierre').remove();
-                    resolve(false);
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
                 });
             });
         }

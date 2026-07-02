@@ -16,7 +16,9 @@ class RutaEjecucionReclamoObservacionModel extends Model
         'ruta_ejecucion_id',
         'ruta_id',
         'reclamo_id',
+        'tipo',
         'texto',
+        'archivo',
         'usuario_id',
         'created_at',
     ];

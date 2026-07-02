@@ -16,6 +16,7 @@ use App\Models\RutaModel;
 use App\Models\CuadrillaOperariosModel;
 use App\Models\RutaEjecucionReclamoObservacionModel;
 use App\Libraries\RutaEjecucionHistorialService;
+use App\Libraries\ReclamoPrioridadService;
 
 class Reclamos extends ResourceController
 {
@@ -34,6 +35,8 @@ class Reclamos extends ResourceController
 
     public function index()
     {
+        ReclamoPrioridadService::sincronizarPrioridadesMasivas();
+
         return $this->respond($this->model->findAll());
     }
 
@@ -63,9 +66,11 @@ class Reclamos extends ResourceController
         }
 
         // Si la prioridad no viene, asignar un valor por defecto
-        if (empty($data['prioridad'])) { // Cambiado a 'prioridad'
-            $data['prioridad'] = 'Baja'; // Puedes elegir el valor por defecto que prefieras
+        if (empty($data['prioridad'])) {
+            $data['prioridad'] = 'Baja';
         }
+
+        $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($data);
 
         // Insertar reclamo
         $reclamoId = $this->model->insert($data);
@@ -157,8 +162,8 @@ class Reclamos extends ResourceController
             $data['municipalidad_fechaInicio'] = $this->formatearFecha($data['municipalidad_fechaInicio']);
         }
 
-        // La prioridad se manejará si se envía en $data. No se necesita un valor por defecto explícito
-        // aquí porque el campo ya existe en la base de datos y se actualizará si se proporciona.
+        $reclamoParaPrioridad = array_merge($reclamoActual, $data);
+        $data['prioridad']      = ReclamoPrioridadService::evaluarPrioridad($reclamoParaPrioridad);
 
         $actualizado = $this->model->update($id, $data);
 
@@ -1007,7 +1012,8 @@ class Reclamos extends ResourceController
 
     /**
      * Lista observaciones de obra de un reclamo (todas las ejecuciones / hojas de ruta).
-     * ruta_ejecucion_id valida el contexto de la hoja en curso; el listado no se limita a esa ejecución.
+     * ruta_ejecucion_id valida el contexto de la hoja en curso (operario).
+     * Supervisores/administradores pueden usar ruta_id para consultar el historial completo del reclamo.
      */
     public function getEjecucionObservacionesReclamo($reclamoId = null)
     {
@@ -1016,30 +1022,49 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('ID de reclamo requerido.');
             }
 
-            $permisoEdicion = $this->validarPermisoEdicionOperario((int) $reclamoId);
-            if ($permisoEdicion !== true) {
-                return $permisoEdicion;
-            }
-
             $reclamoId = (int) $reclamoId;
             $reclamo   = $this->model->find($reclamoId);
             if (! $reclamo) {
                 return $this->failNotFound('Reclamo no encontrado.');
             }
 
+            $permiso = $this->validarAccesoBitacoraEjecucionReclamo($reclamoId);
+            if ($permiso !== true) {
+                return $permiso;
+            }
+
             $rutaEjecucionId = $this->request->getGet('ruta_ejecucion_id');
-            if ($rutaEjecucionId === null || $rutaEjecucionId === '') {
-                return $this->failValidationErrors('Parámetro ruta_ejecucion_id requerido.');
+            $rutaIdConsulta  = $this->request->getGet('ruta_id');
+            $role            = (string) (session()->get('role') ?? '');
+
+            if ($rutaEjecucionId !== null && $rutaEjecucionId !== '') {
+                $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, (int) $rutaEjecucionId);
+                if ($ctx === null) {
+                    return $this->failForbidden('No se encontró la ejecución indicada para este reclamo o no coincide con la hoja en curso.');
+                }
+            } elseif ($rutaIdConsulta !== null && $rutaIdConsulta !== '') {
+                $link = RutaEjecucionHistorialService::findRutaReclamoLinkRutaAsignada($reclamoId);
+                if (! $link || (int) $link['ruta_id'] !== (int) $rutaIdConsulta) {
+                    return $this->failForbidden('El reclamo no pertenece a la hoja de ruta indicada.');
+                }
+                if ($role === '3') {
+                    $acceso = $this->validarOperarioCuadrillaRutaReclamo($reclamoId);
+                    if ($acceso !== true) {
+                        return $acceso;
+                    }
+                }
+            } else {
+                return $this->failValidationErrors('Parámetro ruta_ejecucion_id o ruta_id requerido.');
             }
 
-            $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, (int) $rutaEjecucionId);
-            if ($ctx === null) {
-                return $this->failForbidden('No se encontró la ejecución indicada para este reclamo o no coincide con la hoja en curso.');
+            $db   = \Config\Database::connect();
+            $cols = 'o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, u.foto_perfil as usuario_foto_perfil, r.nombre as ruta_nombre, r.color as ruta_color';
+            if ($db->fieldExists('tipo', 'ruta_ejecucion_reclamo_observacion')) {
+                $cols .= ', o.tipo, o.archivo';
             }
 
-            $db = \Config\Database::connect();
             $rows = $db->table('ruta_ejecucion_reclamo_observacion o')
-                ->select('o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, r.nombre as ruta_nombre, r.color as ruta_color')
+                ->select($cols)
                 ->join('usuario u', 'u.id = o.usuario_id', 'left')
                 ->join('ruta r', 'r.id = o.ruta_id', 'left')
                 ->where('o.reclamo_id', $reclamoId)
@@ -1048,7 +1073,10 @@ class Reclamos extends ResourceController
                 ->get()
                 ->getResultArray();
 
-            return $this->respond($rows);
+            $observaciones = $this->enriquecerFilasBitacoraEjecucion($rows);
+            $cambiosEstado = $this->obtenerEntradasCambioEstadoBitacoraReclamo($reclamoId);
+
+            return $this->respond($this->fusionarBitacoraEjecucionReclamo($observaciones, $cambiosEstado));
         } catch (\Exception $e) {
             log_message('error', 'Error al listar observaciones de ejecución: ' . $e->getMessage());
 
@@ -1066,21 +1094,21 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('ID de reclamo requerido.');
             }
 
-            $permisoEdicion = $this->validarPermisoEdicionOperario((int) $reclamoId);
-            if ($permisoEdicion !== true) {
-                return $permisoEdicion;
-            }
-
             $reclamoId = (int) $reclamoId;
             $reclamo   = $this->model->find($reclamoId);
             if (! $reclamo) {
                 return $this->failNotFound('Reclamo no encontrado.');
             }
 
-            $data                  = $this->request->getJSON(true) ?? [];
+            $data                   = $this->request->getJSON(true) ?? [];
             $rutaEjecucionIdCliente = isset($data['ruta_ejecucion_id']) ? (int) $data['ruta_ejecucion_id'] : 0;
             if ($rutaEjecucionIdCliente < 1) {
                 return $this->failValidationErrors('ruta_ejecucion_id es obligatorio.');
+            }
+
+            $ctx = $this->validarRegistroBitacoraEjecucionReclamo($reclamoId, $rutaEjecucionIdCliente);
+            if (! is_array($ctx)) {
+                return $ctx;
             }
 
             $texto = isset($data['texto']) ? trim((string) $data['texto']) : '';
@@ -1093,46 +1121,228 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('La observación no puede superar los 4000 caracteres.');
             }
 
-            $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, $rutaEjecucionIdCliente);
-            if ($ctx === null) {
-                return $this->failForbidden('La ejecución no es válida para esta hoja y reclamo, o la ruta no está en ejecución.');
-            }
+            $row = $this->insertarEntradaBitacoraEjecucion($ctx, $reclamoId, 'texto', $texto, null);
 
-            $usuarioId = session()->get('user_id');
-            if (! $usuarioId) {
-                $usuarioId = 0;
-            }
-
-            $obsModel = new RutaEjecucionReclamoObservacionModel();
-            $ahora    = date('Y-m-d H:i:s');
-            $obsModel->insert([
-                'ruta_ejecucion_id' => $ctx['ruta_ejecucion_id'],
-                'ruta_id'           => $ctx['ruta_id'],
-                'reclamo_id'        => $reclamoId,
-                'texto'             => $texto,
-                'usuario_id'        => (int) $usuarioId > 0 ? (int) $usuarioId : null,
-                'created_at'        => $ahora,
-            ]);
-            $id = (int) $obsModel->getInsertID();
-            if ($id < 1) {
-                return $this->failServerError('Error al guardar la observación.');
-            }
-
-            $db  = \Config\Database::connect();
-            $row = $db->table('ruta_ejecucion_reclamo_observacion o')
-                ->select('o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, r.nombre as ruta_nombre, r.color as ruta_color')
-                ->join('usuario u', 'u.id = o.usuario_id', 'left')
-                ->join('ruta r', 'r.id = o.ruta_id', 'left')
-                ->where('o.id', $id)
-                ->get()
-                ->getRowArray();
-
-            return $this->respondCreated($row ?? ['id' => $id]);
+            return $this->respondCreated($row);
         } catch (\Exception $e) {
             log_message('error', 'Error al guardar observación de ejecución: ' . $e->getMessage());
 
             return $this->failServerError('Error al guardar la observación.');
         }
+    }
+
+    /**
+     * Registra una foto en la bitácora de obra del reclamo (multipart: foto, ruta_ejecucion_id, texto opcional).
+     */
+    public function guardarEjecucionFotoReclamo($reclamoId = null)
+    {
+        try {
+            if (! $reclamoId) {
+                return $this->failValidationErrors('ID de reclamo requerido.');
+            }
+
+            $reclamoId = (int) $reclamoId;
+            $reclamo   = $this->model->find($reclamoId);
+            if (! $reclamo) {
+                return $this->failNotFound('Reclamo no encontrado.');
+            }
+
+            $rutaEjecucionIdCliente = (int) ($this->request->getPost('ruta_ejecucion_id') ?? 0);
+            if ($rutaEjecucionIdCliente < 1) {
+                return $this->failValidationErrors('ruta_ejecucion_id es obligatorio.');
+            }
+
+            $ctx = $this->validarRegistroBitacoraEjecucionReclamo($reclamoId, $rutaEjecucionIdCliente);
+            if (! is_array($ctx)) {
+                return $ctx;
+            }
+
+            $archivo = $this->request->getFile('foto');
+            if (! $archivo || ! $archivo->isValid()) {
+                return $this->failValidationErrors('No se recibió una imagen válida.');
+            }
+
+            $tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp'];
+            if (! in_array($archivo->getMimeType(), $tiposPermitidos, true)) {
+                return $this->failValidationErrors('Formato no permitido. Use JPG, PNG o WEBP.');
+            }
+
+            $maxBytes = 5 * 1024 * 1024;
+            if ($archivo->getSize() > $maxBytes) {
+                return $this->failValidationErrors('La imagen no debe superar los 5 MB.');
+            }
+
+            $texto = trim((string) ($this->request->getPost('texto') ?? ''));
+            if ($texto === '') {
+                $texto = null;
+            } else {
+                $len = function_exists('mb_strlen') ? mb_strlen($texto, 'UTF-8') : strlen($texto);
+                if ($len > 4000) {
+                    return $this->failValidationErrors('El texto no puede superar los 4000 caracteres.');
+                }
+            }
+
+            $directorio = FCPATH . 'static/uploads/obra_reclamos';
+            if (! is_dir($directorio)) {
+                mkdir($directorio, 0775, true);
+            }
+
+            $extension     = $archivo->getExtension() ?: 'jpg';
+            $nombreArchivo   = 'rec' . $reclamoId . '_ej' . $ctx['ruta_ejecucion_id'] . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+
+            if (! $archivo->move($directorio, $nombreArchivo)) {
+                return $this->failServerError('No se pudo guardar la imagen.');
+            }
+
+            $row = $this->insertarEntradaBitacoraEjecucion($ctx, $reclamoId, 'foto', $texto, $nombreArchivo);
+
+            return $this->respondCreated($row);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al guardar foto de ejecución: ' . $e->getMessage());
+
+            return $this->failServerError('Error al guardar la foto.');
+        }
+    }
+
+    /**
+     * @param array{ruta_ejecucion_id: int, ruta_id: int, reclamo_id: int} $ctx
+     */
+    private function insertarEntradaBitacoraEjecucion(array $ctx, int $reclamoId, string $tipo, ?string $texto, ?string $archivo): array
+    {
+        $usuarioId = session()->get('user_id');
+        if (! $usuarioId) {
+            $usuarioId = 0;
+        }
+
+        $obsModel = new RutaEjecucionReclamoObservacionModel();
+        $ahora    = date('Y-m-d H:i:s');
+        $insert   = [
+            'ruta_ejecucion_id' => $ctx['ruta_ejecucion_id'],
+            'ruta_id'           => $ctx['ruta_id'],
+            'reclamo_id'        => $reclamoId,
+            'texto'             => $texto,
+            'usuario_id'        => (int) $usuarioId > 0 ? (int) $usuarioId : null,
+            'created_at'        => $ahora,
+        ];
+
+        $db = \Config\Database::connect();
+        if ($db->fieldExists('tipo', 'ruta_ejecucion_reclamo_observacion')) {
+            $insert['tipo']    = $tipo;
+            $insert['archivo'] = $archivo;
+        }
+
+        $obsModel->insert($insert);
+        $id = (int) $obsModel->getInsertID();
+        if ($id < 1) {
+            throw new \RuntimeException('Error al guardar la entrada de bitácora.');
+        }
+
+        $cols = 'o.id, o.ruta_ejecucion_id, o.ruta_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre as usuario_nombre, u.foto_perfil as usuario_foto_perfil, r.nombre as ruta_nombre, r.color as ruta_color';
+        if ($db->fieldExists('tipo', 'ruta_ejecucion_reclamo_observacion')) {
+            $cols .= ', o.tipo, o.archivo';
+        }
+
+        $row = $db->table('ruta_ejecucion_reclamo_observacion o')
+            ->select($cols)
+            ->join('usuario u', 'u.id = o.usuario_id', 'left')
+            ->join('ruta r', 'r.id = o.ruta_id', 'left')
+            ->where('o.id', $id)
+            ->get()
+            ->getRowArray();
+
+        $enriquecidas = $this->enriquecerFilasBitacoraEjecucion([$row ?? ['id' => $id]]);
+
+        return $enriquecidas[0] ?? ['id' => $id];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @return list<array<string, mixed>>
+     */
+    private function enriquecerFilasBitacoraEjecucion(array $rows): array
+    {
+        foreach ($rows as &$row) {
+            $tipo = (string) ($row['tipo'] ?? 'texto');
+            if ($tipo === '') {
+                $tipo = 'texto';
+            }
+            $row['bitacora_tipo'] = 'observacion';
+            $row['tipo']          = $tipo;
+            $row['url_foto']      = null;
+            if ($tipo === 'foto' && ! empty($row['archivo'])) {
+                $row['url_foto'] = base_url('static/uploads/obra_reclamos/' . $row['archivo']);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Cambios de estado del reclamo para la bitácora en obra (misma línea de tiempo que notas/fotos).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function obtenerEntradasCambioEstadoBitacoraReclamo(int $reclamoId): array
+    {
+        $db = \Config\Database::connect();
+        $rows = $db->table('ruta_ejecucion_evento e')
+            ->select('e.id, e.ocurrido_at, e.metadata, u.nombre AS usuario_nombre, u.foto_perfil AS usuario_foto_perfil, r.nombre AS ruta_nombre, r.color AS ruta_color')
+            ->join('usuario u', 'u.id = e.usuario_id', 'left')
+            ->join('ruta_ejecucion re', 're.id = e.ruta_ejecucion_id', 'left')
+            ->join('ruta r', 'r.id = re.ruta_id', 'left')
+            ->where('e.reclamo_id', $reclamoId)
+            ->where('e.tipo', RutaEjecucionHistorialService::TIPO_RECLAMO_ESTADO)
+            ->orderBy('e.ocurrido_at', 'DESC')
+            ->orderBy('e.id', 'DESC')
+            ->get()
+            ->getResultArray();
+
+        $out = [];
+        foreach ($rows as $ev) {
+            $md = null;
+            if (! empty($ev['metadata'])) {
+                $decoded = json_decode($ev['metadata'], true);
+                $md      = is_array($decoded) ? $decoded : null;
+            }
+            if ($md === null || $md['estado_anterior'] === null || $md['estado_nuevo'] === null) {
+                continue;
+            }
+            $out[] = [
+                'bitacora_tipo'   => 'cambio_estado',
+                'id'              => 'est-' . $ev['id'],
+                'created_at'      => $ev['ocurrido_at'],
+                'estado_anterior' => (string) $md['estado_anterior'],
+                'estado_nuevo'    => (string) $md['estado_nuevo'],
+                'usuario_nombre'  => $ev['usuario_nombre'] ?? null,
+                'usuario_foto_perfil' => $ev['usuario_foto_perfil'] ?? null,
+                'ruta_nombre'     => $ev['ruta_nombre'] ?? null,
+                'ruta_color'      => $ev['ruta_color'] ?? null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $observaciones
+     * @param list<array<string, mixed>> $cambiosEstado
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fusionarBitacoraEjecucionReclamo(array $observaciones, array $cambiosEstado): array
+    {
+        $fusion = array_merge($observaciones, $cambiosEstado);
+        usort($fusion, static function (array $a, array $b): int {
+            $ta = strtotime((string) ($a['created_at'] ?? '')) ?: 0;
+            $tb = strtotime((string) ($b['created_at'] ?? '')) ?: 0;
+            if ($ta !== $tb) {
+                return $tb <=> $ta;
+            }
+
+            return strcmp((string) ($b['id'] ?? ''), (string) ($a['id'] ?? ''));
+        });
+
+        return $fusion;
     }
 
     /**
@@ -1166,6 +1376,91 @@ class Reclamos extends ResourceController
             'ruta_id'           => $rutaId,
             'reclamo_id'        => $reclamoId,
         ];
+    }
+
+    /**
+     * Lectura de bitácora: supervisores/administradores o cualquier operario de la cuadrilla.
+     *
+     * @return true|\CodeIgniter\HTTP\ResponseInterface
+     */
+    private function validarAccesoBitacoraEjecucionReclamo(int $reclamoId)
+    {
+        $session = session();
+        $userId  = (int) ($session->get('user_id') ?? 0);
+        $role    = (string) ($session->get('role') ?? '');
+
+        if (! $userId) {
+            return $this->failUnauthorized('Usuario no autenticado.');
+        }
+
+        if ($role !== '3') {
+            return true;
+        }
+
+        return $this->validarOperarioCuadrillaRutaReclamo($reclamoId);
+    }
+
+    /**
+     * Registro en bitácora: operario de la cuadrilla, hoja en ejecución y reclamo en obra.
+     *
+     * @return array{ruta_ejecucion_id: int, ruta_id: int, reclamo_id: int}|\CodeIgniter\HTTP\ResponseInterface
+     */
+    private function validarRegistroBitacoraEjecucionReclamo(int $reclamoId, int $rutaEjecucionIdCliente)
+    {
+        $session = session();
+        $role    = (string) ($session->get('role') ?? '');
+
+        if ($role !== '3') {
+            return $this->failForbidden('Solo operarios de la cuadrilla pueden registrar entradas en obra.');
+        }
+
+        $acceso = $this->validarOperarioCuadrillaRutaReclamo($reclamoId);
+        if ($acceso !== true) {
+            return $acceso;
+        }
+
+        $ctx = $this->resolverContextoObservacionEjecucionReclamo($reclamoId, $rutaEjecucionIdCliente);
+        if ($ctx === null) {
+            return $this->failForbidden('La ejecución no es válida para esta hoja y reclamo, o la ruta no está en ejecución.');
+        }
+
+        if (! RutaEjecucionHistorialService::reclamoTieneObraActivaEnEjecucion($reclamoId, $ctx['ruta_ejecucion_id'])) {
+            return $this->failForbidden('El reclamo no está en obra. Iniciá el trabajo antes de registrar.');
+        }
+
+        return $ctx;
+    }
+
+    /**
+     * @return true|\CodeIgniter\HTTP\ResponseInterface
+     */
+    private function validarOperarioCuadrillaRutaReclamo(int $reclamoId)
+    {
+        $session = session();
+        $userId  = (int) ($session->get('user_id') ?? 0);
+
+        $vinculoRuta = RutaEjecucionHistorialService::findRutaReclamoLinkRutaAsignada($reclamoId);
+        if (! $vinculoRuta) {
+            return $this->failForbidden('El reclamo no está en ninguna hoja de ruta asignada a cuadrilla.');
+        }
+
+        $rutaModel = new RutaModel();
+        $ruta      = $rutaModel->find($vinculoRuta['ruta_id']);
+        if (! $ruta || (int) ($ruta['asignada'] ?? 0) !== 1 || empty($ruta['cuadrilla_id'])) {
+            return $this->failForbidden('La hoja de ruta del reclamo no está asignada.');
+        }
+
+        $cuadrillaOperariosModel = new CuadrillaOperariosModel();
+        $asignacion              = $cuadrillaOperariosModel
+            ->where('usuario_id', $userId)
+            ->where('cuadrilla_id', $ruta['cuadrilla_id'])
+            ->first();
+
+        if (! $asignacion) {
+            return $this->failForbidden('No tiene permisos sobre tareas de esta cuadrilla.');
+        }
+
+        return true;
     }
 
     /**

@@ -98,6 +98,20 @@ class RutaEjecucionHistorialService
     }
 
     /**
+     * Indica si el reclamo tiene una sesión de obra activa (inicio sin fin) en la ejecución dada.
+     */
+    public static function reclamoTieneObraActivaEnEjecucion(int $reclamoId, int $rutaEjecucionId): bool
+    {
+        if ($reclamoId < 1 || $rutaEjecucionId < 1) {
+            return false;
+        }
+
+        $sesiones = self::computeSesionesReparacionDesdeEventos($rutaEjecucionId);
+
+        return ! empty($sesiones[$reclamoId]['activo']);
+    }
+
+    /**
      * Igual que {@see computeSesionesReparacionDesdeEventos} pero uniendo todas las ejecuciones de una misma ruta.
      * Así un reclamo dejado pendiente en un día conserva el acumulado al abrir una nueva hoja de ruta.
      *
@@ -141,6 +155,43 @@ class RutaEjecucionHistorialService
         $evt = new RutaEjecucionEventoModel();
         $rows = $evt->whereIn('reclamo_id', $ids)
             ->whereIn('tipo', [self::TIPO_RECLAMO_INICIO, self::TIPO_RECLAMO_FIN])
+            ->orderBy('ocurrido_at', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->findAll();
+
+        return self::aggregateSesionesReparacionDesdeFilasEvento($rows);
+    }
+
+    /**
+     * Cronómetro por reclamo al cierre de una ejecución: suma segmentos inicio/fin de ese reclamo
+     * en cualquier hoja, con eventos hasta fin_at de esta ejecución (no incluye trabajo posterior).
+     * Usado en historial para reclamos que llegaron pendientes desde ejecuciones anteriores.
+     *
+     * @param list<int> $reclamoIds
+     *
+     * @return array<int, array{activo: bool, acumulado_ms: int, inicio_segmento_at: ?string}>
+     */
+    public static function computeSesionesReparacionHastaCierreEjecucion(int $ejecucionId, array $reclamoIds): array
+    {
+        if ($ejecucionId < 1) {
+            return [];
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $reclamoIds), static fn (int $id) => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $ej = (new RutaEjecucionModel())->find($ejecucionId);
+        $finAt = $ej['fin_at'] ?? null;
+        if ($finAt === null || $finAt === '') {
+            return self::computeSesionesReparacionDesdeEventos($ejecucionId);
+        }
+
+        $evt = new RutaEjecucionEventoModel();
+        $rows = $evt->whereIn('reclamo_id', $ids)
+            ->whereIn('tipo', [self::TIPO_RECLAMO_INICIO, self::TIPO_RECLAMO_FIN])
+            ->where('ocurrido_at <=', (string) $finAt)
             ->orderBy('ocurrido_at', 'ASC')
             ->orderBy('id', 'ASC')
             ->findAll();
@@ -250,6 +301,141 @@ class RutaEjecucionHistorialService
             ->whereIn('id', $idsEnRuta)
             ->get()
             ->getResultArray();
+    }
+
+    /**
+     * Estado de cada reclamo al cierre de una ejecución (congelado para historial visual).
+     *
+     * @param list<int> $reclamoIds
+     *
+     * @return array<int, string>
+     */
+    public static function computeEstadosReclamosAlCierreEjecucion(
+        int $ejecucionId,
+        ?string $inicioAt,
+        ?string $finAt,
+        array $reclamoIds
+    ): array {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $reclamoIds), static fn (int $id) => $id > 0)));
+        if ($ejecucionId < 1 || $finAt === null || $finAt === '' || $ids === []) {
+            return [];
+        }
+
+        $db = \Config\Database::connect();
+        $rows = $db->table('ruta_ejecucion_evento')
+            ->whereIn('reclamo_id', $ids)
+            ->where('tipo', self::TIPO_RECLAMO_ESTADO)
+            ->where('ocurrido_at <=', $finAt)
+            ->orderBy('ocurrido_at', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $nroPorId = [];
+        $filasReclamo = $db->table('reclamo')
+            ->select('id, municipalidad_id')
+            ->whereIn('id', $ids)
+            ->get()
+            ->getResultArray();
+        foreach ($filasReclamo as $fila) {
+            $nroPorId[(int) $fila['id']] = (string) ($fila['municipalidad_id'] ?? '');
+        }
+
+        $out = [];
+        foreach ($ids as $rid) {
+            $estado = self::estadoReclamoEnInstanteDesdeEventos($rid, $inicioAt, $rows, $nroPorId[$rid] ?? null, true);
+
+            foreach ($rows as $ev) {
+                if ((int) ($ev['reclamo_id'] ?? 0) !== $rid) {
+                    continue;
+                }
+                if ((int) ($ev['ruta_ejecucion_id'] ?? 0) !== $ejecucionId) {
+                    continue;
+                }
+                $at = (string) ($ev['ocurrido_at'] ?? '');
+                if ($inicioAt !== null && $inicioAt !== '' && $at < $inicioAt) {
+                    continue;
+                }
+                if ($at > $finAt) {
+                    continue;
+                }
+                $nuevo = self::estadoNuevoDesdeEvento($ev);
+                if ($nuevo !== null) {
+                    $estado = $nuevo;
+                }
+            }
+
+            $out[$rid] = $estado ?? 'Asignado';
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $eventosEstado
+     */
+    private static function estadoReclamoEnInstanteDesdeEventos(
+        int $reclamoId,
+        ?string $instante,
+        array $eventosEstado,
+        ?string $nroReclamo,
+        bool $estrictoMenor
+    ): ?string {
+        $estado = null;
+        foreach ($eventosEstado as $ev) {
+            if ((int) ($ev['reclamo_id'] ?? 0) !== $reclamoId) {
+                continue;
+            }
+            $at = (string) ($ev['ocurrido_at'] ?? '');
+            if ($instante !== null && $instante !== '') {
+                if ($estrictoMenor ? ($at >= $instante) : ($at > $instante)) {
+                    continue;
+                }
+            }
+            $nuevo = self::estadoNuevoDesdeEvento($ev);
+            if ($nuevo !== null) {
+                $estado = $nuevo;
+            }
+        }
+
+        if ($estado !== null) {
+            return $estado;
+        }
+
+        if ($nroReclamo === null || $nroReclamo === '' || $instante === null || $instante === '') {
+            return null;
+        }
+
+        $hist = \Config\Database::connect()->table('historial_reclamo')
+            ->where('nro_reclamo', $nroReclamo)
+            ->where('fecha_cambio <', $instante)
+            ->orderBy('fecha_cambio', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->limit(1)
+            ->get()
+            ->getRowArray();
+
+        if ($hist && ! empty($hist['estado_actual'])) {
+            return (string) $hist['estado_actual'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $ev
+     */
+    private static function estadoNuevoDesdeEvento(array $ev): ?string
+    {
+        if (empty($ev['metadata'])) {
+            return null;
+        }
+        $md = is_array($ev['metadata']) ? $ev['metadata'] : json_decode((string) $ev['metadata'], true);
+        if (! is_array($md) || ! isset($md['estado_nuevo']) || $md['estado_nuevo'] === '') {
+            return null;
+        }
+
+        return (string) $md['estado_nuevo'];
     }
 
     private static function diffDatetimeMs(string $start, string $end): int

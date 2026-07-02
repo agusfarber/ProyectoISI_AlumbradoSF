@@ -6,6 +6,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use App\Models\Token103Model;
+use App\Models\ReclamoModel;
 use App\Controllers\Api\ReclamosSincronizacion;
 use ReflectionClass;
 use ReflectionMethod;
@@ -101,7 +102,9 @@ class ReclamosSincronizacion103Test extends CIUnitTestCase
             ],
             'hasta_calle' => [
                 'nombre' => 'Rivadavia'
-            ]
+            ],
+            'telefono' => '3564123456',
+            'descripcion' => 'La luminaria no enciende desde hace dos noches',
         ];
         
         // Act: Usar Reflection para acceder al método privado mapearReclamo
@@ -134,11 +137,13 @@ class ReclamosSincronizacion103Test extends CIUnitTestCase
         $this->assertEquals('Belgrano', $reclamoMapeado['municipalidad_entreCalleUno']);
         $this->assertEquals('Rivadavia', $reclamoMapeado['municipalidad_entreCalleDos']);
         
-        // Assert 7: Verificar campos que deben ser null
+        // Assert 7: Verificar teléfono y descripción del 103
+        $this->assertEquals('3564123456', $reclamoMapeado['municipalidad_telefono']);
+        $this->assertEquals('La luminaria no enciende desde hace dos noches', $reclamoMapeado['municipalidad_descripcion']);
+
+        // Assert 8: Verificar campos que deben ser null
         $this->assertNull($reclamoMapeado['municipalidad_recepcion']);
-        $this->assertNull($reclamoMapeado['municipalidad_telefono']);
         $this->assertNull($reclamoMapeado['municipalidad_ciudadano']);
-        $this->assertNull($reclamoMapeado['municipalidad_descripcion']);
     }
 
     /**
@@ -147,6 +152,64 @@ class ReclamosSincronizacion103Test extends CIUnitTestCase
      * Objetivo: Verificar que las fechas en formato ISO 8601 de la API
      * externa se convierten correctamente al formato MySQL datetime.
      */
+    public function testFiltrarReclamosOmiteEstadoInvalido()
+    {
+        $controller = new ReclamosSincronizacion();
+        $reflection = new ReflectionClass($controller);
+        $metodoFiltrar = $reflection->getMethod('filtrarReclamosAlumbradoNuevos');
+        $metodoFiltrar->setAccessible(true);
+
+        $reclamosApi = [
+            [
+                'id' => 1001,
+                'motivo' => ['tipo' => 'ALUMBRADO PÚBLICO', 'nombre' => 'Luminaria apagada'],
+                'estado_nombre' => 'Inválido (N/A)',
+                'fecha_inicio' => '2025-11-12T14:30:00.000000-03:00',
+                'fecha_modificacion' => '2025-11-12T15:45:30.500000-03:00',
+                'calle' => ['nombre' => 'San Martin'],
+                'calle_altura' => 100,
+            ],
+            [
+                'id' => 1002,
+                'motivo' => ['tipo' => 'ALUMBRADO PÚBLICO', 'nombre' => 'Poste caído'],
+                'estado_nombre' => 'Recibido',
+                'fecha_inicio' => '2025-11-12T14:30:00.000000-03:00',
+                'fecha_modificacion' => '2025-11-12T15:45:30.500000-03:00',
+                'calle' => ['nombre' => 'Belgrano'],
+                'calle_altura' => 200,
+            ],
+        ];
+
+        $resultado = $metodoFiltrar->invoke($controller, $reclamosApi, 1000);
+
+        $this->assertEquals(1, $resultado['reclamos_invalidos']);
+        $this->assertCount(1, $resultado['reclamos']);
+        $this->assertEquals('1002', $resultado['reclamos'][0]['municipalidad_id']);
+    }
+
+    public function testProcesarUnoNoGuardaEstadoInvalido()
+    {
+        $result = $this->withBodyFormat('json')->post('api/sincronizacion/reclamos/procesar-uno', [
+            'municipalidad_id' => '99001',
+            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
+            'municipalidad_motivo' => 'Luminaria apagada',
+            'municipalidad_estado' => 'Inválido (N/A)',
+            'municipalidad_fechaInicio' => '2025-11-12 14:30:00',
+            'municipalidad_fechaModificacion' => '2025-11-12 15:45:30',
+            'municipalidad_domicilio' => 'San Martin',
+            'municipalidad_numeroDomicilio' => '100',
+            'prioridad' => 'Baja',
+        ]);
+
+        $result->assertStatus(200);
+        $json = json_decode($result->getJSON(), true);
+        $this->assertEquals('omitido', $json['accion']);
+        $this->assertEquals('estado_invalido', $json['motivo']);
+
+        $reclamoModel = new ReclamoModel();
+        $this->assertNull($reclamoModel->where('municipalidad_id', '99001')->first());
+    }
+
     public function testConversionFechasISO8601()
     {
         // Arrange: Preparar diversas fechas ISO 8601

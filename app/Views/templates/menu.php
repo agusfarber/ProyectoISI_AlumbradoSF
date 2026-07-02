@@ -10,9 +10,44 @@
 
 <!-- Sidebar lateral izquierdo -->
 <div class="sidebar" id="sidebar">
-  <!-- Header del sidebar -->
+  <!-- Header del sidebar: cuenta del usuario (escritorio) -->
   <div class="sidebar-header">
-    <h3><i class="bi bi-lightning-charge"></i>Menu</h3>
+    <div class="user-menu user-menu--desktop" id="userMenu">
+      <button type="button" class="user-info user-menu__toggle" id="userMenuToggle" aria-haspopup="true" aria-expanded="false" title="Mi cuenta">
+        <div class="user-avatar">
+          <?php if (!empty($userFoto)): ?>
+            <img src="<?= base_url('static/uploads/perfiles/' . $userFoto) ?>" alt="Foto de perfil" class="user-avatar-img">
+          <?php else: ?>
+            <i class="bi bi-person"></i>
+          <?php endif; ?>
+        </div>
+        <div class="user-details">
+          <p class="username"><?php echo $username; ?></p>
+          <p class="user-role">
+            <?php 
+            switch($userRole) {
+              case '1': echo 'Administrador'; break;
+              case '2': echo 'Supervisor'; break;
+              case '3': echo 'Operador'; break;
+              default: echo 'Usuario'; break;
+            }
+            ?>
+          </p>
+        </div>
+        <i class="bi bi-chevron-down user-info__chevron"></i>
+      </button>
+
+      <div class="user-menu__dropdown" id="userMenuDropdown">
+        <a class="user-menu__item" href="<?= base_url('/perfil') ?>">
+          <i class="bi bi-person"></i> Perfil
+        </a>
+        <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
+          <button type="submit" class="user-menu__item user-menu__item--logout">
+            <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 
   <!-- Navegación del sidebar -->
@@ -82,15 +117,6 @@
     </div>
     <?php endif; ?>
     
-    <?php if ($userRole == '1' || $userRole == '2'): ?>
-    <div class="nav-item">
-      <a class="nav-link" href="<?= base_url("/token103"); ?>" title="Tokens de Acceso">
-        <i class="bi bi-key"></i>
-        <span>Token 103</span>
-      </a>
-    </div>
-    <?php endif; ?>
-
     <?php if ($userRole == '2'): ?>
     <div class="nav-item">
       <a class="nav-link" href="<?= base_url("/analisis"); ?>" title="Análisis">
@@ -161,42 +187,30 @@
     -->
   </nav>
 
-  <!-- Botón de cerrar sesión para móvil (fuera del área de scroll) -->
+  <!-- Menú de cuenta para móvil (fuera del área de scroll) -->
   <div class="sidebar-footer-mobile">
-    <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
-      <button type="submit" class="nav-link-logout-mobile" title="Cerrar sesión">
-        <i class="bi bi-box-arrow-right"></i>
-        <span>Cerrar sesión</span>
+    <div class="user-menu user-menu--mobile" id="userMenuMobile">
+      <button type="button" class="user-menu__toggle user-avatar-btn" aria-haspopup="true" aria-expanded="false" title="Mi cuenta">
+        <?php if (!empty($userFoto)): ?>
+          <img src="<?= base_url('static/uploads/perfiles/' . $userFoto) ?>" alt="Foto de perfil" class="user-avatar-img">
+        <?php else: ?>
+          <i class="bi bi-person"></i>
+        <?php endif; ?>
       </button>
-    </form>
-  </div>
 
-  <!-- Footer del sidebar con información del usuario -->
-  <div class="sidebar-footer">
-    <div class="user-info">
-      <div class="user-avatar">
-        <i class="bi bi-person"></i>
-      </div>
-      <div class="user-details">
-        <p class="username"><?php echo $username; ?></p>
-        <p class="user-role">
-          <?php 
-          switch($userRole) {
-            case '1': echo 'Administrador'; break;
-            case '2': echo 'Supervisor'; break;
-            case '3': echo 'Operador'; break;
-            default: echo 'Usuario'; break;
-          }
-          ?>
-        </p>
+      <div class="user-menu__dropdown">
+        <a class="user-menu__item" href="<?= base_url('/perfil') ?>">
+          <i class="bi bi-person"></i> Perfil
+        </a>
+        <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
+          <button type="submit" class="user-menu__item user-menu__item--logout">
+            <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+          </button>
+        </form>
       </div>
     </div>
-    <form action="<?= base_url('auth/logout') ?>" method="POST" style="margin: 0;">
-      <button type="submit" class="logout-btn">
-        <i class="bi bi-box-arrow-right"></i> Cerrar sesión
-      </button>
-    </form>
   </div>
+
 </div>
 
 <!-- Contenedor principal del contenido -->

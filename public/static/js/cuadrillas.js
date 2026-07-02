@@ -11,14 +11,13 @@ const app = Vue.createApp({
             cuadrillaSeleccionada: '',
             operariosDisponiblesParaEdicion: [],
             operariosSeleccionadosEdicion: [],
-            // Variables para filtros
+            // Buscador
             filtroBusqueda: '',
-            filtroOperarios: '',
-            filtroCantidadOperarios: '',
-            cuadrillasFiltradas: [],
-            tabla: null,
-            // Variable para controlar la cuadrilla seleccionada por fila
-            filaSeleccionada: null
+            filaSeleccionada: null,
+            // Cuadrilla mostrada en el modal de detalle
+            detalle: null,
+            // Buscador de operarios disponibles dentro del modal de edición
+            filtroDisponibles: ''
         };
     },
 
@@ -33,12 +32,6 @@ const app = Vue.createApp({
                 console.log('Respuesta de la API cuadrillas:', response.data);
                 this.cuadrillas = response.data;
                 console.log('Cuadrillas después de asignar:', this.cuadrillas);
-                
-                // Asegurarse de que el DOM esté actualizado antes de inicializar DataTables
-                this.$nextTick(() => {
-                    console.log('Inicializando tabla con cuadrillas:', this.cuadrillas);
-                    this.inicializarTabla();
-                });
             } catch (error) {
                 console.error('Error al obtener cuadrillas:', error);
                 console.error('URL que falló:', error.config?.url);
@@ -47,153 +40,85 @@ const app = Vue.createApp({
         },
 
 
-        // Inicializar o reiniciar DataTable
-        inicializarTabla() {
-            if (this.tabla) {
-                console.log('Destruyendo tabla anterior');
-                this.tabla.destroy();
-            }
-            
-            console.log('Creando nueva tabla con datos:', this.cuadrillas);
-            this.tabla = $('#tabla_cuadrillas').DataTable({
-                data: this.cuadrillas,
-                responsive: true,
-                columns: [
-                    { data: 'nombre' },
-                    { 
-                        data: 'descripcion',
-                        render: (data) => data || '-'
-                    },
-                    {
-                        data: 'operarios',
-                        render: (data) => {
-                            if (data && data.length > 0) {
-                                return data.map(op => {
-                                    const esJefe = Number(op.es_jefe) === 1;
-                                    const clase = esJefe ? 'bg-success' : 'bg-primary';
-                                    const icono = esJefe ? '<i class="bi bi-person-badge-fill text-white me-1"></i>' : '';
-                                    return `<span class="badge ${clase} me-1 mb-1">${icono}${op.nombre}</span>`;
-                                }).join('');
-                            }
-                            return '<span class="text-muted">Sin operarios asignados</span>';
-                        }
-                    }
-                ]
-            });
-
-            // Configurar eventos para clic en fila (selección de cuadrilla)
-            
-            // Configurar eventos para clic en fila (selección de cuadrilla)
-            $('#tabla_cuadrillas tbody').off('click', 'tr').on('click', 'tr', (e) => {
-                // Evitar selección si se hace clic en un botón de acción
-                if ($(e.target).closest('button').length > 0) {
-                    return;
-                }
-                
-                const row = this.tabla.row(e.currentTarget);
-                const data = row.data();
-                if (data) {
-                    this.seleccionarCuadrillaPorFila(data.id, e.currentTarget);
-                }
-            });
-        },
-
-        // Aplicar filtros
-        aplicarFiltros() {
-            if (!this.tabla) return;
-
-            // Limpiar filtros anteriores
-            while ($.fn.dataTable.ext.search.length > 0) {
-                $.fn.dataTable.ext.search.pop();
-            }
-
-            // Filtro por búsqueda de nombre
-            if (this.filtroBusqueda) {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const nombre = data[1].toLowerCase(); // Columna de nombre
-                    return nombre.includes(this.filtroBusqueda.toLowerCase());
-                });
-            }
-
-            // Filtro por operarios
-            if (this.filtroOperarios === 'con-operarios') {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return cuadrilla.operarios && cuadrilla.operarios.length > 0;
-                });
-            } else if (this.filtroOperarios === 'sin-operarios') {
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return !cuadrilla.operarios || cuadrilla.operarios.length === 0;
-                });
-            }
-
-            // Filtro por cantidad de operarios
-            if (this.filtroCantidadOperarios) {
-                const cantidad = parseInt(this.filtroCantidadOperarios);
-                $.fn.dataTable.ext.search.push((settings, data, dataIndex) => {
-                    const cuadrilla = this.cuadrillas[dataIndex];
-                    return cuadrilla.operarios && cuadrilla.operarios.length === cantidad;
-                });
-            }
-
-            this.tabla.draw();
-        },
-
-        // Limpiar filtros
-        limpiarFiltros() {
-            this.filtroBusqueda = '';
-            this.filtroOperarios = '';
-            this.filtroCantidadOperarios = '';
-            
-            // Limpiar filtros de DataTable
-            while ($.fn.dataTable.ext.search.length > 0) {
-                $.fn.dataTable.ext.search.pop();
-            }
-            
-            if (this.tabla) {
-                this.tabla.search('');
-                this.tabla.draw();
-            }
-        },
-
-        // Seleccionar cuadrilla por clic en fila
-        seleccionarCuadrillaPorFila(cuadrillaId, filaElement) {
-            console.log('Seleccionando cuadrilla por fila:', cuadrillaId);
-            
-            // Remover selección anterior
-            $('#tabla_cuadrillas tbody tr').removeClass('table-primary');
-            
-            // Agregar selección visual a la fila actual
-            $(filaElement).addClass('table-primary');
-            
-            // Actualizar el estado
+        // Abrir el modal de administración directamente desde una tarjeta
+        administrarCuadrilla(cuadrillaId) {
             this.cuadrillaSeleccionada = cuadrillaId;
-            this.filaSeleccionada = filaElement;
-            
-            console.log('Cuadrilla seleccionada:', cuadrillaId);
-            console.log('Estado de cuadrillaSeleccionada:', this.cuadrillaSeleccionada);
-            
-            // Forzar actualización de la vista
-            this.$forceUpdate();
+            this.editarCuadrilla(cuadrillaId);
+        },
+
+        // Mostrar el detalle de una cuadrilla (vista en grande, solo lectura)
+        verDetalle(cuadrillaId) {
+            const cuadrilla = this.cuadrillas.find(c => c.id == cuadrillaId);
+            if (!cuadrilla) {
+                this.mostrarMensaje('Cuadrilla no encontrada', 'error');
+                return;
+            }
+            this.detalle = cuadrilla;
+            new bootstrap.Modal(document.getElementById('modalDetalleCuadrilla')).show();
+        },
+
+        // Pasar del detalle al modal de edición
+        editarDesdeDetalle() {
+            if (!this.detalle) return;
+            const id = this.detalle.id;
+            const modalEl = document.getElementById('modalDetalleCuadrilla');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) {
+                modalEl.addEventListener('hidden.bs.modal', () => this.editarCuadrilla(id), { once: true });
+                modal.hide();
+            } else {
+                this.editarCuadrilla(id);
+            }
         },
 
         // Limpiar selección de cuadrilla
         limpiarSeleccion() {
             this.cuadrillaSeleccionada = '';
             this.filaSeleccionada = null;
-            $('#tabla_cuadrillas tbody tr').removeClass('table-primary');
-            this.$forceUpdate();
+        },
+
+        // URL de la foto de perfil de un operario
+        urlFoto(nombreArchivo) {
+            return BASE_URL + 'static/uploads/perfiles/' + nombreArchivo;
+        },
+
+        // Iniciales para el avatar de un operario
+        iniciales(nombre) {
+            if (!nombre) return '?';
+            const partes = nombre.trim().split(/\s+/);
+            const primera = partes[0] ? partes[0][0] : '';
+            const segunda = partes.length > 1 ? partes[partes.length - 1][0] : '';
+            return (primera + segunda).toUpperCase();
+        },
+
+        // Color determinístico para el avatar según el nombre
+        colorAvatar(nombre) {
+            const paleta = ['#3A3972', '#6E6D99', '#2D6A6A', '#7A5C9E', '#A65A7A', '#4C6EA8', '#9E7B3A'];
+            const texto = nombre || '';
+            let hash = 0;
+            for (let i = 0; i < texto.length; i++) {
+                hash = texto.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return paleta[Math.abs(hash) % paleta.length];
+        },
+
+        // Devuelve el operario jefe de una cuadrilla (o null)
+        jefeDe(cuadrilla) {
+            if (!cuadrilla.operarios) return null;
+            return cuadrilla.operarios.find(op => Number(op.es_jefe) === 1) || null;
         },
         
 
-        // Abrir modal vacío
-        abrirFormulario() {
+        // Abrir modal vacío (nueva cuadrilla con selección de operarios)
+        async abrirFormulario() {
             this.cuadrilla = {
                 nombre: '',
                 descripcion: '',
-                jefeOperarioId: ''
+                jefeOperarioId: '',
+                operarios: []
             };
+            this.filtroDisponibles = '';
+            await this.cargarOperariosDisponiblesParaEdicion();
             new bootstrap.Modal(document.getElementById('modalCuadrilla')).show();
         },
 
@@ -206,9 +131,10 @@ const app = Vue.createApp({
                 return;
             }
 
-            this.cuadrilla = { ...cuadrilla };
+            this.cuadrilla = { ...cuadrilla, operarios: (cuadrilla.operarios || []).map(op => ({ ...op })) };
             const jefeActual = (this.cuadrilla.operarios || []).find(op => Number(op.es_jefe) === 1);
             this.cuadrilla.jefeOperarioId = jefeActual ? jefeActual.id : '';
+            this.filtroDisponibles = '';
             
             // Cargar operarios disponibles para edición (excluyendo los ya asignados)
             await this.cargarOperariosDisponiblesParaEdicion();
@@ -227,6 +153,15 @@ const app = Vue.createApp({
                 // Validar datos antes de enviar (solo para nuevas cuadrillas)
                 if (esNuevo && (!this.cuadrilla.nombre || this.cuadrilla.nombre.trim() === '')) {
                     this.mostrarMensaje('El nombre de la cuadrilla es obligatorio', 'error');
+                    return;
+                }
+
+                // Si se seleccionaron operarios, debe haber un jefe (aplica a nuevo y edición)
+                const operariosSeleccionados = (this.cuadrilla.operarios || [])
+                    .map(op => op.id)
+                    .filter(id => id !== undefined && id !== null);
+                if (operariosSeleccionados.length > 0 && !this.cuadrilla.jefeOperarioId) {
+                    this.mostrarMensaje('Debe seleccionar un jefe de cuadrilla', 'warning');
                     return;
                 }
                 
@@ -292,20 +227,16 @@ const app = Vue.createApp({
                 });
                 
                 console.log('Respuesta del servidor:', response.data);
-                
-                // Si es edición, siempre actualizar asignaciones de operarios (incluso si está vacío)
-                if (!esNuevo) {
-                    const operariosIds = this.cuadrilla.operarios ? 
-                        this.cuadrilla.operarios.map(op => op.id).filter(id => id !== undefined && id !== null) : [];
 
-                    if (operariosIds.length > 0 && !this.cuadrilla.jefeOperarioId) {
-                        this.mostrarMensaje('Debe seleccionar un jefe de cuadrilla', 'warning');
-                        return;
-                    }
-                    
+                // Determinar el ID de la cuadrilla (en nuevo viene en la respuesta de creación)
+                const cuadrillaId = esNuevo ? (response.data && response.data.id) : this.cuadrilla.id;
+
+                // En edición siempre se sincronizan las asignaciones (incluso vacías);
+                // en nuevo solo se asignan si se eligieron operarios.
+                if (cuadrillaId && (!esNuevo || operariosSeleccionados.length > 0)) {
                     await axios.post(BASE_URL + 'api/cuadrillas/asignar', {
-                        cuadrillaId: this.cuadrilla.id,
-                        operarios: operariosIds,
+                        cuadrillaId: cuadrillaId,
+                        operarios: operariosSeleccionados,
                         jefeOperarioId: this.cuadrilla.jefeOperarioId || null
                     });
                 }
@@ -314,9 +245,10 @@ const app = Vue.createApp({
                 bootstrap.Modal.getInstance(document.getElementById('modalCuadrilla')).hide();
                 
                 // Limpiar formulario
-                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '' };
+                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '', operarios: [] };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
+                this.filtroDisponibles = '';
                 
                 // Recargar todas las cuadrillas para actualizar automáticamente
                 // las otras cuadrillas que perdieron operarios
@@ -403,7 +335,6 @@ const app = Vue.createApp({
                 // Limpiar selección
                 this.cuadrillaSeleccionada = '';
                 this.filaSeleccionada = null;
-                $('#tabla_cuadrillas tbody tr').removeClass('table-primary');
                 
                 // Recargar cuadrillas
                 await this.obtenerCuadrillas();
@@ -470,6 +401,24 @@ const app = Vue.createApp({
             }
         },
 
+        // Agregar un operario directamente desde la lista de disponibles
+        agregarOperarioDirecto(operario) {
+            if (!operario) return;
+            if (!this.cuadrilla.operarios) {
+                this.cuadrilla.operarios = [];
+            }
+            if (this.cuadrilla.operarios.find(op => op.id === operario.id)) {
+                return;
+            }
+            // Límite máximo de 4 operarios por cuadrilla
+            if (this.cuadrilla.operarios.length >= 4) {
+                this.mostrarMensaje('Una cuadrilla puede tener como máximo 4 operarios', 'warning');
+                return;
+            }
+            this.cuadrilla.operarios.push({ ...operario, es_jefe: 0 });
+            this.cargarOperariosDisponiblesParaEdicion();
+        },
+
         // Agregar operarios seleccionados a la cuadrilla
         agregarOperariosSeleccionados() {
             if (this.operariosSeleccionadosEdicion.length === 0) {
@@ -528,30 +477,26 @@ const app = Vue.createApp({
          */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
-                // Crear el modal de confirmación
+                let resuelto = false;
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="modal-content cuadrilla-edit reclamo-confirm-modal">
+                                <div class="cuadrilla-edit__header">
+                                    <div class="cuadrilla-edit__title">
+                                        <span class="cuadrilla-edit__title-icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="cuadrilla-edit__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
+                                    <p class="reclamo-confirm-modal__message">${mensaje}</p>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1 text-white"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
-                                    </button>
+                                <div class="cuadrilla-edit__footer reclamo-modal__footer--end">
+                                    <button type="button" class="ce-btn-cancelar" data-bs-dismiss="modal" id="btnCancelar">Cancelar</button>
+                                    <button type="button" class="ce-btn-guardar" id="btnConfirmar"><i class="bi bi-check-lg"></i> Confirmar</button>
                                 </div>
                             </div>
                         </div>
@@ -568,27 +513,25 @@ const app = Vue.createApp({
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
                 modal.show();
 
-                // Manejar botones
-                $('#btnConfirmar').on('click', () => {
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
                     modal.hide();
                     setTimeout(() => {
                         $('#modalConfirmacion').remove();
                     }, 300);
-                    resolve(true);
-                });
+                    resolve(resultado);
+                };
 
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
+                $('#btnConfirmar').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelar').on('click', () => cerrarConfirmacion(false));
 
-                // Manejar cierre del modal (X o ESC)
                 $('#modalConfirmacion').on('hidden.bs.modal', () => {
                     $('#modalConfirmacion').remove();
-                    resolve(false);
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
                 });
             });
         },
@@ -617,6 +560,18 @@ const app = Vue.createApp({
     },
 
     computed: {
+        cuadrillasMostradas() {
+            const termino = (this.filtroBusqueda || '').trim().toLowerCase();
+            if (!termino) {
+                return this.cuadrillas;
+            }
+            return this.cuadrillas.filter(c => {
+                const nombre = (c.nombre || '').toLowerCase();
+                const descripcion = (c.descripcion || '').toLowerCase();
+                const operarios = (c.operarios || []).map(op => (op.nombre || '').toLowerCase()).join(' ');
+                return nombre.includes(termino) || descripcion.includes(termino) || operarios.includes(termino);
+            });
+        },
         cuadrillasConOperarios() {
             return this.cuadrillas.filter(cuadrilla => 
                 cuadrilla.operarios && cuadrilla.operarios.length > 0
@@ -631,6 +586,18 @@ const app = Vue.createApp({
             return this.cuadrillas.reduce((total, cuadrilla) => {
                 return total + (cuadrilla.operarios ? cuadrilla.operarios.length : 0);
             }, 0);
+        },
+        // Operarios disponibles filtrados por el buscador del modal de edición
+        operariosDisponiblesFiltrados() {
+            const termino = (this.filtroDisponibles || '').trim().toLowerCase();
+            const lista = this.operariosDisponiblesParaEdicion || [];
+            if (!termino) return lista;
+            return lista.filter(op => {
+                const nombre = (op.nombre || '').toLowerCase();
+                const legajo = (op.legajo || '').toString().toLowerCase();
+                const email = (op.email || '').toLowerCase();
+                return nombre.includes(termino) || legajo.includes(termino) || email.includes(termino);
+            });
         }
     },
 

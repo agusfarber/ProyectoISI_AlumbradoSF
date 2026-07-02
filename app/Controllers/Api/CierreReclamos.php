@@ -149,7 +149,8 @@ class CierreReclamos extends ResourceController
                         // Si el envío fue exitoso, entonces marcar como cerrado en BD local
                         $actualizado = $reclamoModel->update($reclamoId, [
                             'cerrado' => 1,
-                            'fecha_cierre' => $fechaCierre
+                            'fecha_cierre' => $fechaCierre,
+                            'prioridad' => null,
                         ]);
 
                         if ($actualizado) {

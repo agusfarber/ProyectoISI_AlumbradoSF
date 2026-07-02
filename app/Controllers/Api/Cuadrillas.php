@@ -22,7 +22,7 @@ class Cuadrillas extends ResourceController
             $db = \Config\Database::connect();
             foreach ($cuadrillas as &$cuadrilla) {
                 $query = $db->table('cuadrilla_operarios AS co')
-                            ->select('u.id, u.nombre, u.email, u.legajo, co.es_jefe')
+                            ->select('u.id, u.nombre, u.email, u.legajo, u.foto_perfil, co.es_jefe')
                             ->join('usuario AS u', 'u.id = co.usuario_id')
                             ->where('co.cuadrilla_id', $cuadrilla['id'])
                             ->get();

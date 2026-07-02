@@ -26,6 +26,201 @@
 }
 
 /* ========================================
+   BOTONES UNIFICADOS (cuadrillas, reclamos, cierre, rutas)
+   ======================================== */
+
+.btn-nueva,
+.reclamos-btn,
+.cierre-btn,
+.rutas-btn,
+.tareas-btn,
+.ce-btn-guardar,
+.ce-btn-cancelar,
+.ce-btn-eliminar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  background: var(--gradient-primary);
+  color: var(--color-white);
+  border: none;
+  border-radius: 10px;
+  padding: 0.48rem 0.95rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  font-family: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: var(--shadow-light);
+}
+
+.btn-nueva:hover:not(:disabled),
+.reclamos-btn:hover:not(:disabled),
+.cierre-btn:hover:not(:disabled),
+.rutas-btn:hover:not(:disabled),
+.tareas-btn:hover:not(:disabled),
+.ce-btn-guardar:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+  color: var(--color-white);
+}
+
+.btn-nueva:disabled,
+.reclamos-btn:disabled,
+.cierre-btn:disabled,
+.rutas-btn:disabled,
+.tareas-btn:disabled,
+.ce-btn-guardar:disabled,
+.ce-btn-cancelar:disabled,
+.ce-btn-eliminar:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-nueva i,
+.ce-btn-guardar i,
+.reclamos-btn:not(.reclamos-btn--outline) i,
+.cierre-btn:not(.cierre-btn--outline) i,
+.rutas-btn:not(.rutas-btn--outline) i,
+.tareas-btn:not(.tareas-btn--outline) i {
+  color: var(--color-white);
+  font-size: 0.9rem;
+}
+
+/* Outline / Cancelar */
+.reclamos-btn--outline,
+.cierre-btn--outline,
+.rutas-btn--outline,
+.tareas-btn--outline,
+.ce-btn-cancelar {
+  background: var(--color-white);
+  color: var(--color-purple-dark);
+  border: 1px solid var(--color-light-gray);
+  box-shadow: none;
+}
+
+.reclamos-btn--outline:hover:not(:disabled),
+.cierre-btn--outline:hover:not(:disabled),
+.rutas-btn--outline:hover:not(:disabled),
+.tareas-btn--outline:hover:not(:disabled),
+.ce-btn-cancelar:hover:not(:disabled) {
+  background: #f7f7fb;
+  border-color: var(--color-purple-light);
+  color: var(--color-purple-dark);
+  box-shadow: var(--shadow-light);
+  transform: translateY(-2px);
+}
+
+.reclamos-btn--outline i,
+.cierre-btn--outline i,
+.rutas-btn--outline i,
+.tareas-btn--outline i,
+.ce-btn-cancelar i {
+  color: var(--color-purple-medium);
+  font-size: 0.9rem;
+}
+
+/* Éxito / acción positiva secundaria */
+.cierre-btn--success,
+.rutas-btn--success,
+.tareas-btn--success {
+  background: linear-gradient(135deg, #2d6a6a 0%, #1f4f4f 100%);
+}
+
+.cierre-btn--success i,
+.rutas-btn--success i,
+.tareas-btn--success i {
+  color: var(--color-white);
+}
+
+/* Peligro fuerte */
+.reclamos-btn--danger,
+.rutas-btn--danger {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+.reclamos-btn--danger i,
+.rutas-btn--danger i {
+  color: var(--color-white);
+}
+
+/* Peligro suave (eliminar en footer de modal) */
+.ce-btn-eliminar {
+  background: var(--color-white);
+  color: #c82333;
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  box-shadow: none;
+}
+
+.ce-btn-eliminar:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: rgba(220, 53, 69, 0.5);
+  color: #b02a37;
+  box-shadow: var(--shadow-light);
+  transform: translateY(-2px);
+}
+
+.ce-btn-eliminar i {
+  color: #c82333;
+  font-size: 0.9rem;
+}
+
+/* Tamaño compacto */
+.reclamos-btn--sm,
+.rutas-btn--sm,
+.cierre-btn--sm,
+.tareas-btn--sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.76rem;
+}
+
+/* Footers de modales unificados */
+.cuadrilla-edit__footer,
+.reclamo-modal__footer,
+.cierre-modal__footer,
+.rutas-modal__footer,
+.tareas-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid var(--color-light-gray);
+  background: #fbfbfd;
+}
+
+.reclamo-modal__footer--end,
+.cierre-modal__footer--end,
+.rutas-modal__footer--end,
+.tareas-modal__footer--end {
+  justify-content: flex-end;
+}
+
+.ce-footer-acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Modal de confirmación (dinámico, varias vistas) */
+.reclamo-confirm-modal .modal-body {
+  padding: 1.15rem 1.25rem 1.25rem;
+}
+
+.reclamo-confirm-modal__message {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--color-purple-dark);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ========================================
    ESTILOS GLOBALES PARA EL CONTENIDO PRINCIPAL
    ======================================== */
 
@@ -661,8 +856,9 @@
   background: var(--gradient-secondary) !important;
 }
 
-/* Excepción específica para la página de tareas - Badge Completado debe ser verde */
-body #app.container-fluid .badge.bg-success {
+/* Excepción: badge Completado en reclamos (container-fluid legacy y tareas-page) */
+body #app.container-fluid .reclamo-card .badge.bg-success,
+body #app.tareas-page .reclamo-card .badge.bg-success {
   background: #198754 !important;
   background-color: #198754 !important;
   color: #fff !important;
@@ -882,196 +1078,530 @@ table.dataTable > tbody > tr > td {
     margin-left: 1rem !important;
 }
 
-/* Filtro por estado — mapa de calor (HU-014) */
-.mapa-reclamos-contenedor {
+/* Badge de cantidad sobre botón de observaciones en ejecución */
+.btn-con-badge-obs {
     position: relative;
-    width: 100%;
-    height: calc(100vh - 2rem);
-    min-height: 640px;
+    overflow: visible;
 }
 
-body.pagina-mapa-reclamos .content-wrapper {
-    padding: 0 !important;
-}
-
-body.pagina-mapa-reclamos .main-content {
-    padding: 0 !important;
-}
-
-body.pagina-mapa-reclamos #app.container-fluid {
-    padding: 0 !important;
-    max-width: none;
-}
-
-body.pagina-mapa-reclamos .mapa-reclamos-contenedor {
-    height: 100vh;
-    min-height: 100vh;
-}
-
-.mapa-reclamos-contenedor #map {
-    width: 100%;
-    height: 100%;
-}
-
-.mapa-reclamos-toolbar {
+.btn-obs-ejecucion-count {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    z-index: 5;
+    top: -5px;
+    right: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    font-size: 0.58rem;
+    line-height: 14px;
+    font-weight: 700;
+    text-align: center;
+    border-radius: 7px;
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 0 0 1px #fff;
     pointer-events: none;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: flex-end;
-    max-width: calc(100% - 1rem);
+    font-variant-numeric: tabular-nums;
 }
 
-.mapa-reclamos-toolbar .dropdown,
-.mapa-reclamos-toolbar .btn,
-.mapa-reclamos-toolbar button {
-    pointer-events: auto;
+.map-detalle-iw-acciones .btn-con-badge-obs .btn-obs-ejecucion-count {
+    top: -4px;
+    right: -4px;
 }
 
-.mapa-filtro-estados-toggle,
-.mapa-filtro-prioridad-toggle,
-.mapa-exportar-imagen-btn,
-.mapa-lista-toggle,
-.mapa-cambiar-proveedor-btn {
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    font-weight: 500;
+.btn-obs-ejecucion-count--oculto {
+    opacity: 0;
+    visibility: hidden;
 }
 
-.mapa-exportar-imagen-btn:disabled {
-    opacity: 0.65;
-    cursor: not-allowed;
+.ruta-secuencia-crono-reparacion.badge.ruta-secuencia-crono-reparacion--verde,
+.ruta-secuencia-crono-reparacion.badge.ruta-secuencia-crono-reparacion--amarillo,
+.ruta-secuencia-crono-reparacion.badge.ruta-secuencia-crono-reparacion--rojo {
+    background: #212529;
+    border: 2px solid transparent;
+    font-weight: 600;
 }
 
-.mapa-filtro-estados-menu,
-.mapa-filtro-prioridad-menu {
-    min-width: 210px;
-    font-size: 0.85rem;
+.ruta-secuencia-crono-reparacion--verde {
+    border-color: #28a745 !important;
+    color: #7ddea0 !important;
 }
 
-.mapa-filtro-estados-menu .form-check-label,
-.mapa-filtro-prioridad-menu .form-check-label {
+.ruta-secuencia-crono-reparacion--amarillo {
+    border-color: #ffc107 !important;
+    color: #ffc107 !important;
+}
+
+.ruta-secuencia-crono-reparacion--rojo {
+    border-color: #dc3545 !important;
+    color: #ff8f9a !important;
+}
+
+.ruta-secuencia-crono-reparacion--pausado {
+    opacity: 0.82;
+}
+
+.cronometro-badge-con-ico.badge,
+.badge.cronometro-badge-con-ico {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+}
+
+.cronometro-badge-con-ico .cronometro-badge-ico,
+.cronometro-badge-con-ico .cronometro-badge-txt {
+    color: inherit;
+}
+
+.cronometro-badge-ico {
+    font-size: 0.85em;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.cronometro-badge-ico-ruta {
+    width: 1.2em;
+    height: 0.72em;
+    display: block;
+}
+
+.cronometro-badge-txt {
+    font-variant-numeric: tabular-nums;
+}
+
+.cronometro-ejecucion.badge.ruta-secuencia-crono-reparacion--verde,
+.cronometro-ejecucion.badge.ruta-secuencia-crono-reparacion--amarillo,
+.cronometro-ejecucion.badge.ruta-secuencia-crono-reparacion--rojo {
+    background: #212529;
+    border: 2px solid transparent;
+    font-weight: 600;
+}
+
+/* Bitácora en obra: fotos en feed unificado */
+.bitacora-obra-foto-link {
     cursor: pointer;
-    user-select: none;
-}
-
-.mapa-motivo-marker {
-    width: 32px;
-    height: 32px;
-    display: block;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-}
-
-.mapa-motivo-marker svg {
-    display: block;
-}
-
-.mapa-reclamos-lista-overlay {
-    position: absolute;
-    top: 3.1rem;
-    right: 0.5rem;
-    z-index: 6;
-    width: min(320px, calc(100% - 1rem));
-    max-height: min(420px, calc(100% - 4rem));
-    background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    border-radius: 0.75rem;
-    overflow: hidden;
-    pointer-events: auto;
-}
-
-.mapa-reclamos-lista-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 0.65rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-    font-size: 0.82rem;
-    background: #fff;
-}
-
-.mapa-reclamos-lista-search {
-    padding: 0.45rem 0.55rem;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-    background: #fff;
-}
-
-.mapa-reclamos-lista-body {
-    max-height: 360px;
-    overflow-y: auto;
-    padding: 0.35rem;
-}
-
-.mapa-reclamos-lista-item {
-    width: 100%;
-    border: 0;
+    padding: 0;
+    border: none;
     background: transparent;
+    line-height: 0;
+}
+
+.bitacora-obra-foto-thumb {
+    max-width: 220px;
+    max-height: 160px;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    object-fit: cover;
+    background: #f8f9fa;
+}
+
+.bitacora-obra-foto-link:hover .bitacora-obra-foto-thumb {
+    opacity: 0.92;
+}
+
+.bitacora-foto-obra-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.35rem;
-    border-radius: 0.45rem;
+    justify-content: center;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.9);
+    box-sizing: border-box;
+}
+
+body.bitacora-foto-obra-lightbox-open {
+    overflow: hidden;
+}
+
+.bitacora-foto-obra-modal__wrap {
+    position: relative;
+    display: block;
+    max-width: min(96vw, 1200px);
+    max-height: 96vh;
+    line-height: 0;
+}
+
+.bitacora-foto-obra-modal__close {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    z-index: 2;
+    margin: 0;
+    padding: 0.55rem;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.45);
+    opacity: 1;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.bitacora-foto-obra-modal__close:hover,
+.bitacora-foto-obra-modal__close:focus {
+    background-color: rgba(0, 0, 0, 0.62);
+    opacity: 1;
+}
+
+.bitacora-foto-obra-modal__img {
+    display: block;
+    max-width: min(96vw, 1200px);
+    max-height: 96vh;
+    width: auto;
+    height: auto;
+    border: none;
+    border-radius: 0;
+    object-fit: contain;
+}
+
+.bitacora-foto-obra-modal__caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    padding: 2rem 1rem 0.85rem;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    color: #fff;
     text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.35) 55%, transparent 100%);
 }
 
-.mapa-reclamos-lista-item:hover {
-    background: rgba(13, 110, 253, 0.08);
+.bitacora-obra-feed .list-group-item + .list-group-item {
+    border-top: none;
 }
 
-.mapa-reclamos-lista-icon {
+.bitacora-obra-feed .list-group-item {
+    background: transparent;
+    border: none;
+}
+
+.bitacora-obra-composer .btn.disabled {
+    pointer-events: none;
+    opacity: 0.65;
+}
+
+.bitacora-obra-composer__input {
+    font-size: 0.88rem;
+    resize: vertical;
+    min-height: 2.6rem;
+}
+
+.bitacora-obra-composer__acciones {
+    margin-top: 0.5rem;
+}
+
+.historial-mapa-estado-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2em 0.45em;
+}
+
+.historial-mapa-cambio-estado {
+    line-height: 1.4;
+}
+
+.bitacora-obra-feed .badge.bg-secondary,
+.historial-mapa-tipo-badge {
+    color: #fff;
+}
+
+.bitacora-obra-feed .badge.bg-secondary .bi,
+.historial-mapa-tipo-badge .bi {
+    color: #fff;
+}
+
+/* Registro en obra — mensajes estilo chat */
+.bitacora-obra-feed {
+    background-color: #eceff1;
+    border-radius: 10px;
+    padding: 0.65rem 0.55rem;
+}
+
+.bitacora-obra-msg {
+    margin-bottom: 0.35rem;
+}
+
+.bitacora-obra-msg .bitacora-obra-msg__layout {
+    justify-content: flex-start;
+}
+
+.bitacora-obra-msg .bitacora-obra-msg__stack {
+    max-width: min(88%, 28rem);
+}
+
+.bitacora-obra-msg__layout {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.45rem;
+}
+
+.bitacora-obra-msg__avatar-col {
     flex: 0 0 auto;
-    width: 1.5rem;
-    height: 1.5rem;
+    align-self: flex-end;
+}
+
+.bitacora-obra-msg__avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: block;
+}
+
+.bitacora-obra-msg__avatar--img {
+    object-fit: cover;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #f8f9fa;
+}
+
+.bitacora-obra-msg__avatar--iniciales {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
-    border: 2px solid #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-    font-size: 0.95rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #fff;
     line-height: 1;
 }
 
-.mapa-reclamos-lista-text {
+.bitacora-obra-msg__stack {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: min(100%, 28rem);
+}
+
+.bitacora-obra-msg__encabezado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.35rem;
+    margin-bottom: 0.22rem;
+    line-height: 1.25;
+}
+
+.bitacora-obra-msg__usuario {
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: var(--color-purple-medium);
+}
+
+.bitacora-obra-msg__sep {
+    color: #adb5bd;
+    font-weight: 700;
+    user-select: none;
+}
+
+.bitacora-obra-msg__tipo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    font-weight: 600;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--color-medium-gray);
+}
+
+.bitacora-obra-msg__ruta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    font-weight: 600;
+    font-size: 0.68rem;
+}
+
+.bitacora-obra-msg__ruta-ico {
+    width: 0.9rem;
+    height: auto;
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.bitacora-obra-msg__bubble {
+    position: relative;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    border-radius: 0.75rem;
+    padding: 0.45rem 0.6rem 0.28rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.bitacora-obra-msg__contenido {
+    font-size: 0.84rem;
+    line-height: 1.4;
+    color: #212529;
+}
+
+.bitacora-obra-msg__contenido p {
+    margin-bottom: 0;
+}
+
+.bitacora-obra-msg__hora {
+    display: block;
+    text-align: right;
+    font-size: 0.65rem;
+    color: #8696a0;
+    line-height: 1.2;
+    margin-top: 0.15rem;
+}
+
+.bitacora-obra-msg--compact .bitacora-obra-msg__avatar {
+    width: 1.65rem;
+    height: 1.65rem;
+    font-size: 0.55rem;
+}
+
+.bitacora-obra-msg--compact .bitacora-obra-msg__stack {
+    max-width: 100%;
+}
+
+.bitacora-obra-msg--compact .bitacora-obra-msg__bubble {
+    padding: 0.38rem 0.5rem 0.22rem;
+}
+
+.bitacora-obra-msg--compact .bitacora-obra-msg__encabezado {
+    font-size: 0.68rem;
+}
+
+.bitacora-obra-msg--compact .bitacora-obra-msg__usuario {
+    font-size: 0.72rem;
+}
+
+/* Cambio de estado — evento alineado a la derecha (saliente) */
+.bitacora-obra-evento-estado {
+    list-style: none;
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.bitacora-obra-evento-estado.list-group-item {
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
+
+.bitacora-obra-evento {
+    background: rgba(110, 109, 153, 0.07);
+    border: 1px dashed rgba(110, 109, 153, 0.22);
+    border-left: 1px dashed rgba(110, 109, 153, 0.22);
+    border-right: 2px solid var(--color-purple-light);
+    border-radius: 6px;
+    padding: 0.28rem 0.38rem;
+    margin-left: auto;
+    max-width: min(88%, 20rem);
+    width: fit-content;
+}
+
+.bitacora-obra-evento__fila {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: flex-start;
+    gap: 0.3rem;
+}
+
+.bitacora-obra-evento__ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background: rgba(110, 109, 153, 0.14);
+    color: var(--color-purple-medium);
+    font-size: 0.62rem;
+    margin-top: 0.05rem;
+}
+
+.bitacora-obra-evento__cuerpo {
     flex: 1 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    font-size: 0.78rem;
-    line-height: 1.2;
+    align-items: flex-end;
+    gap: 0.12rem;
 }
 
-.mapa-reclamos-lista-text small {
-    color: #6c757d;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.bitacora-obra-evento__meta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.12rem 0.28rem;
+    margin-bottom: 0;
+    font-size: 0.66rem;
+    line-height: 1.2;
+    text-align: right;
+}
+
+.bitacora-obra-evento__usuario {
+    font-weight: 700;
+    color: var(--color-purple-medium);
+    font-size: 0.68rem;
+}
+
+.bitacora-obra-evento__etiqueta {
+    color: var(--color-medium-gray);
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.bitacora-obra-evento__ruta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    font-weight: 600;
+    font-size: 0.62rem;
+}
+
+.bitacora-obra-evento__ruta-ico {
+    width: 0.72rem;
+    height: auto;
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.bitacora-obra-evento__transicion {
+    margin-top: 0;
+    gap: 0.15rem !important;
+    justify-content: flex-end;
+}
+
+.bitacora-obra-evento__transicion .historial-mapa-estado-badge {
+    font-size: 0.6rem;
+    padding: 0.12em 0.35em;
+    line-height: 1.15;
+}
+
+.bitacora-obra-evento__transicion .bi-arrow-right {
+    font-size: 0.62rem;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.bitacora-obra-evento__hora {
+    width: 100%;
+    text-align: right;
+    font-size: 0.58rem;
+    color: #8696a0;
+    line-height: 1.15;
     white-space: nowrap;
 }
 
-.mapa-reclamos-lista-actions {
-    flex: 0 0 auto;
-    display: inline-flex;
-    gap: 0.35rem;
-    color: #6c757d;
+.bitacora-obra-evento-estado--compact .bitacora-obra-evento {
+    padding: 0.22rem 0.32rem;
+    max-width: min(92%, 18rem);
 }
 
-.mapa-reclamos-lista-actions .bi {
-    cursor: pointer;
+.bitacora-obra-evento-estado--compact .bitacora-obra-evento__ico {
+    width: 1rem;
+    height: 1rem;
+    font-size: 0.58rem;
 }
 
-.mapa-popup-reclamo {
-    min-width: 220px;
-    text-align: left;
-}
-
-.mapa-popup-reclamo p,
-.mapa-popup-reclamo h6 {
-    text-align: left;
-}
-
-.mapa-popup-acciones {
-    justify-content: center;
-}
+/* Estilos de mapa: ver public/static/css/mapa.css */

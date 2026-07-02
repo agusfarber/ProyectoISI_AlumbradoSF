@@ -43,8 +43,14 @@
 <?php
 $esPaginaMapaReclamos = !empty($jsPageFile)
     && preg_match('#/mapa_(google|mapbox)\.js$#', (string) $jsPageFile);
-if ($esPaginaMapaReclamos):
+$esPaginaMapaPrioridad = !empty($jsPageFile)
+    && preg_match('#/(mapa_(google|mapbox)|rutas|tareas)\.js$#', (string) $jsPageFile);
+if ($esPaginaMapaPrioridad):
 ?>
+<script src="<?php echo base_url('/static/js/mapa_prioridad.js'); ?>"></script>
+<script src="<?php echo base_url('/static/js/obra_cronometro_util.js'); ?>"></script>
+<?php endif; ?>
+<?php if ($esPaginaMapaReclamos): ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <?php endif; ?>
 

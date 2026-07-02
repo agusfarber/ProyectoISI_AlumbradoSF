@@ -75,24 +75,17 @@
    ======================================== */
 
 .sidebar-header {
-  padding: 2rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: center;
   background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 1101;
 }
 
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-white);
-  letter-spacing: -0.5px;
-}
-
-.sidebar-header i {
-  font-size: 1.5rem;
-  margin-right: 0.5rem;
-  color: var(--color-light-gray);
+.sidebar-header .user-menu {
+  width: 100%;
 }
 
 /* ========================================
@@ -238,15 +231,8 @@
   transform: translateX(4px);
 }
 
-/* ========================================
-   FOOTER DEL SIDEBAR
-   ======================================== */
-
-.sidebar-footer {
-  padding: 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  flex-shrink: 0;
+.user-menu {
+  position: relative;
 }
 
 .user-info {
@@ -258,6 +244,11 @@
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
 }
 
 .user-info:hover {
@@ -282,6 +273,17 @@
   color: var(--color-white);
 }
 
+.user-info .user-avatar {
+  overflow: hidden;
+}
+
+.user-info .user-avatar .user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .user-info .user-details {
   flex: 1;
 }
@@ -299,6 +301,147 @@
   color: rgba(255, 255, 255, 0.7);
   margin: 0;
   font-weight: 500;
+}
+
+.user-info .user-info__chevron {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.85rem;
+  transition: transform 0.3s ease, color 0.2s ease;
+}
+
+.user-info:hover .user-info__chevron,
+.user-menu--desktop.open .user-info .user-info__chevron {
+  color: var(--color-white);
+}
+
+.user-menu--desktop.open .user-info .user-info__chevron {
+  transform: rotate(180deg);
+}
+
+/* Desplegable de cuenta (estilos base) */
+.user-menu__dropdown {
+  position: absolute;
+  background: var(--color-white);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(6, 4, 75, 0.25);
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+  z-index: 1100;
+  width: 190px;
+  min-width: 190px;
+}
+
+.user-menu.open .user-menu__dropdown {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Escritorio (header): hacia abajo, ancho del sidebar */
+.user-menu--desktop .user-menu__dropdown {
+  top: calc(100% + 0.5rem);
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+  transform: translateY(-8px);
+}
+
+.user-menu--desktop.open .user-menu__dropdown {
+  transform: translateY(0);
+}
+
+.user-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-purple-dark);
+  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.user-menu__item i {
+  font-size: 1rem;
+  color: var(--color-purple-medium);
+}
+
+.user-menu__item:hover {
+  background: var(--color-light-gray, #eee);
+  color: var(--color-purple-dark);
+}
+
+.user-menu__item--logout {
+  color: #d9534f;
+}
+
+.user-menu__item--logout i {
+  color: #d9534f;
+}
+
+.user-menu__item--logout:hover {
+  background: #fdecec;
+  color: #d9534f;
+}
+
+/* Disparador tipo avatar (usado en el panel móvil) */
+.user-avatar-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: var(--gradient-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.user-avatar-btn i {
+  color: var(--color-white);
+  font-size: 1.2rem;
+}
+
+.user-avatar-btn .user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-menu.open .user-avatar-btn {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Móvil: hacia abajo, alineado a la derecha del avatar */
+.user-menu--mobile .user-menu__dropdown {
+  top: calc(100% + 0.5rem);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  transform: translateY(-8px);
+}
+
+.user-menu--mobile.open .user-menu__dropdown {
+  transform: translateY(0);
 }
 
 .logout-btn {
@@ -478,6 +621,7 @@
     /* Estructura flex horizontal: nav (scroll) + footer (fijo) */
     display: flex;
     align-items: stretch;
+    overflow: visible;
   }
   
   /* Ocultar header y footer en móvil */
@@ -604,7 +748,7 @@
     height: 3px;
   }
   
-  /* Footer móvil - botón de cerrar sesión fuera del área de scroll */
+  /* Footer móvil - menú de cuenta */
   .sidebar-footer-mobile {
     display: flex;
     align-items: center;
@@ -613,6 +757,14 @@
     flex-shrink: 0;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);
+    overflow: visible;
+    position: relative;
+    z-index: 1101;
+  }
+
+  .user-menu--mobile {
+    position: relative;
+    overflow: visible;
   }
   
   .sidebar-footer-mobile form {
