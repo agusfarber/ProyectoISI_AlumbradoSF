@@ -1,67 +1,67 @@
-<div id="app" class="container-fluid">
-    <div>Gestión de Reclamos</div>
+<div id="app" class="reclamos-page">
+
+    <div class="reclamos-page-title">Reclamos</div>
 
     <!-- Acciones rápidas -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
+    <div class="reclamos-toolbar">
+        <div class="reclamos-toolbar__left">
+            <button class="reclamos-btn reclamos-btn--outline" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
                 <i class="bi bi-funnel"></i> Filtros
             </button>
-            <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <div class="dropdown">
+                <button class="reclamos-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="bi bi-arrow-repeat"></i> Sincronizar
                 </button>
-                <ul class="dropdown-menu">
+                <ul class="dropdown-menu reclamos-dropdown-menu">
                     <li>
                         <button class="dropdown-item" type="button" @click="sincronizarReclamosHoy" :disabled="!tokenDisponible || sincronizando">
-                            <i class="bi bi-lightning-charge me-1"></i> Pendientes
+                            <i class="bi bi-lightning-charge"></i> Pendientes
                         </button>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <button class="dropdown-item" type="button" @click="mostrarOpcionesSincronizacion('fechas')" :disabled="sincronizando">
-                            <i class="bi bi-calendar-range me-1"></i> Por fechas
+                            <i class="bi bi-calendar-range"></i> Por fechas
                         </button>
                     </li>
                     <li>
                         <button class="dropdown-item" type="button" @click="mostrarOpcionesSincronizacion('numero')" :disabled="sincronizando">
-                            <i class="bi bi-search me-1"></i> Por número
+                            <i class="bi bi-search"></i> Por número
                         </button>
                     </li>
                 </ul>
             </div>
         </div>
 
-        <span v-if="tokenDisponible" class="badge bg-success">
-            <i class="bi bi-check-circle"></i> Token listo
-        </span>
-        <a v-else href="/token103" class="badge bg-warning text-dark text-decoration-none">
-            <i class="bi bi-exclamation-triangle"></i> Configurar token
-        </a>
+        <button type="button"
+                class="reclamos-token"
+                :class="tokenDisponible ? 'reclamos-token--ok' : 'reclamos-token--warn'"
+                @click="abrirModalToken"
+                title="Configurar credenciales del sistema 103">
+            <i class="bi" :class="tokenDisponible ? 'bi-check-circle' : 'bi-exclamation-triangle'"></i>
+            {{ tokenDisponible ? 'Token listo' : 'Configurar token' }}
+        </button>
     </div>
 
     <!-- Progreso de sincronización -->
-    <div v-if="sincronizando" class="card border-info mb-2">
-        <div class="card-body py-2">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div class="d-flex align-items-center small">
-                    <div class="spinner-border spinner-border-sm me-2" role="status">
-                        <span class="visually-hidden">Procesando...</span>
-                    </div>
-                    <strong>Procesando</strong>
-                    <span class="ms-2 badge bg-primary">{{ progresoActual }} / {{ progresoTotal }}</span>
-                </div>
-                <button class="btn btn-danger btn-sm" @click="detenerSincronizacionEnCurso" :disabled="detenerSincronizacion">
-                    <i class="bi bi-stop-circle text-white"></i> 
-                    <span v-if="!detenerSincronizacion">Detener</span>
-                    <span v-else>Deteniendo...</span>
-                </button>
+    <div v-if="sincronizando" class="reclamos-sync">
+        <div class="reclamos-sync__info">
+            <div class="reclamos-sync__spinner" role="status">
+                <span class="visually-hidden">Procesando...</span>
             </div>
+            <strong>Procesando</strong>
+            <span class="reclamos-sync__count">{{ progresoActual }} / {{ progresoTotal }}</span>
         </div>
+        <button class="reclamos-btn reclamos-btn--danger" @click="detenerSincronizacionEnCurso" :disabled="detenerSincronizacion">
+            <i class="bi bi-stop-circle"></i>
+            <span v-if="!detenerSincronizacion">Detener</span>
+            <span v-else>Deteniendo...</span>
+        </button>
     </div>
 
     <!-- Panel de Filtros colapsable -->
-    <div class="collapse mb-3" id="filtrosPanel">
+    <div class="collapse reclamos-collapse" id="filtrosPanel">
+        <div class="reclamos-panel reclamos-filters">
         <div class="row align-items-end">
 
             <div class="col-md-3 mb-2 mb-md-0">
@@ -96,23 +96,33 @@
             </div>
             <div class="col-md-2 d-flex align-items-end">
                 <div class="d-grid gap-2 w-100">
-                    <button class="btn btn-outline-secondary" @click="limpiarFiltros">
+                    <button class="reclamos-btn reclamos-btn--outline w-100" @click="limpiarFiltros">
                         <i class="bi bi-x-circle"></i> Limpiar
                     </button>
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Panel de sincronización colapsable -->
-    <div class="collapse mb-3" id="sincronizacionAvanzadaPanel">
-        <div class="card">
-            <div class="card-body py-3">
+    <div class="collapse reclamos-collapse" id="sincronizacionAvanzadaPanel">
+        <div class="reclamos-panel">
+                <div class="reclamos-panel__header">
+                    <span class="reclamos-panel__title">
+                        <i class="bi" :class="syncOpcionActiva === 'fechas' ? 'bi-calendar-range' : 'bi-search'"></i>
+                        {{ syncOpcionActiva === 'fechas' ? 'Sincronizar por fechas' : 'Sincronizar por número' }}
+                    </span>
+                    <button type="button"
+                            class="reclamos-panel__close"
+                            @click="ocultarOpcionesSincronizacion"
+                            aria-label="Ocultar opciones de sincronización">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
                 <div class="row g-3 align-items-end">
                     <div v-if="syncOpcionActiva === 'fechas'" class="col-lg-8">
-                        <label class="form-label fw-semibold mb-1">
-                            <i class="bi bi-calendar-range"></i> Por fechas
-                        </label>
+                        
                         <div class="row g-2 align-items-end">
                             <div class="col-sm-4">
                                 <input type="date" id="syncFechaDesde" class="form-control form-control-sm" v-model="syncFechaDesde" aria-label="Fecha desde">
@@ -121,37 +131,34 @@
                                 <input type="date" id="syncFechaHasta" class="form-control form-control-sm" v-model="syncFechaHasta" aria-label="Fecha hasta">
                             </div>
                             <div class="col-sm-4">
-                                <button class="btn btn-primary btn-sm w-100" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible || sincronizando">
-                                    <i class="bi bi-download text-white"></i> Sincronizar
+                                <button class="reclamos-btn w-100" @click="sincronizarReclamosPorFechas" :disabled="!tokenDisponible || sincronizando">
+                                    <i class="bi bi-download"></i> Sincronizar
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div v-if="syncOpcionActiva === 'numero'" class="col-lg-5">
-                        <label class="form-label fw-semibold mb-1" for="numeroReclamo">
-                            <i class="bi bi-search"></i> Por número
-                        </label>
+                        
                         <div class="input-group input-group-sm">
                             <input type="number" id="numeroReclamo" class="form-control" v-model="numeroReclamo" placeholder="Nro. reclamo">
-                            <button class="btn btn-info" @click="sincronizarReclamoEspecifico" :disabled="!tokenDisponible || !numeroReclamo || sincronizando">
-                                <i class="bi bi-search text-white"></i> Buscar
+                            <button class="reclamos-btn" @click="sincronizarReclamoEspecifico" :disabled="!tokenDisponible || !numeroReclamo || sincronizando">
+                                <i class="bi bi-search"></i> Buscar
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div v-if="!tokenDisponible" class="alert alert-warning py-2 mb-0 mt-3 small">
+                <div v-if="!tokenDisponible" class="reclamos-alert mt-3">
                     <i class="bi bi-exclamation-triangle"></i> No hay token disponible.
-                    <a href="/token103" class="alert-link">Configure un token en la página de Tokens</a>
+                    <button type="button" class="reclamos-alert__link" @click="abrirModalToken">Configure un token aquí</button>
                 </div>
-            </div>
         </div>
     </div>
 
-    <!-- Tabla de reclamos -->
-    <div class="table-responsive">
-        <table id="tabla_reclamos" class="table table-bordered table-hover table-sm align-middle w-100 mb-0">
+    <!-- Tabla de reclamos (controles DataTables quedan fuera del recuadro) -->
+    <div class="reclamos-table-section">
+        <table id="tabla_reclamos" class="table table-hover table-sm align-middle w-100 mb-0 reclamos-table">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -172,12 +179,17 @@
 
     <!-- Modal Reclamo -->
     <div class="modal fade" id="modalReclamo" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content reclamo-modal">
                 <form @submit.prevent="guardarReclamo">
-                    <div class="modal-header">
-                        <h5 class="modal-title">{{ reclamo.id ? 'Editar Reclamo' : 'Nuevo Reclamo' }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="reclamo-modal__header">
+                        <div class="reclamo-modal__title">
+                            <span class="reclamo-modal__icon"><i class="bi bi-exclamation-triangle"></i></span>
+                            <h5>{{ reclamo.id ? 'Editar reclamo' : 'Nuevo reclamo' }}</h5>
+                        </div>
+                        <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
                     </div>
                     <div class="modal-body">
                         <div class="row">
@@ -281,9 +293,82 @@
                             <textarea class="form-control" v-model="reclamo.municipalidad_descripcion" rows="3"></textarea>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="submit" class="btn btn-success">Guardar</button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="reclamo-modal__footer">
+                        <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="reclamos-btn"><i class="bi bi-check-lg"></i> Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Token 103 -->
+    <div class="modal fade" id="modalToken103" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content reclamo-modal">
+                <div class="reclamo-modal__header">
+                    <div class="reclamo-modal__title">
+                        <span class="reclamo-modal__icon"><i class="bi bi-key"></i></span>
+                        <h5>Credenciales Sistema 103</h5>
+                    </div>
+                    <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="guardarCredencialesToken">
+                    <div class="modal-body">
+                        <div v-if="credencialesGuardadas && tokenBase64" class="reclamos-token-status reclamos-token-status--ok">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Credenciales configuradas. Token Basic Auth generado automáticamente.</span>
+                        </div>
+                        <div v-else class="reclamos-token-status reclamos-token-status--warn">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <span>Configure el username y password para sincronizar reclamos.</span>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tokenUsername" class="form-label">Username</label>
+                            <input type="text"
+                                   id="tokenUsername"
+                                   class="form-control"
+                                   v-model="credenciales.username"
+                                   @input="generarTokenBase64"
+                                   placeholder="Ingrese el username"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="tokenPassword" class="form-label">Password</label>
+                            <input type="password"
+                                   id="tokenPassword"
+                                   class="form-control"
+                                   v-model="credenciales.password"
+                                   @input="generarTokenBase64"
+                                   placeholder="Ingrese el password"
+                                   required>
+                        </div>
+                        <div v-if="tokenBase64" class="mb-0">
+                            <label for="tokenInputReclamos" class="form-label">Token Basic Auth (Base64)</label>
+                            <div class="reclamos-token-copy">
+                                <input type="text"
+                                       class="form-control"
+                                       :value="tokenBase64"
+                                       readonly
+                                       id="tokenInputReclamos">
+                                <button type="button"
+                                        class="reclamos-btn reclamos-btn--outline reclamos-btn--sm"
+                                        @click="copiarToken"
+                                        title="Copiar token">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <small class="reclamos-token-hint">Use como: Authorization: Basic {token}</small>
+                            <span v-if="mensajeCopiadoVisible" class="reclamos-token-copiado">Copiado</span>
+                        </div>
+                    </div>
+                    <div class="reclamo-modal__footer reclamo-modal__footer--end">
+                        <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="submit" class="reclamos-btn">
+                            <i class="bi bi-save"></i> Guardar
+                        </button>
                     </div>
                 </form>
             </div>
@@ -292,11 +377,16 @@
 
     <!-- Modal Ver Detalles Reclamo -->
     <div class="modal fade" id="modalVerReclamo" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Detalles del Reclamo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content reclamo-modal">
+                <div class="reclamo-modal__header">
+                    <div class="reclamo-modal__title">
+                        <span class="reclamo-modal__icon"><i class="bi bi-card-text"></i></span>
+                        <h5>Detalles del reclamo</h5>
+                    </div>
+                    <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -373,8 +463,8 @@
                         <p>{{ reclamoSeleccionado.municipalidad_descripcion || 'No especificado' }}</p>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="reclamo-modal__footer reclamo-modal__footer--end">
+                    <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>

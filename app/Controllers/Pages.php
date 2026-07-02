@@ -31,6 +31,7 @@ class Pages extends BaseController
             'tareas' => ['1', '2', '3'],
             'cierre_reclamos' => ['1', '2'],
             'analisis' => ['2'],
+            'perfil' => ['1', '2', '3'],
         ];
       
         // Obtener el rol del usuario
@@ -70,6 +71,21 @@ class Pages extends BaseController
         // Pasar datos a la vista del menú
         $data['userRole'] = $userRole;  // Pasamos el rol para que se utilice en el menú
         $data['username'] = $username;
+        $data['userFoto'] = $this->session->get('foto_perfil');
+
+        // Para la página de perfil, cargar los datos completos del usuario logueado
+        if ($page === 'perfil') {
+            $userId = $this->session->get('user_id');
+            if ($userId) {
+                $usuarioModel = new \App\Models\UsuarioModel();
+                $perfil = $usuarioModel->find($userId);
+                if ($perfil) {
+                    unset($perfil['contrasena']);
+                    $data['perfil'] = $perfil;
+                }
+            }
+        }
+
         return view('templates/header', $headerData)
             . view('templates/menu', $data)  // Aquí le pasamos los datos con el rol
             . view('pages/' . $page, $data)

@@ -1,0 +1,52 @@
+/* ========================================
+   ESTILOS DE USUARIOS — Foto de perfil
+   ======================================== */
+
+/* Avatar dentro de la tabla */
+.tabla-avatar-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-light-gray);
+}
+
+.tabla-avatar-iniciales {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(6, 4, 75, 0.15);
+}
+
+/* Vista previa en el modal */
+.foto-preview-wrap {
+    display: flex;
+    justify-content: center;
+}
+
+.foto-preview {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--color-light-gray);
+}
+
+.foto-preview--initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gradient-primary, #3A3972);
+    color: #fff;
+    font-size: 2.4rem;
+    font-weight: 700;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 8px rgba(6, 4, 75, 0.2);
+}

@@ -452,8 +452,19 @@ class CreateTestTables extends Migration
                 'constraint' => 11,
                 'unsigned'   => true,
             ],
+            'tipo' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 10,
+                'default'    => 'texto',
+            ],
             'texto' => [
                 'type' => 'TEXT',
+                'null' => true,
+            ],
+            'archivo' => [
+                'type'       => 'VARCHAR',
+                'constraint' => 255,
+                'null'       => true,
             ],
             'usuario_id' => [
                 'type'       => 'INT',

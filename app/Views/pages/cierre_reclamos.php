@@ -1,40 +1,49 @@
-<div id="app" class="container-fluid">
-    <div>Cierre</div>
+<div id="app" class="cierre-page">
 
-    <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: solapaCierre === 'pendientes' }" @click="cambiarSolapaCierre('pendientes')">
-                Completados
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button type="button" class="nav-link" :class="{ active: solapaCierre === 'cerrados' }" @click="cambiarSolapaCierre('cerrados')">
-                Cerrados
-            </button>
-        </li>
-    </ul>
+    <div class="cierre-page-title">Cierre</div>
 
-    <!-- Reclamos pendientes de cierre -->
-    <div v-show="solapaCierre === 'pendientes'">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <span v-if="reclamosSeleccionados.length > 0" class="badge bg-secondary">
+    <div class="cierre-toolbar">
+        <div class="cierre-toolbar__left">
+            <ul class="nav cierre-tabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" :class="{ active: solapaCierre === 'pendientes' }" @click="cambiarSolapaCierre('pendientes')">
+                        Completados
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button type="button" class="nav-link" :class="{ active: solapaCierre === 'cerrados' }" @click="cambiarSolapaCierre('cerrados')">
+                        Cerrados
+                    </button>
+                </li>
+            </ul>
+            <span v-if="solapaCierre === 'pendientes' && reclamosSeleccionados.length > 0" class="cierre-badge">
+                <i class="bi bi-check2-square"></i>
                 {{ reclamosSeleccionados.length }} seleccionado(s)
             </span>
-            <span v-else class="text-muted small">Seleccioná reclamos completados para cerrar formalmente.</span>
+        </div>
 
-            <button class="btn btn-success btn-sm" @click="cerrarReclamosSeleccionados" :disabled="reclamosSeleccionados.length === 0 || procesando">
+        <div class="cierre-toolbar__right">
+            <div v-if="solapaCierre === 'cerrados'" class="cierre-meta">
+                <i class="bi bi-clock-history"></i>
+                Última actualización: {{ ultimaActualizacion }}
+            </div>
+            <button v-if="solapaCierre === 'pendientes'" class="cierre-btn cierre-btn--success" @click="cerrarReclamosSeleccionados" :disabled="reclamosSeleccionados.length === 0 || procesando">
                 <span v-if="!procesando">
-                    <i class="bi bi-lock-fill me-1"></i>Cerrar seleccionados
+                    <i class="bi bi-lock-fill"></i> Cerrar seleccionados
                 </span>
                 <span v-else>
-                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
                     Cerrando...
                 </span>
             </button>
         </div>
+    </div>
 
-        <div class="table-responsive">
-            <table id="tabla_cierre_reclamos" class="table table-bordered table-hover table-sm align-middle w-100 mb-0">
+    <!-- Reclamos pendientes de cierre -->
+    <div v-show="solapaCierre === 'pendientes'" class="cierre-tab-panel">
+
+        <div class="cierre-table-section">
+            <table id="tabla_cierre_reclamos" class="table table-hover table-sm align-middle w-100 mb-0 cierre-table">
                 <thead>
                     <tr>
                         <th style="width: 50px;">
@@ -55,12 +64,9 @@
     </div>
 
     <!-- Reclamos cerrados -->
-    <div v-show="solapaCierre === 'cerrados'">
-        <div class="d-flex justify-content-end mb-2">
-            <small class="text-muted">Última actualización: {{ ultimaActualizacion }}</small>
-        </div>
-        <div class="table-responsive">
-            <table id="tabla_reclamos_cerrados" class="table table-bordered table-hover table-sm align-middle w-100 mb-0">
+    <div v-show="solapaCierre === 'cerrados'" class="cierre-tab-panel">
+        <div class="cierre-table-section">
+            <table id="tabla_reclamos_cerrados" class="table table-hover table-sm align-middle w-100 mb-0 cierre-table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -80,11 +86,16 @@
 
     <!-- Modal Ver Detalles Reclamo -->
     <div class="modal fade" id="modalVerReclamo" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Detalles del Reclamo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content cierre-modal">
+                <div class="cierre-modal__header">
+                    <div class="cierre-modal__title">
+                        <span class="cierre-modal__icon"><i class="bi bi-card-text"></i></span>
+                        <h5>Detalles del reclamo</h5>
+                    </div>
+                    <button type="button" class="cierre-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -122,8 +133,8 @@
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
                                 <p>
-                                    <span class="badge bg-success" v-if="reclamoSeleccionado.cerrado == 1">Cerrado</span>
-                                    <span class="badge bg-primary" v-else>{{ reclamoSeleccionado.municipalidad_estado }}</span>
+                                    <template v-if="reclamoSeleccionado.cerrado == 1">Cerrado</template>
+                                    <template v-else>{{ reclamoSeleccionado.municipalidad_estado || 'No especificado' }}</template>
                                 </p>
                             </div>
                             <div class="mb-3">
@@ -165,11 +176,10 @@
                         <p>{{ reclamoSeleccionado.municipalidad_descripcion || 'No especificado' }}</p>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="cierre-modal__footer cierre-modal__footer--end">
+                    <button type="button" class="cierre-btn cierre-btn--outline" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
-

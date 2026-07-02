@@ -27,9 +27,16 @@ const app = Vue.createApp({
             filtroFechaHasta: '',
             filtroBusqueda: '',
             filtroPrioridad: '', // Filtro de prioridad
-            // Variables para sincronización
+            // Variables para sincronización y credenciales token 103
             tokenDisponible: false,
             tokenActual: null,
+            credenciales: {
+                username: '',
+                password: ''
+            },
+            tokenBase64: '',
+            credencialesGuardadas: false,
+            mensajeCopiadoVisible: false,
             syncFechaDesde: '',
             syncFechaHasta: '',
             numeroReclamo: '',
@@ -76,10 +83,12 @@ const app = Vue.createApp({
                 console.log('Destruyendo tabla anterior');
                 this.tabla.destroy();
             }
+            this.reclamos.sort((a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10));
             console.log('Creando nueva tabla con datos:', this.reclamos);
             this.tabla = $('#tabla_reclamos').DataTable({
                 data: this.reclamos,
                 responsive: true,
+                ordering: false,
                 pageLength: 30,
                 pagingType: 'simple_numbers',
                 lengthMenu: [
@@ -106,6 +115,7 @@ const app = Vue.createApp({
                 columns: [
                     {
                         data: 'municipalidad_id',
+                        type: 'num',
                         className: 'text-start text-nowrap',
                         render: (data, type, row) => {
                             return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
@@ -133,18 +143,18 @@ const app = Vue.createApp({
                             if (row.cerrado == 1 && data === 'Completado') {
                                 return '<span class="badge bg-dark">Cerrado</span>';
                             }
-                            // Colorear según estado
+                            // Colores alineados al mapa de reclamos
                             const estadoClass = {
-                                'Recibido': 'bg-secondary',
-                                'Asignado': 'bg-info text-dark',
-                                'Pendiente': 'bg-danger',
-                                'En ejecución': 'bg-warning text-dark',
-                                'Completado': 'bg-success',
-                                'En plan': 'bg-secondary',
-                                'Error de datos': 'bg-secondary'
+                                'Recibido': 'reclamo-estado--recibido',
+                                'Asignado': 'reclamo-estado--asignado',
+                                'Pendiente': 'reclamo-estado--pendiente',
+                                'En ejecución': 'reclamo-estado--en-ejecucion',
+                                'Completado': 'reclamo-estado--completado',
+                                'En plan': 'reclamo-estado--recibido',
+                                'Error de datos': 'reclamo-estado--recibido'
                             };
-                            const badgeClass = estadoClass[data] || 'bg-secondary';
-                            return `<span class="badge ${badgeClass}">${data}</span>`;
+                            const badgeClass = estadoClass[data] || 'reclamo-estado--recibido';
+                            return `<span class="badge reclamo-estado ${badgeClass}">${data}</span>`;
                         }
                     },
                     { 
@@ -176,8 +186,7 @@ const app = Vue.createApp({
                 columnDefs: [
                     { defaultContent: '-', targets: '_all' }
                 ],
-                // Ordenamiento inicial por 'Fecha de Inicio' (columna 2) en orden descendente
-                order: [[2, 'desc']],
+                order: [[0, 'desc']],
                 initComplete: function () {
                     const wrapper = $('#tabla_reclamos_wrapper');
                     wrapper.find('.dt-length select').addClass('form-select form-select-sm');
@@ -471,16 +480,35 @@ const app = Vue.createApp({
 
         /**
          * Abre el panel de sincronización con la opción elegida desde el menú.
+         * Si ya está abierto con la misma opción, lo oculta.
          */
         mostrarOpcionesSincronizacion(opcion) {
+            const panel = document.getElementById('sincronizacionAvanzadaPanel');
+            const collapse = panel && window.bootstrap
+                ? bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false })
+                : null;
+            const yaVisible = panel?.classList.contains('show');
+
+            if (yaVisible && this.syncOpcionActiva === opcion) {
+                collapse?.hide();
+                return;
+            }
+
             this.syncOpcionActiva = opcion;
 
             this.$nextTick(() => {
-                const panel = document.getElementById('sincronizacionAvanzadaPanel');
-                if (panel && window.bootstrap) {
-                    bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
-                }
+                collapse?.show();
             });
+        },
+
+        /**
+         * Oculta el panel de sincronización avanzada.
+         */
+        ocultarOpcionesSincronizacion() {
+            const panel = document.getElementById('sincronizacionAvanzadaPanel');
+            if (panel && window.bootstrap) {
+                bootstrap.Collapse.getOrCreateInstance(panel, { toggle: false }).hide();
+            }
         },
 
         /**
@@ -494,15 +522,107 @@ const app = Vue.createApp({
                     if (ultimasCredenciales.username && ultimasCredenciales.password) {
                         this.tokenActual = ultimasCredenciales;
                         this.tokenDisponible = true;
-                    } else {
-                        this.tokenDisponible = false;
+                        this.credencialesGuardadas = true;
+                        this.credenciales.username = ultimasCredenciales.username;
+                        this.credenciales.password = ultimasCredenciales.password;
+                        this.generarTokenBase64();
+                        return;
                     }
-                } else {
-                    this.tokenDisponible = false;
                 }
+                this.limpiarEstadoCredenciales();
             } catch (error) {
                 console.error('Error al obtener credenciales:', error);
-                this.tokenDisponible = false;
+                this.limpiarEstadoCredenciales();
+            }
+        },
+
+        logRespuesta103Cruda(data) {
+            if (data && Object.prototype.hasOwnProperty.call(data, 'debug_respuesta_103')) {
+                console.log('[Sistema 103] JSON crudo recibido:', data.debug_respuesta_103);
+            }
+        },
+
+        limpiarEstadoCredenciales() {
+            this.tokenActual = null;
+            this.tokenDisponible = false;
+            this.credencialesGuardadas = false;
+            this.credenciales.username = '';
+            this.credenciales.password = '';
+            this.tokenBase64 = '';
+        },
+
+        async abrirModalToken() {
+            await this.obtenerTokenActual();
+            this.generarTokenBase64();
+            const modalEl = document.getElementById('modalToken103');
+            if (modalEl && window.bootstrap) {
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            }
+        },
+
+        async guardarCredencialesToken() {
+            if (!this.credenciales.username || !this.credenciales.password) {
+                this.mostrarMensaje('Debe ingresar username y password', 'warning');
+                return;
+            }
+
+            const confirmacion = await this.mostrarConfirmacion(
+                '¿Está seguro que desea guardar las credenciales?',
+                'Guardar Credenciales'
+            );
+            if (!confirmacion) {
+                return;
+            }
+
+            try {
+                const url = BASE_URL + 'api/token103';
+                if (this.tokenActual && this.tokenActual.id) {
+                    await axios.put(url + '/' + this.tokenActual.id, this.credenciales);
+                } else {
+                    await axios.post(url, this.credenciales);
+                }
+
+                await this.obtenerTokenActual();
+                this.mostrarMensaje('Credenciales guardadas correctamente', 'success');
+            } catch (error) {
+                console.error('Error al guardar credenciales:', error);
+                this.mostrarMensaje('Error al guardar las credenciales', 'error');
+            }
+        },
+
+        generarTokenBase64() {
+            if (!this.credenciales.username || !this.credenciales.password) {
+                this.tokenBase64 = '';
+                return;
+            }
+
+            const credencialesString = this.credenciales.username + ':' + this.credenciales.password;
+            this.tokenBase64 = btoa(credencialesString);
+        },
+
+        copiarToken() {
+            if (!this.tokenBase64) {
+                this.mostrarMensaje('No hay token para copiar', 'warning');
+                return;
+            }
+
+            const tokenInput = document.getElementById('tokenInputReclamos');
+            if (!tokenInput) {
+                return;
+            }
+
+            tokenInput.select();
+            tokenInput.setSelectionRange(0, 99999);
+
+            try {
+                document.execCommand('copy');
+                this.mensajeCopiadoVisible = true;
+                setTimeout(() => {
+                    this.mensajeCopiadoVisible = false;
+                }, 2000);
+            } catch (err) {
+                console.error('Error al copiar:', err);
+                this.mostrarMensaje('No se pudo copiar el token', 'error');
             }
         },
 
@@ -529,6 +649,7 @@ const app = Vue.createApp({
                 const response = await axios.get(BASE_URL + 'api/sincronizacion/reclamos/pendientes');
 
                 console.log('Respuesta del backend:', response.data);
+                this.logRespuesta103Cruda(response.data);
 
                 if (!response.data.success) {
                     throw new Error('Error en la respuesta del servidor');
@@ -541,11 +662,17 @@ const app = Vue.createApp({
                 if (resultado.reclamos_omitidos > 0) {
                     console.log(`Se omitieron ${resultado.reclamos_omitidos} reclamos que ya existen en la base de datos (ID <= ${resultado.ultimo_id_guardado})`);
                 }
+                if (resultado.reclamos_invalidos > 0) {
+                    console.log(`Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)"`);
+                }
 
                 if (reclamosParaProcesar.length === 0) {
                     let mensaje = 'No hay reclamos nuevos para sincronizar';
                     if (resultado.reclamos_omitidos > 0) {
                         mensaje += `<br><small>Se encontraron ${resultado.reclamos_omitidos} reclamos, pero ya están guardados en la base de datos.</small>`;
+                    }
+                    if (resultado.reclamos_invalidos > 0) {
+                        mensaje += `<br><small>Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)".</small>`;
                     }
                     this.mostrarMensaje(mensaje, 'info');
                     return;
@@ -557,7 +684,8 @@ const app = Vue.createApp({
                     fecha_hasta: resultado.fecha_hasta,
                     total_recibidos: resultado.total_recibidos,
                     total_alumbrado: resultado.total_alumbrado,
-                    reclamos_omitidos: resultado.reclamos_omitidos || 0
+                    reclamos_omitidos: resultado.reclamos_omitidos || 0,
+                    reclamos_invalidos: resultado.reclamos_invalidos || 0
                 });
 
             } catch (error) {
@@ -599,6 +727,7 @@ const app = Vue.createApp({
                 });
 
                 console.log('Respuesta del backend:', response.data);
+                this.logRespuesta103Cruda(response.data);
 
                 if (!response.data.success) {
                     throw new Error('Error en la respuesta del servidor');
@@ -611,11 +740,17 @@ const app = Vue.createApp({
                 if (resultado.reclamos_omitidos > 0) {
                     console.log(`Se omitieron ${resultado.reclamos_omitidos} reclamos que ya existen en la base de datos (ID <= ${resultado.ultimo_id_guardado})`);
                 }
+                if (resultado.reclamos_invalidos > 0) {
+                    console.log(`Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)"`);
+                }
 
                 if (reclamosParaProcesar.length === 0) {
                     let mensaje = 'No hay reclamos nuevos en el rango de fechas seleccionado';
                     if (resultado.reclamos_omitidos > 0) {
                         mensaje += `<br><small>Se encontraron ${resultado.reclamos_omitidos} reclamos, pero ya están guardados en la base de datos.</small>`;
+                    }
+                    if (resultado.reclamos_invalidos > 0) {
+                        mensaje += `<br><small>Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)".</small>`;
                     }
                     this.mostrarMensaje(mensaje, 'info');
                     return;
@@ -625,7 +760,8 @@ const app = Vue.createApp({
                 await this.procesarReclamosProgresivamente(reclamosParaProcesar, {
                     total_recibidos: resultado.total_recibidos,
                     total_alumbrado: resultado.total_alumbrado,
-                    reclamos_omitidos: resultado.reclamos_omitidos || 0
+                    reclamos_omitidos: resultado.reclamos_omitidos || 0,
+                    reclamos_invalidos: resultado.reclamos_invalidos || 0
                 });
 
             } catch (error) {
@@ -665,6 +801,7 @@ const app = Vue.createApp({
                 const response = await axios.get(BASE_URL + `api/sincronizacion/reclamos/${this.numeroReclamo}`);
 
                 console.log('Respuesta del backend:', response.data);
+                this.logRespuesta103Cruda(response.data);
 
                 if (!response.data.success) {
                     throw new Error('Error en la respuesta del servidor');
@@ -688,7 +825,13 @@ const app = Vue.createApp({
 
             } catch (error) {
                 console.error('Error al sincronizar reclamo:', error);
-                this.mostrarMensaje('Error en sincronización: No se pudo sincronizar el reclamo. Verifique el número y la conexión.', 'error');
+                const mensajeApi = error.response?.data?.messages?.error
+                    || error.response?.data?.message
+                    || error.response?.data?.messages;
+                const mensajeError = (typeof mensajeApi === 'string' && mensajeApi.includes('Inválido (N/A)'))
+                    ? mensajeApi
+                    : 'Error en sincronización: No se pudo sincronizar el reclamo. Verifique el número y la conexión.';
+                this.mostrarMensaje(mensajeError, 'error');
             }
         },
 
@@ -715,7 +858,7 @@ const app = Vue.createApp({
                     if (response.data.success) {
                         if (response.data.accion === 'creado') {
                             nuevos++;
-                        } else {
+                        } else if (response.data.accion === 'actualizado') {
                             actualizados++;
                         }
                     }
@@ -767,6 +910,10 @@ const app = Vue.createApp({
             
             if (metadatos.reclamos_omitidos > 0) {
                 mensajeFinal += `<br><strong class="text-muted">Omitidos (ya existentes):</strong> ${metadatos.reclamos_omitidos}`;
+            }
+
+            if (metadatos.reclamos_invalidos > 0) {
+                mensajeFinal += `<br><strong class="text-muted">Omitidos (Inválido N/A):</strong> ${metadatos.reclamos_invalidos}`;
             }
             
             if (errores > 0) {
@@ -888,29 +1035,29 @@ const app = Vue.createApp({
          */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
-                // Crear el modal de confirmación
+                let resuelto = false;
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="modal-content reclamo-modal reclamo-confirm-modal">
+                                <div class="reclamo-modal__header">
+                                    <div class="reclamo-modal__title">
+                                        <span class="reclamo-modal__icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
+                                    <p class="reclamo-confirm-modal__message">${mensaje}</p>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                                <div class="reclamo-modal__footer reclamo-modal__footer--end">
+                                    <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal" id="btnCancelar">
+                                        Cancelar
                                     </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
+                                    <button type="button" class="reclamos-btn" id="btnConfirmar">
+                                        <i class="bi bi-check-lg"></i> Confirmar
                                     </button>
                                 </div>
                             </div>
@@ -928,27 +1075,25 @@ const app = Vue.createApp({
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
                 modal.show();
 
-                // Manejar botones
-                $('#btnConfirmar').on('click', () => {
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
                     modal.hide();
                     setTimeout(() => {
                         $('#modalConfirmacion').remove();
                     }, 300);
-                    resolve(true);
-                });
+                    resolve(resultado);
+                };
 
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
+                $('#btnConfirmar').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelar').on('click', () => cerrarConfirmacion(false));
 
-                // Manejar cierre del modal (X o ESC)
                 $('#modalConfirmacion').on('hidden.bs.modal', () => {
                     $('#modalConfirmacion').remove();
-                    resolve(false);
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
                 });
             });
         }

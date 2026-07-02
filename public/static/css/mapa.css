@@ -1,0 +1,955 @@
+/* ========================================
+   MAPA DE RECLAMOS (Google Maps + Mapbox)
+   Pantalla completa; UI alineada a reclamos/cuadrillas
+   ======================================== */
+
+.mapa-reclamos-contenedor {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 2rem);
+    min-height: 640px;
+}
+
+body.pagina-mapa-reclamos .content-wrapper {
+    padding: 0 !important;
+}
+
+body.pagina-mapa-reclamos .main-content {
+    padding: 0 !important;
+}
+
+body.pagina-mapa-reclamos #app.container-fluid {
+    padding: 0 !important;
+    max-width: none;
+}
+
+body.pagina-mapa-reclamos .mapa-reclamos-contenedor {
+    height: 100vh;
+    min-height: 100vh;
+}
+
+.mapa-reclamos-contenedor #map {
+    width: 100%;
+    height: 100%;
+}
+
+/* ---------- Botón cambiar proveedor (arriba-izquierda) ---------- */
+.mapa-cambiar-proveedor-wrap {
+    position: absolute;
+    top: 0.65rem;
+    left: 0.65rem;
+    z-index: 5;
+    pointer-events: auto;
+}
+
+.mapa-cambiar-proveedor-wrap .reclamos-btn--sm {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.76rem;
+}
+
+/* ---------- Toolbar flotante (arriba-derecha, sin fondo) ---------- */
+.mapa-reclamos-toolbar {
+    position: absolute;
+    top: 0.65rem;
+    right: 0.65rem;
+    z-index: 5;
+    pointer-events: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    max-width: calc(100% - 1.25rem);
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.mapa-reclamos-toolbar .dropdown,
+.mapa-reclamos-toolbar .reclamos-btn,
+.mapa-reclamos-toolbar a.reclamos-btn,
+.mapa-reclamos-toolbar button {
+    pointer-events: auto;
+}
+
+.mapa-reclamos-toolbar .reclamos-btn--sm {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.76rem;
+}
+
+.mapa-exportar-imagen-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.mapa-filtro-estados-menu,
+.mapa-filtro-prioridad-menu {
+    min-width: 220px;
+    font-size: 0.82rem;
+}
+
+.mapa-filtro-estados-menu .form-check-label,
+.mapa-filtro-prioridad-menu .form-check-label {
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+}
+
+.mapa-filtro-estados-menu .form-check-input,
+.mapa-filtro-prioridad-menu .form-check-input {
+    accent-color: var(--color-purple-medium);
+}
+
+/* ---------- Filtros inferiores (prioridad + estados, abajo-izquierda) ---------- */
+.mapa-filtros-inferior-panel {
+    position: absolute;
+    bottom: 0.65rem;
+    left: 0.65rem;
+    z-index: 5;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    text-align: left;
+}
+
+.mapa-filtro-prioridades-panel,
+.mapa-filtro-estados-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.2rem;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: left;
+}
+
+.mapa-filtro-estados-panel {
+    padding-top: 0.45rem;
+    margin-top: 0.15rem;
+    border-top: 1px solid rgba(110, 109, 153, 0.22);
+}
+
+.mapa-filtro-prioridades-panel .form-check,
+.mapa-filtro-estados-panel .form-check {
+    margin: 0;
+    padding: 0;
+    padding-left: 0;
+    min-height: auto;
+    line-height: 1.2;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    width: auto;
+    text-align: left;
+}
+
+.mapa-filtro-prioridades-panel .form-check-input,
+.mapa-filtro-estados-panel .form-check-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.mapa-filtro-prioridades-panel .form-check-label,
+.mapa-filtro-estados-panel .form-check-label {
+    cursor: pointer;
+    user-select: none;
+    display: grid;
+    grid-template-columns: 14px auto;
+    column-gap: 0.45rem;
+    align-items: center;
+    justify-items: start;
+    width: 100%;
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+    text-shadow: 0 0 6px #fff, 0 1px 4px rgba(255, 255, 255, 0.95);
+}
+
+.mapa-filtro-prioridades-panel .form-check-label::before,
+.mapa-filtro-estados-panel .form-check-label::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    min-width: 10px;
+    max-width: 10px;
+    border-radius: 50%;
+    justify-self: start;
+    align-self: center;
+    flex-shrink: 0;
+    border: 2px solid var(--mapa-estado-color, #6c757d);
+    background: transparent;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.85);
+    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.mapa-filtro-estados-panel .form-check:has(.form-check-input:checked) .form-check-label::before {
+    background-color: var(--mapa-estado-color);
+}
+
+.mapa-filtro-prioridad:not(:has(.form-check-input:checked)) .form-check-label {
+    opacity: 0.42;
+    font-weight: 500;
+}
+
+.mapa-filtro-prioridad:has(.form-check-input:checked) .form-check-label {
+    opacity: 1;
+    font-weight: 700;
+}
+
+.mapa-filtro-estado--recibido {
+    --mapa-estado-color: #808080;
+}
+
+.mapa-filtro-estado--asignado {
+    --mapa-estado-color: #0DCAF0;
+}
+
+.mapa-filtro-estado--pendiente {
+    --mapa-estado-color: #FF0000;
+}
+
+.mapa-filtro-estado--en-ejecucion {
+    --mapa-estado-color: #FFD700;
+}
+
+.mapa-filtro-estado--completado {
+    --mapa-estado-color: #198754;
+}
+
+.mapa-filtro-prioridad--alta .form-check-label::before {
+    content: '!';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    max-width: 14px;
+    border-radius: 50%;
+    border: 2px solid #dc3545;
+    background: #fff;
+    color: #dc3545;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    padding-bottom: 1px;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 1px 3px rgba(0, 0, 0, 0.18);
+    opacity: 1;
+    animation: none;
+}
+
+.mapa-filtro-prioridad--alta:has(.form-check-input:checked) .form-check-label::before {
+    border-color: #fff;
+    background: #dc3545;
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(220, 53, 69, 0.45);
+    animation: mapa-prioridad-alta-salto 0.75s ease-in-out infinite;
+}
+
+.mapa-filtro-prioridad--baja {
+    --mapa-prioridad-color: var(--color-purple-medium, #3a3972);
+}
+
+.mapa-filtro-prioridad--baja .form-check-label::before {
+    content: '−';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    min-width: 14px;
+    max-width: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--mapa-prioridad-color);
+    background: #fff;
+    color: var(--mapa-prioridad-color);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+    padding-bottom: 2px;
+    box-sizing: border-box;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 1px 3px rgba(0, 0, 0, 0.14);
+    opacity: 1;
+}
+
+.mapa-filtro-prioridad--baja:has(.form-check-input:checked) .form-check-label::before {
+    background-color: var(--mapa-prioridad-color);
+    border-color: var(--mapa-prioridad-color);
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95), 0 2px 5px rgba(58, 57, 114, 0.35);
+}
+
+/* Ocultar logo del proveedor (esquina inferior izquierda) */
+.mapa-reclamos-contenedor .mapboxgl-ctrl-logo {
+    display: none !important;
+}
+
+.mapa-reclamos-contenedor a[href*="maps.google.com/maps"],
+.mapa-reclamos-contenedor a[href*="google.com/maps"] {
+    display: none !important;
+}
+
+/* ---------- Marcadores ---------- */
+.mapboxgl-marker {
+    overflow: visible !important;
+}
+
+.mapa-motivo-marker-wrap {
+    position: relative;
+    display: block;
+    overflow: visible;
+    width: 32px;
+}
+
+.mapa-motivo-marker-wrap--prioridad-alta {
+    padding-top: 10px;
+    margin-top: -10px;
+}
+
+.mapa-motivo-marker {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+}
+
+.mapa-motivo-marker svg {
+    display: block;
+    overflow: visible;
+}
+
+.mapa-prioridad-alta-badge {
+    position: absolute;
+    top: -1px;
+    right: -2px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #dc3545;
+    color: #fff;
+    border: 1.5px solid #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding-bottom: 2px;
+    box-sizing: border-box;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    animation: mapa-prioridad-alta-salto 0.75s ease-in-out infinite;
+}
+
+@keyframes mapa-prioridad-alta-salto {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* ---------- Lista lateral ---------- */
+.mapa-reclamos-lista-overlay {
+    position: absolute;
+    top: 4.25rem;
+    right: 0.65rem;
+    z-index: 6;
+    width: min(320px, calc(100% - 1.25rem));
+    max-height: min(420px, calc(100% - 5rem));
+    display: flex;
+    flex-direction: column;
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 14px;
+    overflow: hidden;
+    pointer-events: auto;
+    box-shadow: var(--shadow-heavy);
+}
+
+.mapa-reclamos-lista-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    background: #fbfbfd;
+}
+
+.mapa-reclamos-lista-header .mapa-lista-badge {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+}
+
+.mapa-reclamos-lista-header .mapa-modal__close {
+    margin-left: auto;
+}
+
+.mapa-reclamos-lista-search {
+    flex-shrink: 0;
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.mapa-reclamos-lista-search .form-control {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: var(--color-purple-dark);
+}
+
+.mapa-reclamos-lista-search .form-control:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+}
+
+.mapa-reclamos-lista-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0.4rem 0.4rem 0.65rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(110, 109, 153, 0.35) transparent;
+}
+
+.mapa-reclamos-lista-item {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.4rem;
+    border-radius: 10px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.mapa-reclamos-lista-item:hover {
+    background: rgba(110, 109, 153, 0.1);
+}
+
+.mapa-reclamos-lista-icon-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.mapa-reclamos-lista-prioridad-badge {
+    top: -5px;
+    right: -7px;
+    width: 12px;
+    height: 12px;
+    font-size: 9px;
+    padding-bottom: 1px;
+}
+
+.mapa-reclamos-lista-icon {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.mapa-reclamos-lista-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    color: var(--color-purple-dark);
+}
+
+.mapa-reclamos-lista-text small {
+    color: var(--color-medium-gray);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mapa-reclamos-lista-empty {
+    color: var(--color-medium-gray);
+    font-size: 0.78rem;
+    text-align: center;
+    margin: 1rem 0;
+}
+
+/* ---------- Popups de marcador ---------- */
+.mapa-popup-reclamo {
+    min-width: 220px;
+    text-align: left;
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.mapa-popup-header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+}
+
+.mapa-popup-motivo-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: 999px;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+    font-size: 0.9rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.mapa-popup-header h6 {
+    margin: 0;
+    flex: 1;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.gm-style-iw-ch .mapa-popup-header {
+    margin-bottom: 0;
+}
+
+.mapa-popup-reclamo h6 {
+    margin: 0 0 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.mapa-popup-reclamo p,
+.mapa-popup-reclamo h6 {
+    text-align: left;
+    margin-bottom: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    line-height: 1.35;
+}
+
+.mapa-popup-reclamo p strong {
+    color: var(--color-medium-gray);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.mapa-popup-reclamo p.mapa-popup-campo--descripcion {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+}
+
+.mapa-popup-campo--prioridad-alta strong {
+    color: #c82333;
+}
+
+.mapa-popup-valor-prioridad-alta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.1rem;
+    padding: 0.1rem 0.45rem 0.1rem 0.3rem;
+    border-radius: 6px;
+    background: rgba(220, 53, 69, 0.12);
+    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.18), 0 1px 4px rgba(220, 53, 69, 0.12);
+    color: #b02a37;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: normal;
+    font-size: 0.8rem;
+    animation: mapa-popup-prioridad-alta-pulso 2.2s ease-in-out infinite;
+}
+
+.mapa-popup-prioridad-alta-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #dc3545;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    animation: mapa-prioridad-alta-salto 0.75s ease-in-out infinite;
+}
+
+@keyframes mapa-popup-prioridad-alta-pulso {
+    0%, 100% {
+        background: rgba(220, 53, 69, 0.1);
+        box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.15), 0 1px 3px rgba(220, 53, 69, 0.08);
+    }
+    50% {
+        background: rgba(220, 53, 69, 0.22);
+        box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.28), 0 2px 6px rgba(220, 53, 69, 0.16);
+    }
+}
+
+.mapa-popup-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-start;
+    margin-top: 0.5rem;
+}
+
+.mapa-popup-acciones .mapa-popup-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.32rem 0.65rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mapa-popup-acciones .mapa-popup-reubicar {
+    background: var(--color-white);
+    color: var(--color-purple-dark);
+    border: 1px solid var(--color-light-gray);
+}
+
+.mapa-popup-acciones .mapa-popup-reubicar:hover {
+    background: #f7f7fb;
+    border-color: var(--color-purple-light);
+}
+
+.mapa-popup-acciones .mapa-popup-detalle {
+    background: linear-gradient(135deg, #2d8a5e 0%, #1f6b47 100%);
+    color: #fff;
+    border: 1px solid #1a5c3d;
+    box-shadow: 0 2px 6px rgba(31, 107, 71, 0.25);
+}
+
+.mapa-popup-acciones .mapa-popup-detalle:hover {
+    background: linear-gradient(135deg, #34966a 0%, #257a52 100%);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(31, 107, 71, 0.32);
+}
+
+.mapa-popup-acciones .mapa-popup-detalle i {
+    color: #fff;
+}
+
+.mapa-popup-grupo-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid rgba(6, 4, 75, 0.1);
+}
+
+.mapa-popup-grupo-contador {
+    flex: 1;
+    text-align: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-medium-gray);
+    line-height: 1.2;
+}
+
+.mapa-popup-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.65rem;
+    height: 1.65rem;
+    padding: 0;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 999px;
+    background: var(--color-white);
+    color: var(--color-purple-dark);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.mapa-popup-nav:hover {
+    background: #f7f7fb;
+    border-color: var(--color-purple-light);
+    transform: translateY(-1px);
+}
+
+.mapa-popup-nav i {
+    font-size: 0.9rem;
+    line-height: 1;
+}
+
+/* Dropdown filtros (mismo estilo que reclamos) */
+.mapa-reclamos-toolbar .reclamos-dropdown-menu {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(6, 4, 75, 0.18);
+    padding: 0.4rem;
+    min-width: 200px;
+}
+
+/* ---------- Modales (mapa-modal = reclamo-modal) ---------- */
+.mapa-modal,
+.mapa-modal.reclamo-modal,
+.reclamo-modal.mapa-modal {
+    border-radius: 14px;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-heavy);
+}
+
+.reclamo-modal__header,
+.mapa-modal__header,
+.mapa-modal .reclamo-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.reclamo-modal__title,
+.mapa-modal__title,
+.mapa-modal .reclamo-modal__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.reclamo-modal__icon,
+.mapa-modal__icon,
+.mapa-modal .reclamo-modal__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reclamo-modal__icon i,
+.mapa-modal__icon i,
+.mapa-modal .reclamo-modal__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.reclamo-modal__title h5,
+.mapa-modal__title h5,
+.mapa-modal .reclamo-modal__title h5 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.5px;
+}
+
+.reclamo-modal__close,
+.mapa-modal__close,
+.mapa-modal .reclamo-modal__close {
+    background: transparent;
+    border: none;
+    color: var(--color-medium-gray);
+    font-size: 0.85rem;
+    line-height: 0;
+    padding: 0.35rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.reclamo-modal__close:hover,
+.mapa-modal__close:hover,
+.mapa-modal .reclamo-modal__close:hover {
+    color: var(--color-purple-dark);
+    background-color: rgba(110, 109, 153, 0.12);
+}
+
+.mapa-modal .modal-body {
+    padding: 1rem 1.15rem;
+    max-height: 68vh;
+    overflow-y: auto;
+}
+
+.mapa-modal .modal-body label.fw-bold {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-medium-gray);
+    margin-bottom: 0.2rem;
+}
+
+.mapa-modal .modal-body p {
+    margin: 0 0 0.75rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+}
+
+.reclamo-modal__footer,
+.mapa-modal__footer,
+.mapa-modal .reclamo-modal__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    padding: 0.75rem 1.15rem;
+    border-top: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.reclamo-modal__footer--end,
+.mapa-modal__footer--end {
+    justify-content: flex-end;
+}
+
+.mapa-modal__footer--between {
+    justify-content: space-between;
+}
+
+.mapa-modal-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    margin-bottom: 0.65rem;
+}
+
+.mapa-modal-alert i {
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.mapa-modal-alert--info {
+    background: rgba(13, 202, 240, 0.12);
+    border: 1px solid rgba(13, 202, 240, 0.35);
+    color: var(--color-purple-dark);
+}
+
+.mapa-modal-alert--info i {
+    color: #0aa2c0;
+}
+
+.mapa-modal-alert--default {
+    background: rgba(255, 193, 7, 0.12);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    color: var(--color-purple-dark);
+}
+
+.mapa-modal-alert--default i {
+    color: #e0a800;
+}
+
+.mapa-modal-coords {
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+}
+
+.mapa-modal-coords p {
+    margin: 0 0 0.25rem !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+}
+
+/* Confirmación dinámica */
+.mapa-confirm-modal .modal-body {
+    padding: 1.15rem 1.25rem 1.25rem;
+}
+
+.mapa-confirm-modal__message {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--color-purple-dark);
+    line-height: 1.5;
+    text-align: center;
+}
+
+/* Badges de estado en modal detalle */
+.mapa-modal .reclamo-estado {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.3em 0.65em;
+    border-radius: 999px;
+}
+
+.mapa-modal .reclamo-estado--recibido {
+    background: #808080 !important;
+    color: #fff !important;
+}
+
+.mapa-modal .reclamo-estado--asignado {
+    background: #0DCAF0 !important;
+    color: #212529 !important;
+}
+
+.mapa-modal .reclamo-estado--pendiente {
+    background: #FF0000 !important;
+    color: #fff !important;
+}
+
+.mapa-modal .reclamo-estado--en-ejecucion {
+    background: #FFD700 !important;
+    color: #212529 !important;
+}
+
+.mapa-modal .reclamo-estado--completado {
+    background: #198754 !important;
+    color: #fff !important;
+}

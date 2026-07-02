@@ -5,6 +5,7 @@ const app = Vue.createApp({
         return {
             rutas: [],
             reclamos: [],
+            reclamoSeleccionado: {},
             marcadores: [],
             tabla: null,
             mapa: null,
@@ -29,6 +30,8 @@ const app = Vue.createApp({
             
             // Modo de edición
             modoEdicion: false,
+            mostrarListaRutaVistaPrevia: false,
+            indiceReclamoListaParada: {},
             rutaOriginal: [], // Guardar la ruta original antes de editar
             
             // Vista previa de la ruta
@@ -36,8 +39,6 @@ const app = Vue.createApp({
                 activa: false,
                 reclamos: [],
                 rutaOptimizada: [],
-                tiempoEstimado: 0,
-                distanciaTotal: 0,
                 marcadoresRuta: [],
                 marcadoresOtros: [],
                 marcadoresRutasActivas: [], // Marcadores de otras rutas activas
@@ -48,6 +49,8 @@ const app = Vue.createApp({
             // Visualización de ruta
             rutaVisualizando: {},
             reclamosRutaVisualizando: [],
+            mostrarListaRutaVisualizacion: false,
+            indiceReclamoListaParadaVisualizacion: {},
             mapaVisualizacion: null,
             marcadoresVisualizacion: [],
             directionsRendererVisualizacion: null,
@@ -60,6 +63,9 @@ const app = Vue.createApp({
             marcadoresRutasActivas: [],
             directionsRenderersRutasActivas: [],
             infoWindowAbiertoRutasActivas: null,
+            brilloRecorridoRutasActivas: { frameId: null, timeoutId: null, polylines: [] },
+            brilloRecorridoMapboxRutasActivas: { frameId: null, timeoutId: null },
+            capasRecorridoMapboxRutasActivas: [],
             
             // Cache de coordenadas y optimización
             cacheCoordenadasReclamos: {}, // Cache de coordenadas por reclamo ID
@@ -83,8 +89,8 @@ const app = Vue.createApp({
             cuadrillaSeleccionadaParaAsignar: '',
             cuadrillasDisponibles: [],
             cuadrillaSeleccionadaCrearRuta: '',
-            modoVistaCrearRuta: 'mapa',
-
+            cuadrillaDetalleAbiertaId: null,
+            mostrarDetalleCuadrillaSupervisor: false,
             // Administración de asignaciones
             rutaSeleccionadaAdmin: null,
             
@@ -97,12 +103,23 @@ const app = Vue.createApp({
 
             /** Actualización en vivo del tiempo en ejecución (tabla supervisor) */
             _tickCronometroSupervisor: null,
+            /** Sincronización periódica de hojas activas (supervisor) */
+            _pollSupervisorActivas: null,
+            _sincronizandoSupervisorActivas: false,
+            /** Intervalo de polling del panel supervisor (ms) */
+            intervaloPollSupervisorActivas: 5000,
+            _ultimoFingerprintMapaDetalleSupervisor: null,
 
             /** Cronómetro en mapa/modal ver ruta (reclamos En ejecución con sesión de obra) */
             ahoraMsVisualizacionObra: Date.now(),
             intervalVisualizacionObra: null,
             mapboxObraVisualizacionRefs: [],
+            _marcadoresVisualizacionMapbox: [],
+            _mapboxObraVisualizacionMarkers: [],
+            _googleObraVisualizacionMarkers: [],
+            _googleObraRutasActivasMarkers: [],
             mapboxObraRutasActivasRefs: [],
+            promediosTiempoMotivoMap: {},
             rutaSeleccionadaVisualizarTodasId: null,
 
             userRole: window.USER_ROLE || '3',
@@ -111,6 +128,19 @@ const app = Vue.createApp({
             historialEjecucionesCargando: false,
             historialEjecucionDetalle: null,
             historialDetalleCargando: false,
+            historialEjecucionMapa: null,
+            historialMapaCargando: false,
+            modoVistaHistorialMapa: 'mapa',
+            proveedorMapaHistorial: 'google',
+            mapaHistorial: null,
+            mapaHistorialMapbox: null,
+            marcadoresHistorial: [],
+            _marcadoresHistorialMapbox: [],
+            directionsRendererHistorial: null,
+            infoWindowAbiertoHistorial: null,
+            indiceReclamoListaParadaHistorial: {},
+            observacionesPorReclamoHistorial: {},
+            cambiosEstadoPorReclamoHistorial: {},
 
             /** Panel en tarjetas (supervisor) */
             vistaSupervisorPanel: 'grid',
@@ -126,7 +156,11 @@ const app = Vue.createApp({
             cargandoObservacionesSupervisor: false,
             mapasPreviewSupervisor: {},
             reclamosCachePorRutaId: {},
-            ahoraCronometroSupervisor: Date.now()
+            ahoraCronometroSupervisor: Date.now(),
+
+            bitacoraFotoAmpliadaUrl: '',
+            bitacoraFotoAmpliadaCaption: '',
+            bitacoraFotoAmpliadaActiva: false
         };
     },
 
@@ -158,6 +192,21 @@ const app = Vue.createApp({
             return this.userRole === '1' || this.userRole === '2';
         },
 
+        historialBitacoraSupervisorOrdenado() {
+            const lista = Array.isArray(this.historialObservacionesSupervisor)
+                ? [...this.historialObservacionesSupervisor]
+                : [];
+            lista.sort((a, b) => {
+                const ta = new Date(a.created_at || 0).getTime();
+                const tb = new Date(b.created_at || 0).getTime();
+                if (ta !== tb) {
+                    return ta - tb;
+                }
+                return String(a.id).localeCompare(String(b.id));
+            });
+            return lista;
+        },
+
         puedeGenerarRuta() {
             return this.nuevaRuta.cantidadReclamos > 0 &&
                    this.reclamosDisponibles >= this.nuevaRuta.cantidadReclamos &&
@@ -174,11 +223,77 @@ const app = Vue.createApp({
             );
             return c ? c.nombre : '';
         },
+
+        cuadrillaDetalleAbierta() {
+            if (!this.cuadrillaDetalleAbiertaId) {
+                return null;
+            }
+            return this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(this.cuadrillaDetalleAbiertaId)
+            ) || null;
+        },
+
+        cuadrillaAsignadaDetalleSupervisor() {
+            const id = this.rutaVisualizando?.cuadrilla_id;
+            if (!id) {
+                return null;
+            }
+            return this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(id)
+            ) || null;
+        },
         
         puedeVerVistaPrevia() {
             return this.nuevaRuta.cantidadReclamos > 0 &&
                    this.reclamosDisponibles >= this.nuevaRuta.cantidadReclamos &&
                    !this.vistaPrevia.activa; // Solo si no está activa aún
+        },
+
+        paradasListaVistaPrevia() {
+            return this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+        },
+
+        paradasListaVisualizacion() {
+            return this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+        },
+
+        paradasListaHistorial() {
+            return this.agruparParadasRutaVistaPrevia(this.historialEjecucionMapa?.reclamos || []);
+        },
+
+        lineaTiempoRegistroHistorialEjecucion() {
+            const detalle = this.historialEjecucionDetalle;
+            if (!detalle) {
+                return [];
+            }
+            const items = [];
+            for (const ev of (detalle.eventos || [])) {
+                items.push({
+                    tipo: 'evento',
+                    clave: 'ev-' + ev.id,
+                    at: ev.ocurrido_at,
+                    evento: ev
+                });
+            }
+            for (const obs of (detalle.observaciones || [])) {
+                items.push({
+                    tipo: 'observacion',
+                    clave: 'obs-' + obs.id,
+                    at: obs.created_at,
+                    observacion: obs
+                });
+            }
+            items.sort((a, b) => {
+                const diff = this._timestampHistorialEjecucion(a.at) - this._timestampHistorialEjecucion(b.at);
+                if (diff !== 0) {
+                    return diff;
+                }
+                if (a.tipo !== b.tipo) {
+                    return a.tipo === 'evento' ? -1 : 1;
+                }
+                return String(a.clave).localeCompare(String(b.clave));
+            });
+            return items;
         }
     },
 
@@ -193,6 +308,9 @@ const app = Vue.createApp({
             }
             if (val === 'activas' && this.esSupervisorVistaTarjetas) {
                 this.$nextTick(() => this.inicializarMapasPreviewSupervisor());
+                this.iniciarPollingSupervisorActivas();
+            } else {
+                this.detenerPollingSupervisorActivas();
             }
         }
     },
@@ -252,6 +370,53 @@ const app = Vue.createApp({
             }
         },
 
+        async cargarDetalleHistorialEjecucion(id) {
+            const response = await axios.get(BASE_URL + 'api/rutas/ejecuciones/' + id + '/detalle');
+            return response.data;
+        },
+
+        prepararObservacionesHistorialEjecucion(detalle) {
+            const obsMap = {};
+            for (const o of (detalle?.observaciones || [])) {
+                const rid = o.reclamo_id;
+                if (!obsMap[rid]) {
+                    obsMap[rid] = [];
+                }
+                obsMap[rid].push(o);
+            }
+            this.observacionesPorReclamoHistorial = obsMap;
+        },
+
+        prepararCambiosEstadoHistorialEjecucion(detalle) {
+            const mapa = {};
+            const rutaNombre = detalle?.ejecucion?.ruta_nombre || null;
+            const rutaColor = detalle?.ejecucion?.ruta_color || null;
+            for (const ev of (detalle?.eventos || [])) {
+                if (ev.tipo !== 'reclamo_cambio_estado' || !ev.reclamo_id) {
+                    continue;
+                }
+                const md = ev.metadata && typeof ev.metadata === 'object' ? ev.metadata : null;
+                if (!md || md.estado_anterior == null || md.estado_nuevo == null) {
+                    continue;
+                }
+                const rid = ev.reclamo_id;
+                if (!mapa[rid]) {
+                    mapa[rid] = [];
+                }
+                mapa[rid].push({
+                    id: ev.id,
+                    ocurrido_at: ev.ocurrido_at,
+                    estado_anterior: md.estado_anterior,
+                    estado_nuevo: md.estado_nuevo,
+                    usuario_nombre: ev.usuario_nombre || null,
+                    usuario_foto_perfil: ev.usuario_foto_perfil || null,
+                    ruta_nombre: rutaNombre,
+                    ruta_color: rutaColor
+                });
+            }
+            this.cambiosEstadoPorReclamoHistorial = mapa;
+        },
+
         async abrirDetalleHistorialEjecucion(id) {
             if (!id) {
                 return;
@@ -259,8 +424,7 @@ const app = Vue.createApp({
             this.historialDetalleCargando = true;
             this.historialEjecucionDetalle = null;
             try {
-                const response = await axios.get(BASE_URL + 'api/rutas/ejecuciones/' + id + '/detalle');
-                this.historialEjecucionDetalle = response.data;
+                this.historialEjecucionDetalle = await this.cargarDetalleHistorialEjecucion(id);
                 this.$nextTick(() => {
                     const el = document.getElementById('modalHistorialEjecucion');
                     if (el && typeof bootstrap !== 'undefined') {
@@ -273,6 +437,910 @@ const app = Vue.createApp({
             } finally {
                 this.historialDetalleCargando = false;
             }
+        },
+
+        async abrirHistorialEjecucionMapa(id) {
+            if (!id) {
+                return;
+            }
+            this.historialMapaCargando = true;
+            this.historialEjecucionMapa = null;
+            this.indiceReclamoListaParadaHistorial = {};
+            try {
+                const detalle = await this.cargarDetalleHistorialEjecucion(id);
+                if (!Object.keys(this.promediosTiempoMotivoMap || {}).length) {
+                    await this.cargarPromediosTiempoMotivo();
+                }
+                this.historialEjecucionMapa = detalle;
+                this.prepararObservacionesHistorialEjecucion(detalle);
+                this.prepararCambiosEstadoHistorialEjecucion(detalle);
+                this.modoVistaHistorialMapa = 'mapa';
+                this.historialMapaCargando = false;
+                await this.$nextTick();
+                const el = document.getElementById('modalHistorialEjecucionMapa');
+                if (el && typeof bootstrap !== 'undefined') {
+                    const modal = bootstrap.Modal.getOrCreateInstance(el);
+                    await new Promise((resolve) => {
+                        const onShown = () => {
+                            el.removeEventListener('shown.bs.modal', onShown);
+                            resolve();
+                        };
+                        el.addEventListener('shown.bs.modal', onShown);
+                        modal.show();
+                    });
+                } else {
+                    await new Promise((resolve) => setTimeout(resolve, 350));
+                }
+                await this.$nextTick();
+                await this.restaurarMapaHistorialEjecucion();
+            } catch (error) {
+                console.error('Error al cargar mapa del historial:', error);
+                this.mostrarMensaje('No se pudo cargar el recorrido histórico.', 'error');
+            } finally {
+                this.historialMapaCargando = false;
+            }
+        },
+
+        abrirRegistroDesdeHistorialMapa() {
+            const id = this.historialEjecucionMapa?.ejecucion?.id;
+            if (!id) {
+                return;
+            }
+            const elMapa = document.getElementById('modalHistorialEjecucionMapa');
+            if (elMapa && typeof bootstrap !== 'undefined') {
+                const inst = bootstrap.Modal.getInstance(elMapa);
+                if (inst) {
+                    inst.hide();
+                }
+            }
+            this.abrirDetalleHistorialEjecucion(id);
+        },
+
+        configurarModalHistorialMapa() {
+            const elModal = document.getElementById('modalHistorialEjecucionMapa');
+            if (!elModal || elModal.dataset.historialMapaBound === '1') {
+                return;
+            }
+            elModal.dataset.historialMapaBound = '1';
+            elModal.addEventListener('hidden.bs.modal', () => {
+                this.limpiarMapaHistorialEjecucion();
+                this.historialEjecucionMapa = null;
+                this.observacionesPorReclamoHistorial = {};
+                this.cambiosEstadoPorReclamoHistorial = {};
+            });
+        },
+
+        cambiarModoVistaHistorialMapa(modo) {
+            this.modoVistaHistorialMapa = modo;
+            if (modo === 'mapa') {
+                this.$nextTick(() => this.restaurarMapaHistorialEjecucion());
+            }
+        },
+
+        async alternarProveedorHistorialMapa() {
+            this.proveedorMapaHistorial = this.proveedorMapaHistorial === 'google' ? 'mapbox' : 'google';
+            this.limpiarMapaHistorialEjecucion();
+            await this.$nextTick();
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            await this.restaurarMapaHistorialEjecucion();
+        },
+
+        limpiarMapaHistorialEjecucion() {
+            if (this.infoWindowAbiertoHistorial) {
+                this.infoWindowAbiertoHistorial.close();
+                this.infoWindowAbiertoHistorial = null;
+            }
+            if (this.marcadoresHistorial?.length) {
+                this.marcadoresHistorial.forEach((marker) => {
+                    marker.setMap(null);
+                    google.maps.event.clearInstanceListeners(marker);
+                });
+            }
+            this.marcadoresHistorial = [];
+            if (this.directionsRendererHistorial) {
+                this.directionsRendererHistorial.setMap(null);
+                this.directionsRendererHistorial = null;
+            }
+            if (this.mapaHistorial) {
+                google.maps.event.clearInstanceListeners(this.mapaHistorial);
+                this.mapaHistorial = null;
+            }
+            if (this._marcadoresHistorialMapbox?.length) {
+                this._marcadoresHistorialMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresHistorialMapbox = [];
+            if (this.mapaHistorialMapbox) {
+                this.mapaHistorialMapbox.remove();
+                this.mapaHistorialMapbox = null;
+            }
+        },
+
+        async restaurarMapaHistorialEjecucion() {
+            if (!this.historialEjecucionMapa?.ejecucion || this.modoVistaHistorialMapa !== 'mapa') {
+                return;
+            }
+            await this.$nextTick();
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            if (this.proveedorMapaHistorial === 'mapbox') {
+                if (this.mapaHistorialMapbox) {
+                    this.mapaHistorialMapbox.resize();
+                    if (!this._marcadoresHistorialMapbox?.length) {
+                        await this.dibujarRutaHistorialMapbox();
+                    }
+                } else {
+                    await this.inicializarMapaHistorialMapbox();
+                    await this.dibujarRutaHistorialMapbox();
+                }
+                return;
+            }
+            if (this.mapaHistorial) {
+                google.maps.event.trigger(this.mapaHistorial, 'resize');
+                if (!this.marcadoresHistorial?.length) {
+                    await this.dibujarRutaHistorialGoogle();
+                }
+                return;
+            }
+            await this.inicializarMapaHistorialGoogle();
+        },
+
+        async inicializarMapaHistorialGoogle() {
+            const el = document.getElementById('mapaHistorialEjecucion');
+            if (!el) {
+                return;
+            }
+            try {
+                this.mapaHistorial = new google.maps.Map(el, {
+                    center: { lat: -31.427, lng: -62.082 },
+                    zoom: 13,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    styles: [{
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }]
+                });
+                await this.dibujarRutaHistorialGoogle();
+                google.maps.event.trigger(this.mapaHistorial, 'resize');
+            } catch (error) {
+                console.error('Error al inicializar mapa historial (Google):', error);
+                this.proveedorMapaHistorial = 'mapbox';
+                await this.$nextTick();
+                await this.inicializarMapaHistorialMapbox();
+                await this.dibujarRutaHistorialMapbox();
+                this.mostrarMensaje('Google Maps no disponible. Usando Mapbox.', 'warning');
+            }
+        },
+
+        async inicializarMapaHistorialMapbox() {
+            if (this.mapaHistorialMapbox) {
+                this.mapaHistorialMapbox.remove();
+            }
+            mapboxgl.accessToken = this.mapboxToken;
+            this.mapaHistorialMapbox = new mapboxgl.Map({
+                container: 'mapaHistorialEjecucionMapbox',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-62.082, -31.427],
+                zoom: 13
+            });
+            await new Promise((resolve) => this.mapaHistorialMapbox.on('load', resolve));
+            this.mapaHistorialMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
+            this.mapaHistorialMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
+        },
+
+        async dibujarRutaHistorialGoogle() {
+            if (!this.mapaHistorial) {
+                return;
+            }
+            this.marcadoresHistorial.forEach((marker) => marker.setMap(null));
+            this.marcadoresHistorial = [];
+
+            const reclamos = this.historialEjecucionMapa?.reclamos || [];
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamos);
+            let contadorGruposHistorial = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+                if (!coordenadas) {
+                    continue;
+                }
+                const colorEstado = this.colorEstadoReclamoHistorialEjecucion(reclamoRef);
+                const esGrupo = parada.reclamos.length > 1;
+                const marker = new google.maps.Marker({
+                    position: { lat: coordenadas.lat, lng: coordenadas.lng },
+                    map: this.mapaHistorial,
+                    title: esGrupo
+                        ? `Parada ${parada.paradaNumero}: ${parada.reclamos.length} reclamos`
+                        : `Parada ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                    icon: this.crearIconoNumerado(
+                        parada.paradaNumero,
+                        colorEstado,
+                        false,
+                        null,
+                        esGrupo ? null : reclamoRef.municipalidad_motivo,
+                        esGrupo ? parada.reclamos.length : null
+                    ),
+                    zIndex: 1000,
+                    optimized: false
+                });
+                marker._marcadorRecorridoPrincipal = true;
+                marker._reclamosGrupo = parada.reclamos.map((r) => ({ ...r, posicion: parada.paradaNumero }));
+                marker._reclamo = marker._reclamosGrupo[0];
+                marker._indicePopup = 0;
+                if (parada.reclamos.length > 1) {
+                    marker._grupoId = `grupo-historial-${++contadorGruposHistorial}`;
+                }
+                marker.addListener('click', () => this.abrirPopupHistorialGoogle(marker));
+                this.marcadoresHistorial.push(marker);
+            }
+
+            await this.trazarRutaHistorialGoogle();
+            if (this.marcadoresHistorial.length) {
+                const bounds = new google.maps.LatLngBounds();
+                this.marcadoresHistorial.forEach((m) => bounds.extend(m.getPosition()));
+                this.mapaHistorial.fitBounds(bounds);
+            }
+        },
+
+        async trazarRutaHistorialGoogle() {
+            const principales = this.marcadoresHistorial.filter((m) => m._marcadorRecorridoPrincipal);
+            if (principales.length < 2 || !this.mapaHistorial) {
+                return;
+            }
+            const colorRuta = this.historialEjecucionMapa?.ejecucion?.ruta_color || '#FF0000';
+            const directionsService = new google.maps.DirectionsService();
+            this.directionsRendererHistorial = new google.maps.DirectionsRenderer({
+                suppressMarkers: true,
+                preserveViewport: true,
+                polylineOptions: {
+                    strokeColor: colorRuta,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 4
+                }
+            });
+            this.directionsRendererHistorial.setMap(this.mapaHistorial);
+            const coordenadas = principales.map((marker) => marker.getPosition());
+            if (coordenadas.length === 2) {
+                await this.trazarRutaSimpleHistorialGoogle(directionsService, coordenadas[0], coordenadas[1]);
+            } else {
+                await this.trazarRutaComplejaHistorialGoogle(directionsService, coordenadas);
+            }
+        },
+
+        trazarRutaSimpleHistorialGoogle(directionsService, origin, destination) {
+            return new Promise((resolve, reject) => {
+                directionsService.route({
+                    origin,
+                    destination,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (result, status) => {
+                    if (status === 'OK') {
+                        this.directionsRendererHistorial.setDirections(result);
+                        resolve(result);
+                    } else {
+                        reject(new Error('Error al obtener direcciones: ' + status));
+                    }
+                });
+            });
+        },
+
+        trazarRutaComplejaHistorialGoogle(directionsService, coordenadas) {
+            const waypoints = coordenadas.slice(1, -1).map((c) => ({ location: c, stopover: true }));
+            return new Promise((resolve, reject) => {
+                directionsService.route({
+                    origin: coordenadas[0],
+                    destination: coordenadas[coordenadas.length - 1],
+                    waypoints,
+                    optimizeWaypoints: false,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (result, status) => {
+                    if (status === 'OK') {
+                        this.directionsRendererHistorial.setDirections(result);
+                        resolve(result);
+                    } else {
+                        reject(new Error('Error al obtener direcciones: ' + status));
+                    }
+                });
+            });
+        },
+
+        async dibujarRutaHistorialMapbox() {
+            if (!this.mapaHistorialMapbox) {
+                return;
+            }
+            if (this.mapaHistorialMapbox.getLayer('route-historial')) {
+                this.mapaHistorialMapbox.removeLayer('route-historial');
+            }
+            if (this.mapaHistorialMapbox.getSource('route-historial')) {
+                this.mapaHistorialMapbox.removeSource('route-historial');
+            }
+            if (this._marcadoresHistorialMapbox?.length) {
+                this._marcadoresHistorialMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresHistorialMapbox = [];
+
+            const reclamos = this.historialEjecucionMapa?.reclamos || [];
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamos);
+            let contadorGruposHistorial = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+                if (!coordenadas) {
+                    continue;
+                }
+                const esGrupo = parada.reclamos.length > 1;
+                const el = this.crearElementoMapboxNumeradoMotivo(
+                    parada.paradaNumero,
+                    this.colorEstadoReclamoHistorialEjecucion(reclamoRef),
+                    esGrupo ? null : reclamoRef.municipalidad_motivo,
+                    32,
+                    esGrupo ? parada.reclamos.length : null
+                );
+                const marker = this.agregarMarcadorMapboxRuta(
+                    this.mapaHistorialMapbox,
+                    el,
+                    coordenadas,
+                    'center'
+                );
+                marker._reclamosGrupo = parada.reclamos.map((r) => ({ ...r, posicion: parada.paradaNumero }));
+                marker._reclamo = marker._reclamosGrupo[0];
+                marker._indicePopup = 0;
+                marker._marcadorRecorridoPrincipal = true;
+                if (parada.reclamos.length > 1) {
+                    marker._grupoId = `grupo-historial-mb-${++contadorGruposHistorial}`;
+                }
+                el.addEventListener('click', () => this.abrirPopupHistorialMapbox(marker));
+                this._marcadoresHistorialMapbox.push(marker);
+            }
+
+            const reclamosTrazado = paradasRuta.map((parada) => ({
+                ...parada.reclamos[0],
+                posicion: parada.paradaNumero
+            }));
+            const colorRuta = this.historialEjecucionMapa?.ejecucion?.ruta_color || '#FF0000';
+            if (reclamosTrazado.length > 1) {
+                await this.trazarRutaMapboxConId(reclamosTrazado, this.mapaHistorialMapbox, colorRuta, 'route-historial');
+            }
+            await this.finalizarMarcadoresMapboxRuta(this.mapaHistorialMapbox);
+        },
+
+        abrirPopupHistorialGoogle(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length || !this.mapaHistorial) {
+                return;
+            }
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+            const reclamo = reclamos[marker._indicePopup];
+            const reclamoVista = this.reclamoParaVistaHistorialEjecucion(reclamo);
+            const infoWindow = marker._infoWindow || new google.maps.InfoWindow();
+            marker._infoWindow = infoWindow;
+            infoWindow.setContent(this.crearContenidoPopupReclamo(reclamoVista, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: false,
+                incluirDetalleHistorialEjecucion: true
+            }));
+            if (this.infoWindowAbiertoHistorial) {
+                this.infoWindowAbiertoHistorial.close();
+            }
+            infoWindow.open(this.mapaHistorial, marker);
+            this.infoWindowAbiertoHistorial = infoWindow;
+            google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                setTimeout(() => this.vincularEventosPopupHistorialGoogle(marker, reclamo), 100);
+            });
+        },
+
+        abrirPopupHistorialMapbox(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) {
+                return;
+            }
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+            const reclamo = reclamos[marker._indicePopup];
+            const reclamoVista = this.reclamoParaVistaHistorialEjecucion(reclamo);
+            let popup = marker.getPopup();
+            if (!popup) {
+                popup = new mapboxgl.Popup({ offset: 25 });
+                marker.setPopup(popup);
+            }
+            popup.setHTML(this.crearContenidoPopupReclamo(reclamoVista, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: true,
+                incluirDetalleHistorialEjecucion: true
+            }));
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            } else {
+                setTimeout(() => this.vincularEventosPopupHistorialMapbox(marker, reclamo), 0);
+                return;
+            }
+            setTimeout(() => this.vincularEventosPopupHistorialMapbox(marker, reclamo), 0);
+        },
+
+        navegarPopupGrupoHistorialGoogle(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) {
+                return;
+            }
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) {
+                nuevoIndice = reclamos.length - 1;
+            }
+            if (nuevoIndice >= reclamos.length) {
+                nuevoIndice = 0;
+            }
+            this.abrirPopupHistorialGoogle(marker, nuevoIndice);
+        },
+
+        navegarPopupGrupoHistorialMapbox(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) {
+                return;
+            }
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) {
+                nuevoIndice = reclamos.length - 1;
+            }
+            if (nuevoIndice >= reclamos.length) {
+                nuevoIndice = 0;
+            }
+            this.abrirPopupHistorialMapbox(marker, nuevoIndice);
+        },
+
+        vincularEventosPopupHistorialGoogle(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoHistorialGoogle(marker, -1);
+                    };
+                }
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoHistorialGoogle(marker, 1);
+                    };
+                }
+            }
+            const headerElement = document.querySelector('.gm-style-iw-ch');
+            if (headerElement) {
+                headerElement.innerHTML = this.crearEncabezadoPopupReclamo(this.reclamoParaVistaHistorialEjecucion(reclamo));
+            }
+        },
+
+        vincularEventosPopupHistorialMapbox(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoHistorialMapbox(marker, -1);
+                    };
+                }
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoHistorialMapbox(marker, 1);
+                    };
+                }
+            }
+        },
+
+        async seleccionarReclamoHistorialMapa(reclamo) {
+            if (this.modoVistaHistorialMapa !== 'mapa') {
+                this.modoVistaHistorialMapa = 'mapa';
+                await this.$nextTick();
+                await this.restaurarMapaHistorialEjecucion();
+            }
+            await this.$nextTick();
+            this.centrarEnReclamoHistorialMapa(reclamo);
+        },
+
+        centrarEnReclamoHistorialMapa(reclamo) {
+            if (this.proveedorMapaHistorial === 'mapbox' && this.mapaHistorialMapbox) {
+                const marker = this._marcadoresHistorialMapbox.find((m) => {
+                    if (!m._marcadorRecorridoPrincipal) return false;
+                    return (m._reclamosGrupo || []).some((r) => r.id === reclamo.id);
+                });
+                if (marker) {
+                    if (marker._reclamosGrupo) {
+                        const idx = marker._reclamosGrupo.findIndex((r) => r.id === reclamo.id);
+                        if (idx >= 0) {
+                            marker._indicePopup = idx;
+                        }
+                    }
+                    const lngLat = marker.getLngLat();
+                    this.mapaHistorialMapbox.flyTo({ center: lngLat, zoom: 16 });
+                    this.abrirPopupHistorialMapbox(marker, marker._indicePopup || 0);
+                }
+                return;
+            }
+            const marker = this.marcadoresHistorial.find((m) => {
+                if (!m._marcadorRecorridoPrincipal) return false;
+                return (m._reclamosGrupo || []).some((r) => r.id === reclamo.id);
+            });
+            if (!marker || !this.mapaHistorial) {
+                return;
+            }
+            const idx = marker._reclamosGrupo.findIndex((r) => r.id === reclamo.id);
+            if (idx >= 0) {
+                marker._indicePopup = idx;
+            }
+            this.mapaHistorial.setCenter(marker.getPosition());
+            this.mapaHistorial.setZoom(16);
+            marker.setAnimation(google.maps.Animation.BOUNCE);
+            setTimeout(() => marker.setAnimation(null), 1500);
+            this.abrirPopupHistorialGoogle(marker, marker._indicePopup || 0);
+        },
+
+        indiceReclamoEnParadaListaHistorial(parada) {
+            const idx = this.indiceReclamoListaParadaHistorial[parada.clave];
+            if (idx === undefined || idx >= parada.reclamos.length) {
+                return 0;
+            }
+            return idx;
+        },
+
+        reclamoActivoEnParadaListaHistorial(parada) {
+            return parada.reclamos[this.indiceReclamoEnParadaListaHistorial(parada)] || parada.reclamos[0];
+        },
+
+        navegarReclamoEnParadaListaHistorial(parada, delta) {
+            if (parada.reclamos.length <= 1) {
+                return;
+            }
+            const total = parada.reclamos.length;
+            let idx = this.indiceReclamoEnParadaListaHistorial(parada);
+            idx = (idx + delta + total) % total;
+            this.indiceReclamoListaParadaHistorial = {
+                ...this.indiceReclamoListaParadaHistorial,
+                [parada.clave]: idx
+            };
+        },
+
+        observacionesReclamoHistorialEjecucion(reclamo) {
+            if (!reclamo?.id) {
+                return [];
+            }
+            return this.observacionesPorReclamoHistorial[reclamo.id] || [];
+        },
+
+        cambiosEstadoReclamoHistorialEjecucion(reclamo) {
+            if (!reclamo?.id) {
+                return [];
+            }
+            return this.cambiosEstadoPorReclamoHistorial[reclamo.id] || [];
+        },
+
+        _timestampHistorialEjecucion(valor) {
+            if (!valor) {
+                return 0;
+            }
+            const t = new Date(String(valor).replace(' ', 'T')).getTime();
+            return Number.isNaN(t) ? 0 : t;
+        },
+
+        lineaTiempoActividadReclamoHistorialEjecucion(reclamo) {
+            if (!reclamo?.id) {
+                return [];
+            }
+            const items = [];
+            for (const c of this.cambiosEstadoReclamoHistorialEjecucion(reclamo)) {
+                items.push({
+                    tipo: 'cambio_estado',
+                    clave: 'est-' + c.id,
+                    at: c.ocurrido_at,
+                    cambio: c
+                });
+            }
+            for (const o of this.observacionesReclamoHistorialEjecucion(reclamo)) {
+                items.push({
+                    tipo: 'observacion',
+                    clave: 'obs-' + o.id,
+                    at: o.created_at,
+                    observacion: o
+                });
+            }
+            items.sort((a, b) => {
+                const diff = this._timestampHistorialEjecucion(a.at) - this._timestampHistorialEjecucion(b.at);
+                if (diff !== 0) {
+                    return diff;
+                }
+                if (a.tipo !== b.tipo) {
+                    return a.tipo === 'cambio_estado' ? -1 : 1;
+                }
+                return String(a.clave).localeCompare(String(b.clave));
+            });
+            return items;
+        },
+
+        crearHtmlBadgeEstadoHistorial(estado) {
+            const e = String(estado || '—');
+            const color = this.getColorEstado(e);
+            const texto = this.colorTextoSobreEstadoReclamo(e);
+            return `<span class="badge historial-mapa-estado-badge" style="background-color:${color};color:${texto}">${e}</span>`;
+        },
+
+        escHtmlBitacora(s) {
+            return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        },
+
+        crearHtmlAvatarBitacora(entrada) {
+            const nombre = entrada?.usuario_nombre || '—';
+            const esc = (v) => this.escHtmlBitacora(v);
+            if (entrada?.usuario_foto_perfil) {
+                const url = esc(this.urlFotoOperario(entrada.usuario_foto_perfil));
+                return `<img class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--img" src="${url}" alt="${esc(nombre)}" loading="lazy">`;
+            }
+            return `<span class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--iniciales" style="background-color:${esc(this.colorAvatarOperario(nombre))}">${esc(this.inicialesOperario(nombre))}</span>`;
+        },
+
+        crearHtmlEncabezadoBitacora(entrada, tipoIcon, tipoLabel) {
+            const esc = (v) => this.escHtmlBitacora(v);
+            let rutaHtml = '';
+            if (entrada?.ruta_nombre) {
+                rutaHtml = `<span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>`
+                    + `<span class="bitacora-obra-msg__ruta" style="color:${esc(entrada.ruta_color || '#6c757d')}">`
+                    + ObraCronometroUtil.SVG_ICONO_RUTA.replace('cronometro-badge-ico-ruta', 'bitacora-obra-msg__ruta-ico cronometro-badge-ico-ruta')
+                    + `<span>${esc(entrada.ruta_nombre)}</span></span>`;
+            }
+            return `<div class="bitacora-obra-msg__encabezado">`
+                + `<span class="bitacora-obra-msg__usuario">${esc(entrada?.usuario_nombre || '—')}</span>`
+                + `<span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>`
+                + `<span class="bitacora-obra-msg__tipo"><i class="bi ${tipoIcon}" aria-hidden="true"></i> ${tipoLabel}</span>`
+                + rutaHtml
+                + `</div>`;
+        },
+
+        wrapHtmlMensajeBitacora(entrada, encabezadoHtml, contenidoHtml, fecha) {
+            return `<li class="bitacora-obra-msg bitacora-obra-msg--compact historial-mapa-observacion mb-2">`
+                + `<div class="bitacora-obra-msg__layout">`
+                + `<div class="bitacora-obra-msg__avatar-col" aria-hidden="true">${this.crearHtmlAvatarBitacora(entrada)}</div>`
+                + `<div class="bitacora-obra-msg__stack">`
+                + encabezadoHtml
+                + `<div class="bitacora-obra-msg__bubble">`
+                + `<div class="bitacora-obra-msg__contenido">${contenidoHtml}</div>`
+                + `<time class="bitacora-obra-msg__hora">${this.formatearFecha(fecha)}</time>`
+                + `</div></div></div></li>`;
+        },
+
+        crearHtmlEventoCambioEstadoBitacora(cambio, fecha) {
+            const esc = (v) => this.escHtmlBitacora(v);
+            let rutaHtml = '';
+            if (cambio?.ruta_nombre) {
+                rutaHtml = `<span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>`
+                    + `<span class="bitacora-obra-evento__ruta" style="color:${esc(cambio.ruta_color || '#6c757d')}">`
+                    + ObraCronometroUtil.SVG_ICONO_RUTA.replace('cronometro-badge-ico-ruta', 'bitacora-obra-evento__ruta-ico cronometro-badge-ico-ruta')
+                    + `<span>${esc(cambio.ruta_nombre)}</span></span>`;
+            }
+            const transicion = `<div class="bitacora-obra-evento__transicion historial-mapa-cambio-estado d-flex flex-wrap align-items-center gap-1">`
+                + this.crearHtmlBadgeEstadoHistorial(cambio.estado_anterior)
+                + `<i class="bi bi-arrow-right small text-muted px-1" aria-hidden="true"></i>`
+                + this.crearHtmlBadgeEstadoHistorial(cambio.estado_nuevo)
+                + `</div>`;
+            return `<li class="bitacora-obra-evento-estado bitacora-obra-evento-estado--compact historial-mapa-observacion mb-2">`
+                + `<div class="bitacora-obra-evento">`
+                + `<div class="bitacora-obra-evento__fila">`
+                + `<div class="bitacora-obra-evento__cuerpo">`
+                + `<div class="bitacora-obra-evento__meta">`
+                + `<span class="bitacora-obra-evento__usuario">${esc(cambio?.usuario_nombre || '—')}</span>`
+                + `<span class="bitacora-obra-evento__etiqueta">Estado</span>`
+                + rutaHtml
+                + `</div>`
+                + transicion
+                + `<time class="bitacora-obra-evento__hora">${this.formatearFecha(fecha)}</time>`
+                + `</div>`
+                + `<span class="bitacora-obra-evento__ico" aria-hidden="true"><i class="bi bi-arrow-left-right"></i></span>`
+                + `</div></div></li>`;
+        },
+
+        crearHtmlLineaCambioEstadoHistorial(cambio) {
+            return this.crearHtmlEventoCambioEstadoBitacora(cambio, cambio.ocurrido_at);
+        },
+
+        crearHtmlLineaObservacionHistorial(obs) {
+            if (this.esEntradaFotoBitacoraObra(obs)) {
+                const esc = (s) => this.escHtmlBitacora(s);
+                const url = this.urlFotoBitacoraObra(obs).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                const caption = obs.texto ? esc(obs.texto) : '';
+                let contenido = `<button type="button" class="bitacora-obra-foto-link d-inline-block" data-bitacora-foto-ampliar="${url}" data-bitacora-foto-caption="${caption}">`
+                    + `<img src="${url}" alt="Foto en obra" class="bitacora-obra-foto-thumb" loading="lazy">`
+                    + `</button>`;
+                if (obs.texto) {
+                    contenido += `<p class="mb-0 mt-2 text-break small">${esc(obs.texto)}</p>`;
+                }
+                return this.wrapHtmlMensajeBitacora(
+                    obs,
+                    this.crearHtmlEncabezadoBitacora(obs, 'bi-camera-fill', 'Foto'),
+                    contenido,
+                    obs.created_at
+                );
+            }
+            const texto = this.escHtmlBitacora(obs.texto || '');
+            return this.wrapHtmlMensajeBitacora(
+                obs,
+                this.crearHtmlEncabezadoBitacora(obs, 'bi-chat-left-text', 'Nota'),
+                `<p class="mb-0 text-break">${texto}</p>`,
+                obs.created_at
+            );
+        },
+
+        esEntradaFotoBitacoraObra(entrada) {
+            if (this.esEntradaCambioEstadoBitacoraObra(entrada)) {
+                return false;
+            }
+            return !!(entrada && (entrada.tipo === 'foto' || entrada.archivo));
+        },
+
+        esEntradaCambioEstadoBitacoraObra(entrada) {
+            return entrada?.bitacora_tipo === 'cambio_estado';
+        },
+
+        urlFotoBitacoraObra(entrada) {
+            if (!entrada) {
+                return '';
+            }
+            if (entrada.url_foto) {
+                return entrada.url_foto;
+            }
+            if (entrada.archivo) {
+                return BASE_URL + 'static/uploads/obra_reclamos/' + entrada.archivo;
+            }
+            return '';
+        },
+
+        abrirModalFotoBitacoraObra(url, caption = '') {
+            if (!url) {
+                return;
+            }
+            this.bitacoraFotoAmpliadaUrl = url;
+            this.bitacoraFotoAmpliadaCaption = (caption || '').trim();
+            this.bitacoraFotoAmpliadaActiva = true;
+            document.body.classList.add('bitacora-foto-obra-lightbox-open');
+            this._onEscapeFotoBitacora = (event) => {
+                if (event.key === 'Escape') {
+                    this.cerrarModalFotoBitacoraObra();
+                }
+            };
+            document.addEventListener('keydown', this._onEscapeFotoBitacora);
+        },
+
+        cerrarModalFotoBitacoraObra() {
+            this.bitacoraFotoAmpliadaActiva = false;
+            this.bitacoraFotoAmpliadaUrl = '';
+            this.bitacoraFotoAmpliadaCaption = '';
+            document.body.classList.remove('bitacora-foto-obra-lightbox-open');
+            if (this._onEscapeFotoBitacora) {
+                document.removeEventListener('keydown', this._onEscapeFotoBitacora);
+                this._onEscapeFotoBitacora = null;
+            }
+        },
+
+        onClickBitacoraFotoAmpliar(event) {
+            const btn = event.target.closest('[data-bitacora-foto-ampliar]');
+            if (!btn) {
+                return;
+            }
+            event.preventDefault();
+            const url = btn.getAttribute('data-bitacora-foto-ampliar');
+            const caption = btn.getAttribute('data-bitacora-foto-caption') || '';
+            this.abrirModalFotoBitacoraObra(url, caption);
+        },
+
+        crearHtmlLineaTiempoHistorialEjecucion(item) {
+            if (item.tipo === 'cambio_estado') {
+                return this.crearHtmlLineaCambioEstadoHistorial(item.cambio);
+            }
+            if (item.tipo === 'observacion') {
+                return this.crearHtmlLineaObservacionHistorial(item.observacion);
+            }
+            return '';
+        },
+
+        estadoReclamoHistorialEjecucion(reclamo) {
+            if (!reclamo) {
+                return '';
+            }
+            return reclamo.estado_al_cierre_ejecucion ?? reclamo.municipalidad_estado ?? '';
+        },
+
+        reclamoParaVistaHistorialEjecucion(reclamo) {
+            if (!reclamo) {
+                return reclamo;
+            }
+            return {
+                ...reclamo,
+                municipalidad_estado: this.estadoReclamoHistorialEjecucion(reclamo)
+            };
+        },
+
+        colorEstadoReclamoHistorialEjecucion(reclamo) {
+            return this.getColorEstado(this.estadoReclamoHistorialEjecucion(reclamo));
+        },
+
+        textoTiempoReparacionHistorialEjecucion(reclamo) {
+            const sr = reclamo?.sesion_reparacion;
+            if (!sr) {
+                return '';
+            }
+            const ms = Number(sr.acumulado_ms) || 0;
+            if (ms <= 0) {
+                return '';
+            }
+            const sec = Math.max(0, Math.floor(ms / 1000));
+            return this.formatearSegundosCronometroSupervisor(sec);
+        },
+
+        msObraReclamoHistorialEjecucion(reclamo) {
+            const sr = reclamo?.sesion_reparacion;
+            if (!sr) {
+                return 0;
+            }
+            return Math.max(0, Number(sr.acumulado_ms) || 0);
+        },
+
+        nivelDemoraObraReclamoHistorial(reclamo) {
+            const motivo = reclamo?.municipalidad_motivo || '';
+            const promedio = ObraCronometroUtil.promedioMinutosMotivo(this.promediosTiempoMotivoMap, motivo);
+            return ObraCronometroUtil.nivelDemoraObra(this.msObraReclamoHistorialEjecucion(reclamo), promedio);
+        },
+
+        claseCronometroListaObraHistorial(reclamo) {
+            if (!this.textoTiempoReparacionHistorialEjecucion(reclamo)) {
+                return '';
+            }
+            return ObraCronometroUtil.claseListaCronoObra(
+                this.nivelDemoraObraReclamoHistorial(reclamo),
+                true
+            );
+        },
+
+        crearHtmlDetalleHistorialEjecucionPopup(reclamo) {
+            const tiempo = this.textoTiempoReparacionHistorialEjecucion(reclamo);
+            const linea = this.lineaTiempoActividadReclamoHistorialEjecucion(reclamo);
+            let html = '<div class="map-detalle-iw-historial border-top pt-2 mt-2">';
+            if (tiempo) {
+                const nivel = this.nivelDemoraObraReclamoHistorial(reclamo);
+                const claseCrono = ObraCronometroUtil.claseListaCronoObra(nivel, true);
+                html += `<p class="mb-1"><strong>Tiempo en obra:</strong> ${ObraCronometroUtil.htmlSpanCronometroBadge(`ruta-secuencia-crono-reparacion badge font-monospace ${claseCrono}`, tiempo, 'reclamo')}</p>`;
+            }
+            if (linea.length) {
+                html += '<p class="mb-1 small text-muted"><strong>Actividad en esta ejecución:</strong></p><ul class="list-unstyled mb-0 ps-0">';
+                for (const item of linea) {
+                    html += this.crearHtmlLineaTiempoHistorialEjecucion(item);
+                }
+                html += '</ul>';
+            } else if (!tiempo) {
+                html += '<p class="mb-0 small text-muted">Sin actividad registrada en esta ejecución.</p>';
+            }
+            html += '</div>';
+            return html;
         },
 
         textoTipoEventoHistorial(tipo) {
@@ -319,7 +1387,7 @@ const app = Vue.createApp({
                 const response = await axios.get(BASE_URL + 'api/reclamos');
                 this.reclamos = response.data;
                 // Contar solo reclamos no completados
-                this.reclamosDisponibles = this.reclamos.filter(r => r.municipalidad_estado !== 'Completado').length;
+                this.reclamosDisponibles = this.contarUnidadesDomicilioDisponibles();
                 
                 // Pre-cargar todas las direcciones personalizadas
                 await this.preCargarDireccionesPersonalizadas();
@@ -356,16 +1424,28 @@ const app = Vue.createApp({
             document.querySelectorAll('#tabla_rutas .cronometro-ruta-supervisor').forEach((el) => {
                 const raw = el.getAttribute('data-inicio-ejecucion-at');
                 if (!raw) {
-                    el.textContent = '—';
+                    ObraCronometroUtil.actualizarTextoCronometroBadge(el, '—', 'ruta');
+                    ObraCronometroUtil.sincronizarClasesCronometroEjecucionRuta(el, null, 'cronometro-ruta-supervisor');
                     return;
                 }
                 const t0 = new Date(String(raw).replace(' ', 'T')).getTime();
                 if (Number.isNaN(t0)) {
-                    el.textContent = '—';
+                    ObraCronometroUtil.actualizarTextoCronometroBadge(el, '—', 'ruta');
+                    ObraCronometroUtil.sincronizarClasesCronometroEjecucionRuta(el, null, 'cronometro-ruta-supervisor');
                     return;
                 }
-                const sec = Math.max(0, Math.floor((ahora - t0) / 1000));
-                el.textContent = this.formatearSegundosCronometroSupervisor(sec);
+                const ms = Math.max(0, ahora - t0);
+                const sec = Math.floor(ms / 1000);
+                ObraCronometroUtil.actualizarTextoCronometroBadge(
+                    el,
+                    this.formatearSegundosCronometroSupervisor(sec),
+                    'ruta'
+                );
+                const nivel = ObraCronometroUtil.nivelDemoraEjecucionRuta(
+                    ms,
+                    el.getAttribute('data-tiempo-estimado') || ''
+                );
+                ObraCronometroUtil.sincronizarClasesCronometroEjecucionRuta(el, nivel, 'cronometro-ruta-supervisor');
             });
         },
 
@@ -384,6 +1464,713 @@ const app = Vue.createApp({
             if (this._tickCronometroSupervisor) {
                 clearInterval(this._tickCronometroSupervisor);
                 this._tickCronometroSupervisor = null;
+            }
+        },
+
+        iniciarPollingSupervisorActivas() {
+            if (!this.esSupervisorVistaTarjetas || this._pollSupervisorActivas) {
+                return;
+            }
+            this._pollSupervisorActivas = setInterval(() => {
+                if (document.hidden) {
+                    return;
+                }
+                void this.sincronizarVistaSupervisorActivas();
+            }, this.intervaloPollSupervisorActivas);
+        },
+
+        detenerPollingSupervisorActivas() {
+            if (this._pollSupervisorActivas) {
+                clearInterval(this._pollSupervisorActivas);
+                this._pollSupervisorActivas = null;
+            }
+        },
+
+        async sincronizarVistaSupervisorActivas() {
+            if (!this.esSupervisorVistaTarjetas || this.solapaRutas !== 'activas') {
+                return;
+            }
+            if (this._sincronizandoSupervisorActivas) {
+                return;
+            }
+            this._sincronizandoSupervisorActivas = true;
+            try {
+                const response = await axios.get(BASE_URL + 'api/rutas');
+                this.rutas = response.data || [];
+
+                if (this.rutaDetalleSupervisorId) {
+                    const ruta = this.rutas.find((r) => String(r.id) === String(this.rutaDetalleSupervisorId));
+                    if (ruta) {
+                        await this.recargarDatosDetalleSupervisor(ruta.id, { silencioso: true });
+                    } else {
+                        this.cerrarModalDetalleSupervisor();
+                    }
+                } else {
+                    await this.actualizarPreviewsSupervisorTrasSync();
+                }
+            } catch (error) {
+                console.warn('Sincronización supervisor (hojas activas):', error);
+            } finally {
+                this._sincronizandoSupervisorActivas = false;
+            }
+        },
+
+        async actualizarPreviewsSupervisorTrasSync() {
+            if (this.rutaDetalleSupervisorId || !this.esSupervisorVistaTarjetas) {
+                return;
+            }
+            const rutasConMapa = this.rutasActivasPanel.filter((r) => this.mapasPreviewSupervisor[r.id]);
+            for (const ruta of rutasConMapa) {
+                await this.actualizarMapaPreviewSupervisor(ruta, { preservarVista: true });
+                await new Promise((resolve) => setTimeout(resolve, 40));
+            }
+        },
+
+        async _crearMarcadoresPreviewSupervisor(map, reclamos, colorRuta) {
+            const markers = [];
+            const bounds = new google.maps.LatLngBounds();
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamos);
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coords = await this.obtenerCoordenadasReclamo(reclamoRef);
+                if (!coords) continue;
+
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                const cantidadParada = parada.reclamos.length;
+                const esGrupo = cantidadParada > 1;
+                const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                const badgeCantidad = esGrupo ? cantidadParada : null;
+
+                const marker = new google.maps.Marker({
+                    position: { lat: coords.lat, lng: coords.lng },
+                    map,
+                    title: esGrupo
+                        ? `Parada ${parada.paradaNumero}: ${cantidadParada} reclamos en el mismo domicilio`
+                        : `Posición ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                    icon: this.crearIconoNumerado(
+                        parada.paradaNumero,
+                        colorEstado,
+                        prioridadAlta,
+                        26,
+                        motivoBadge,
+                        badgeCantidad
+                    ),
+                    zIndex: 100
+                });
+                marker._marcadorRecorridoPrincipal = true;
+                marker._reclamosGrupo = parada.reclamos;
+                markers.push(marker);
+                bounds.extend({ lat: coords.lat, lng: coords.lng });
+            }
+
+            let directionsRenderer = null;
+            const principales = markers.filter((m) => m._marcadorRecorridoPrincipal);
+            if (principales.length >= 2) {
+                directionsRenderer = new google.maps.DirectionsRenderer({
+                    suppressMarkers: true,
+                    preserveViewport: true,
+                    polylineOptions: {
+                        strokeColor: colorRuta,
+                        strokeOpacity: 0.95,
+                        strokeWeight: 3
+                    }
+                });
+                directionsRenderer.setMap(map);
+                await this.trazarRutaEnDirectionsRenderer(
+                    directionsRenderer,
+                    principales.map((m) => m.getPosition())
+                );
+            }
+
+            return { markers, bounds, directionsRenderer };
+        },
+
+        _fingerprintPreviewSupervisorRuta(reclamos, ruta) {
+            const partes = (reclamos || []).map((r) =>
+                `${r.id}|${String(r.municipalidad_estado || '').trim()}|${String(r.prioridad || '').trim()}`
+            );
+            const meta = ruta
+                ? `${ruta.estado_ejecucion || ''}|${ruta.inicio_ejecucion_at || ''}|${ruta.color || ''}`
+                : '';
+            return `${meta}|${partes.join(';')}`;
+        },
+
+        _fingerprintEstructuraPreviewSupervisorRuta(reclamos) {
+            return (reclamos || []).map((r) => r.id).join(',');
+        },
+
+        async _actualizarMarcadoresPreviewSupervisorInplace(ref, reclamos, colorRuta) {
+            const paradas = this.agruparParadasRutaVistaPrevia(reclamos);
+            const principales = (ref.markers || []).filter((m) => m._marcadorRecorridoPrincipal);
+            if (!principales.length || principales.length !== paradas.length) {
+                return false;
+            }
+
+            for (const marker of principales) {
+                const parada = this._buscarParadaPorMarkerVisualizacion(marker, paradas);
+                if (!parada) {
+                    return false;
+                }
+                const reclamoRef = parada.reclamos[0];
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                const cantidadParada = parada.reclamos.length;
+                const esGrupo = cantidadParada > 1;
+                const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                const badgeCantidad = esGrupo ? cantidadParada : null;
+
+                marker.setIcon(this.crearIconoNumerado(
+                    parada.paradaNumero,
+                    colorEstado,
+                    prioridadAlta,
+                    26,
+                    motivoBadge,
+                    badgeCantidad
+                ));
+                marker._reclamosGrupo = parada.reclamos;
+            }
+            return true;
+        },
+
+        async actualizarMapaPreviewSupervisor(ruta, opciones = {}) {
+            const { preservarVista = false } = opciones;
+            const ref = this.mapasPreviewSupervisor[ruta.id];
+            if (!ref?.map || !window.google?.maps) {
+                return;
+            }
+            try {
+                delete this.reclamosCachePorRutaId[ruta.id];
+                const reclamos = await this.obtenerReclamosRutaCache(ruta.id);
+                const colorRuta = ruta.color || '#FF6B35';
+                const fingerprint = this._fingerprintPreviewSupervisorRuta(reclamos, ruta);
+                const estructura = this._fingerprintEstructuraPreviewSupervisorRuta(reclamos);
+
+                if (fingerprint === ref._ultimoFingerprint) {
+                    return;
+                }
+
+                const puedeActualizarInplace = ref.markers?.length > 0
+                    && ref.directionsRenderer
+                    && estructura === ref._ultimaEstructura;
+
+                if (puedeActualizarInplace) {
+                    const ok = await this._actualizarMarcadoresPreviewSupervisorInplace(ref, reclamos, colorRuta);
+                    if (ok) {
+                        ref._ultimoFingerprint = fingerprint;
+                        return;
+                    }
+                }
+
+                ref.markers?.forEach((m) => m.setMap(null));
+                if (ref.directionsRenderer) {
+                    ref.directionsRenderer.setMap(null);
+                }
+                const { markers, bounds, directionsRenderer } = await this._crearMarcadoresPreviewSupervisor(
+                    ref.map,
+                    reclamos,
+                    colorRuta
+                );
+                ref.markers = markers;
+                ref.directionsRenderer = directionsRenderer;
+                ref._ultimoFingerprint = fingerprint;
+                ref._ultimaEstructura = estructura;
+                if (markers.length > 0 && !preservarVista) {
+                    ref.map.fitBounds(bounds, 20);
+                }
+            } catch (error) {
+                console.warn('No se pudo actualizar vista previa de ruta', ruta.id, error);
+            }
+        },
+
+        _fingerprintDatosMapaDetalleSupervisor() {
+            const ruta = this.rutaVisualizando || {};
+            const partes = (this.reclamosRutaVisualizando || []).map((r) => {
+                const estado = String(r.municipalidad_estado || '').trim();
+                const sr = r.sesion_reparacion || this.reparacionPorReclamoIdSupervisor?.[r.id];
+                const ses = sr ? `${sr.activo ? 1 : 0}` : '';
+                return `${r.id}|${estado}|${ses}`;
+            });
+            return `${ruta.estado_ejecucion || ''}|${ruta.inicio_ejecucion_at || ''}|${partes.join(';')}`;
+        },
+
+        capturarVistaMapaVisualizacion() {
+            if (this.proveedorMapaVisualizacion === 'mapbox' && this.mapaVisualizacionMapbox) {
+                return {
+                    tipo: 'mapbox',
+                    center: this.mapaVisualizacionMapbox.getCenter().toArray(),
+                    zoom: this.mapaVisualizacionMapbox.getZoom(),
+                    bearing: this.mapaVisualizacionMapbox.getBearing(),
+                    pitch: this.mapaVisualizacionMapbox.getPitch()
+                };
+            }
+            if (this.mapaVisualizacion) {
+                const centro = this.mapaVisualizacion.getCenter();
+                return {
+                    tipo: 'google',
+                    lat: centro.lat(),
+                    lng: centro.lng(),
+                    zoom: this.mapaVisualizacion.getZoom()
+                };
+            }
+            return null;
+        },
+
+        restaurarVistaMapaVisualizacion(vista) {
+            if (!vista) {
+                return;
+            }
+            if (vista.tipo === 'mapbox' && this.mapaVisualizacionMapbox) {
+                this.mapaVisualizacionMapbox.jumpTo({
+                    center: vista.center,
+                    zoom: vista.zoom,
+                    bearing: vista.bearing,
+                    pitch: vista.pitch
+                });
+            } else if (vista.tipo === 'google' && this.mapaVisualizacion) {
+                this.mapaVisualizacion.setCenter({ lat: vista.lat, lng: vista.lng });
+                this.mapaVisualizacion.setZoom(vista.zoom);
+            }
+        },
+
+        _buscarParadaPorMarkerVisualizacion(marker, paradas) {
+            const idsGrupo = new Set((marker._reclamosGrupo || []).map((r) => Number(r.id)));
+            if (!idsGrupo.size && marker._reclamo?.id != null) {
+                idsGrupo.add(Number(marker._reclamo.id));
+            }
+            return paradas.find((p) => p.reclamos.some((r) => idsGrupo.has(Number(r.id))));
+        },
+
+        _puedeActualizarMarcadoresVisualizacionInplace(paradas) {
+            if (this.proveedorMapaVisualizacion === 'mapbox') {
+                const principales = (this._marcadoresVisualizacionMapbox || []).filter((m) => m._marcadorRecorridoPrincipal);
+                return principales.length > 0 && principales.length === paradas.length;
+            }
+            const principales = (this.marcadoresVisualizacion || []).filter((m) => m._marcadorRecorridoPrincipal);
+            return principales.length > 0 && principales.length === paradas.length;
+        },
+
+        _limpiarMarcadoresObraMapboxVisualizacion() {
+            if (this._mapboxObraVisualizacionMarkers?.length) {
+                this._mapboxObraVisualizacionMarkers.forEach((marker) => marker.remove());
+            }
+            this._mapboxObraVisualizacionMarkers = [];
+            this.mapboxObraVisualizacionRefs = [];
+        },
+
+        _reemplazarElementoMarcadorMapboxVisualizacion(marker, parada) {
+            const reclamoRef = parada.reclamos[0];
+            const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+            const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+            const cantidadParada = parada.reclamos.length;
+            const esGrupo = cantidadParada > 1;
+            const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+            const badgeCantidad = esGrupo ? cantidadParada : null;
+            const reclamosGrupo = parada.reclamos.map((r) => ({
+                ...r,
+                posicion: parada.paradaNumero
+            }));
+
+            const lngLat = marker.getLngLat();
+            const grupoId = marker._grupoId || null;
+            const indicePopup = marker._indicePopup || 0;
+
+            marker.remove();
+
+            const el = this.crearElementoMapboxNumeradoMotivo(
+                parada.paradaNumero,
+                colorEstado,
+                motivoBadge,
+                32,
+                badgeCantidad,
+                prioridadAlta
+            );
+            const nuevoMarker = this.agregarMarcadorMapboxRuta(
+                this.mapaVisualizacionMapbox,
+                el,
+                { lng: lngLat.lng, lat: lngLat.lat },
+                'center'
+            );
+
+            nuevoMarker._reclamo = reclamosGrupo[0];
+            nuevoMarker._reclamosGrupo = reclamosGrupo;
+            nuevoMarker._indicePopup = indicePopup;
+            nuevoMarker._marcadorRecorridoPrincipal = true;
+            if (grupoId) {
+                nuevoMarker._grupoId = grupoId;
+            } else if (esGrupo) {
+                nuevoMarker._grupoId = `grupo-visualizacion-mb-${parada.clave}`;
+            }
+
+            el.addEventListener('click', () => {
+                this.abrirPopupVisualizacionMapbox(nuevoMarker);
+            });
+
+            const idx = this._marcadoresVisualizacionMapbox.indexOf(marker);
+            if (idx >= 0) {
+                this._marcadoresVisualizacionMapbox[idx] = nuevoMarker;
+            } else {
+                this._marcadoresVisualizacionMapbox.push(nuevoMarker);
+            }
+
+            return nuevoMarker;
+        },
+
+        _agregarMarcadoresObraMapboxVisualizacionParada(parada, coordenadas) {
+            for (let i = 0; i < parada.reclamos.length; i++) {
+                const reclamo = parada.reclamos[i];
+                if (!this.reclamoMuestraIndicadorObraSupervisorMapa(reclamo)) {
+                    continue;
+                }
+                const hms = this.textoCronometroObraSupervisor(reclamo);
+                const nivel = this.nivelDemoraObraReclamoSupervisor(reclamo);
+                const { wrap, span } = ObraCronometroUtil.crearElementoIndicadorObraMapbox(hms, nivel);
+                const offsetLng = 0.00028 + (i * 0.00006);
+                const obraMarker = new mapboxgl.Marker({ element: wrap, anchor: 'left' })
+                    .setLngLat([coordenadas.lng + offsetLng, coordenadas.lat])
+                    .addTo(this.mapaVisualizacionMapbox);
+                this._mapboxObraVisualizacionMarkers.push(obraMarker);
+                if (span) {
+                    this.mapboxObraVisualizacionRefs.push({ reclamoId: reclamo.id, span, wrap });
+                }
+            }
+        },
+
+        _reclamoFreshVisualizacion(reclamo) {
+            if (!reclamo?.id) {
+                return reclamo;
+            }
+            return this.reclamosRutaVisualizando.find((x) => Number(x.id) === Number(reclamo.id)) || reclamo;
+        },
+
+        _quitarCompanionObraGoogle(ref) {
+            if (!ref) {
+                return;
+            }
+            if (ref.overlay) {
+                ref.overlay.setMap(null);
+            } else if (typeof ref.setMap === 'function') {
+                ref.setMap(null);
+            }
+        },
+
+        _crearCompanionObraGoogleOverlay(latLng, map, reclamo) {
+            const hms = this.textoCronometroObraSupervisor(reclamo);
+            const nivel = this.nivelDemoraObraReclamoSupervisor(reclamo);
+            const companion = ObraCronometroUtil.crearCompanionObraGoogleOverlay(latLng, map, hms, nivel);
+            return {
+                ...companion,
+                _reclamoIdObra: reclamo.id,
+                _marcadorObraCompanion: true
+            };
+        },
+
+        _quitarMarkerGoogleDelMapa(marker) {
+            if (!marker) {
+                return;
+            }
+            try {
+                marker.setMap(null);
+                marker.setVisible(false);
+            } catch (e) { /* ignore */ }
+        },
+
+        _limpiarTodosCompanionsObraGoogleVisualizacion() {
+            (this._googleObraVisualizacionMarkers || []).forEach((ref) => this._quitarCompanionObraGoogle(ref));
+            this._googleObraVisualizacionMarkers = [];
+
+            (this.marcadoresVisualizacion || []).forEach((marker) => {
+                if (!marker._marcadorRecorridoPrincipal) {
+                    return;
+                }
+                (marker._companionsObra || []).forEach((c) => this._quitarCompanionObraGoogle(c));
+                this._quitarCompanionObraGoogle(marker._companionObra);
+                marker._companionsObra = [];
+                marker._companionObra = null;
+            });
+        },
+
+        _registrarCompanionObraGoogleVisualizacion(companionRef, principal) {
+            if (!companionRef) {
+                return;
+            }
+            if (!this._googleObraVisualizacionMarkers.includes(companionRef)) {
+                this._googleObraVisualizacionMarkers.push(companionRef);
+            }
+            if (principal) {
+                principal._companionsObra = principal._companionsObra || [];
+                if (!principal._companionsObra.includes(companionRef)) {
+                    principal._companionsObra.push(companionRef);
+                }
+                principal._companionObra = companionRef;
+            }
+        },
+
+        _sincronizarCompanionsObraGoogleVisualizacion() {
+            if (!this.mapaVisualizacion) {
+                this._limpiarTodosCompanionsObraGoogleVisualizacion();
+                return;
+            }
+
+            const esperados = new Map();
+            const paradas = this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+            for (const marker of this.marcadoresVisualizacion) {
+                if (!marker._marcadorRecorridoPrincipal) {
+                    continue;
+                }
+                const parada = this._buscarParadaPorMarkerVisualizacion(marker, paradas);
+                if (!parada) {
+                    continue;
+                }
+                const coordenadas = marker.getPosition();
+                if (!coordenadas) {
+                    continue;
+                }
+                for (let i = 0; i < parada.reclamos.length; i++) {
+                    const reclamo = this._reclamoFreshVisualizacion(parada.reclamos[i]);
+                    if (!this.reclamoMuestraIndicadorObraSupervisorMapa(reclamo)) {
+                        continue;
+                    }
+                    const offsetLng = 0.00028 + (i * 0.00006);
+                    esperados.set(Number(reclamo.id), {
+                        reclamo,
+                        latLng: new google.maps.LatLng(coordenadas.lat(), coordenadas.lng() + offsetLng),
+                        principal: marker
+                    });
+                }
+            }
+
+            this._googleObraVisualizacionMarkers = (this._googleObraVisualizacionMarkers || []).filter((ref) => {
+                const id = Number(ref._reclamoIdObra);
+                if (!esperados.has(id)) {
+                    this._quitarCompanionObraGoogle(ref);
+                    (this.marcadoresVisualizacion || []).forEach((m) => {
+                        if (m._companionsObra?.length) {
+                            m._companionsObra = m._companionsObra.filter((c) => c !== ref);
+                            if (m._companionObra === ref) {
+                                m._companionObra = m._companionsObra[0] || null;
+                            }
+                        }
+                    });
+                    return false;
+                }
+                return true;
+            });
+
+            const existentes = new Set(this._googleObraVisualizacionMarkers.map((r) => Number(r._reclamoIdObra)));
+            for (const [id, data] of esperados) {
+                if (existentes.has(id)) {
+                    continue;
+                }
+                const companionRef = this._crearCompanionObraGoogleOverlay(
+                    data.latLng,
+                    this.mapaVisualizacion,
+                    data.reclamo
+                );
+                this._registrarCompanionObraGoogleVisualizacion(companionRef, data.principal);
+            }
+        },
+
+        _limpiarTodosCompanionsObraGoogleRutasActivas() {
+            (this._googleObraRutasActivasMarkers || []).forEach((ref) => this._quitarCompanionObraGoogle(ref));
+            this._googleObraRutasActivasMarkers = [];
+
+            (this.marcadoresRutasActivas || []).forEach((marker) => {
+                if (!marker._marcadorRecorridoPrincipal) {
+                    return;
+                }
+                (marker._companionsObra || []).forEach((c) => this._quitarCompanionObraGoogle(c));
+                this._quitarCompanionObraGoogle(marker._companionObra);
+                marker._companionsObra = [];
+                marker._companionObra = null;
+            });
+        },
+
+        _registrarCompanionObraGoogleRutasActivas(companionRef, principal) {
+            if (!companionRef) {
+                return;
+            }
+            if (!this._googleObraRutasActivasMarkers.includes(companionRef)) {
+                this._googleObraRutasActivasMarkers.push(companionRef);
+            }
+            if (principal) {
+                principal._companionsObra = principal._companionsObra || [];
+                if (!principal._companionsObra.includes(companionRef)) {
+                    principal._companionsObra.push(companionRef);
+                }
+                principal._companionObra = companionRef;
+            }
+        },
+
+        _sincronizarCompanionsObraGoogleRutasActivas() {
+            if (!this.mapaRutasActivas) {
+                this._limpiarTodosCompanionsObraGoogleRutasActivas();
+                return;
+            }
+
+            const esperados = new Map();
+            for (const marker of this.marcadoresRutasActivas) {
+                if (!marker._marcadorRecorridoPrincipal || !marker._ruta) {
+                    continue;
+                }
+                const coordenadas = marker.getPosition();
+                if (!coordenadas) {
+                    continue;
+                }
+                const reclamosGrupo = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+                for (let i = 0; i < reclamosGrupo.length; i++) {
+                    const reclamo = reclamosGrupo[i];
+                    if (!this.reclamoMuestraIndicadorObraEnRuta(reclamo, marker._ruta)) {
+                        continue;
+                    }
+                    const offsetLng = 0.00028 + (i * 0.00006);
+                    esperados.set(Number(reclamo.id), {
+                        reclamo,
+                        latLng: new google.maps.LatLng(coordenadas.lat(), coordenadas.lng() + offsetLng),
+                        principal: marker
+                    });
+                }
+            }
+
+            this._googleObraRutasActivasMarkers = (this._googleObraRutasActivasMarkers || []).filter((ref) => {
+                const id = Number(ref._reclamoIdObra);
+                if (!esperados.has(id)) {
+                    this._quitarCompanionObraGoogle(ref);
+                    return false;
+                }
+                return true;
+            });
+
+            const existentes = new Set(this._googleObraRutasActivasMarkers.map((r) => Number(r._reclamoIdObra)));
+            for (const [id, data] of esperados) {
+                if (existentes.has(id)) {
+                    continue;
+                }
+                const companionRef = this._crearCompanionObraGoogleOverlay(
+                    data.latLng,
+                    this.mapaRutasActivas,
+                    data.reclamo
+                );
+                this._registrarCompanionObraGoogleRutasActivas(companionRef, data.principal);
+            }
+        },
+
+        async _actualizarMarcadoresGoogleVisualizacionInplace(paradas) {
+            for (const marker of this.marcadoresVisualizacion) {
+                if (!marker._marcadorRecorridoPrincipal) {
+                    continue;
+                }
+                const parada = this._buscarParadaPorMarkerVisualizacion(marker, paradas);
+                if (!parada) {
+                    continue;
+                }
+                const reclamoRef = parada.reclamos[0];
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                const cantidadParada = parada.reclamos.length;
+                const esGrupo = cantidadParada > 1;
+                const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                const badgeCantidad = esGrupo ? cantidadParada : null;
+                const reclamosGrupo = parada.reclamos.map((r) => ({
+                    ...r,
+                    posicion: parada.paradaNumero
+                }));
+
+                marker.setIcon(this.crearIconoNumerado(
+                    parada.paradaNumero,
+                    colorEstado,
+                    prioridadAlta,
+                    null,
+                    motivoBadge,
+                    badgeCantidad
+                ));
+                marker._reclamo = reclamosGrupo[0];
+                marker._reclamosGrupo = reclamosGrupo;
+            }
+            this._sincronizarCompanionsObraGoogleVisualizacion();
+        },
+
+        async _actualizarMarcadoresMapboxVisualizacionInplace(paradas) {
+            this._limpiarMarcadoresObraMapboxVisualizacion();
+
+            const principales = (this._marcadoresVisualizacionMapbox || []).filter((m) => m._marcadorRecorridoPrincipal);
+            for (const marker of principales) {
+                const parada = this._buscarParadaPorMarkerVisualizacion(marker, paradas);
+                if (!parada) {
+                    continue;
+                }
+                const nuevoMarker = this._reemplazarElementoMarcadorMapboxVisualizacion(marker, parada);
+                const lngLat = nuevoMarker.getLngLat();
+                this._agregarMarcadoresObraMapboxVisualizacionParada(parada, { lat: lngLat.lat, lng: lngLat.lng });
+            }
+        },
+
+        async actualizarMarcadoresVisualizacionInplace() {
+            const paradas = this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+            if (this.proveedorMapaVisualizacion === 'mapbox') {
+                await this._actualizarMarcadoresMapboxVisualizacionInplace(paradas);
+            } else {
+                await this._actualizarMarcadoresGoogleVisualizacionInplace(paradas);
+            }
+        },
+
+        async _refrescarMapaDetalleSupervisorCompleto() {
+            if (this.proveedorMapaVisualizacion === 'mapbox') {
+                if (this.mapaVisualizacionMapbox) {
+                    await this.mostrarRutaEnMapaMapbox();
+                }
+            } else if (this.mapaVisualizacion) {
+                await this.agregarMarcadoresVisualizacion();
+                await this.trazarRutaVisualizacion();
+            }
+            this.iniciarTickerVisualizacionObraSiCorresponde();
+            this.refrescarCronometrosInfoWindowMapaSupervisor();
+        },
+
+        async refrescarMapaDetalleSupervisor(opciones = {}) {
+            const { preservarVista = false } = opciones;
+            if (!this.rutaDetalleSupervisorId || this.modoVistaDetalleSupervisor !== 'mapa') {
+                return;
+            }
+            try {
+                if (preservarVista) {
+                    const fingerprint = this._fingerprintDatosMapaDetalleSupervisor();
+                    if (fingerprint === this._ultimoFingerprintMapaDetalleSupervisor) {
+                        this.refrescarCronometrosInfoWindowMapaSupervisor();
+                        return;
+                    }
+                    this._ultimoFingerprintMapaDetalleSupervisor = fingerprint;
+
+                    const paradas = this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+                    if (this._puedeActualizarMarcadoresVisualizacionInplace(paradas)) {
+                        await this.actualizarMarcadoresVisualizacionInplace();
+                        if (this.proveedorMapaVisualizacion === 'google') {
+                            this._sincronizarCompanionsObraGoogleVisualizacion();
+                        }
+                        const hayMarcadoresMapbox = this.proveedorMapaVisualizacion !== 'mapbox'
+                            || (this._marcadoresVisualizacionMapbox || []).some((m) => m._marcadorRecorridoPrincipal);
+                        if (!hayMarcadoresMapbox && paradas.length > 0) {
+                            const vista = this.capturarVistaMapaVisualizacion();
+                            await this._refrescarMapaDetalleSupervisorCompleto();
+                            this.restaurarVistaMapaVisualizacion(vista);
+                        } else {
+                            this.iniciarTickerVisualizacionObraSiCorresponde();
+                            this.refrescarCronometrosInfoWindowMapaSupervisor();
+                        }
+                        return;
+                    }
+
+                    const vista = this.capturarVistaMapaVisualizacion();
+                    await this._refrescarMapaDetalleSupervisorCompleto();
+                    this.restaurarVistaMapaVisualizacion(vista);
+                    return;
+                }
+
+                this._ultimoFingerprintMapaDetalleSupervisor = this._fingerprintDatosMapaDetalleSupervisor();
+                await this._refrescarMapaDetalleSupervisorCompleto();
+            } catch (error) {
+                console.warn('Refresco mapa detalle supervisor:', error);
             }
         },
 
@@ -441,13 +2228,44 @@ const app = Vue.createApp({
             return 'bg-secondary';
         },
 
+        msTranscurridoEjecucionRutaSupervisor(ruta) {
+            if (!this.esEstadoEjecucionRuta(ruta)) {
+                return 0;
+            }
+            const ini = ruta?.inicio_ejecucion_at;
+            if (!ini) {
+                return 0;
+            }
+            const t0 = new Date(String(ini).replace(' ', 'T')).getTime();
+            if (Number.isNaN(t0)) {
+                return 0;
+            }
+            return Math.max(0, this.ahoraCronometroSupervisor - t0);
+        },
+
+        nivelDemoraEjecucionRutaSupervisor(ruta) {
+            return ObraCronometroUtil.nivelDemoraEjecucionRuta(
+                this.msTranscurridoEjecucionRutaSupervisor(ruta),
+                ruta?.tiempoEstimado
+            );
+        },
+
+        claseCronometroEjecucionRutaSupervisor(ruta) {
+            if (!this.esEstadoEjecucionRuta(ruta)) {
+                return 'badge bg-dark font-monospace cronometro-ruta-supervisor cronometro-badge-con-ico';
+            }
+            const clases = ObraCronometroUtil.clasesBadgeCronometroEjecucionRuta(
+                this.nivelDemoraEjecucionRutaSupervisor(ruta)
+            );
+            return `${clases} cronometro-ruta-supervisor`;
+        },
+
         tiempoTranscurridoEjecucionSupervisor(ruta) {
             if (!this.esEstadoEjecucionRuta(ruta)) return '';
             const ini = ruta.inicio_ejecucion_at;
             if (!ini) return '—';
-            const t0 = new Date(String(ini).replace(' ', 'T')).getTime();
-            if (Number.isNaN(t0)) return '—';
-            const sec = Math.max(0, Math.floor((this.ahoraCronometroSupervisor - t0) / 1000));
+            const ms = this.msTranscurridoEjecucionRutaSupervisor(ruta);
+            const sec = Math.floor(ms / 1000);
             return this.formatearSegundosCronometroSupervisor(sec);
         },
 
@@ -503,6 +2321,14 @@ const app = Vue.createApp({
             }
         },
 
+        estilosMapaPreviewCompacto() {
+            return [
+                { featureType: 'all', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+            ];
+        },
+
         async cargarMapaPreviewSupervisor(ruta) {
             const elId = 'mapaPreviewRuta-' + ruta.id;
             const el = document.getElementById(elId);
@@ -524,62 +2350,30 @@ const app = Vue.createApp({
                     fullscreenControl: false,
                     zoomControl: false,
                     mapTypeId: google.maps.MapTypeId.ROADMAP,
-                    styles: [
-                        {
-                            featureType: 'poi',
-                            elementType: 'labels',
-                            stylers: [{ visibility: 'off' }]
-                        }
-                    ]
+                    styles: this.estilosMapaPreviewCompacto()
                 });
 
-                const markers = [];
-                const bounds = new google.maps.LatLngBounds();
-                const promesas = reclamos.map((reclamo) =>
-                    this.obtenerCoordenadasReclamo(reclamo).then((coords) => ({ reclamo, coords }))
+                const { markers, bounds, directionsRenderer } = await this._crearMarcadoresPreviewSupervisor(
+                    map,
+                    reclamos,
+                    colorRuta
                 );
-                const resultados = await Promise.all(promesas);
-
-                for (const { reclamo, coords } of resultados) {
-                    if (!coords) continue;
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
-                    const marker = new google.maps.Marker({
-                        position: { lat: coords.lat, lng: coords.lng },
-                        map,
-                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, 26, reclamo.municipalidad_motivo),
-                        zIndex: 100
-                    });
-                    marker._marcadorRecorridoPrincipal = true;
-                    markers.push(marker);
-                    bounds.extend({ lat: coords.lat, lng: coords.lng });
-                }
 
                 if (markers.length > 0) {
                     map.fitBounds(bounds, 20);
                 }
 
-                let directionsRenderer = null;
-                const principales = markers.filter((m) => m._marcadorRecorridoPrincipal);
-                if (principales.length >= 2) {
-                    directionsRenderer = new google.maps.DirectionsRenderer({
-                        suppressMarkers: true,
-                        polylineOptions: {
-                            strokeColor: colorRuta,
-                            strokeOpacity: 0.95,
-                            strokeWeight: 3
-                        }
-                    });
-                    directionsRenderer.setMap(map);
-                    await this.trazarRutaEnDirectionsRenderer(
-                        directionsRenderer,
-                        principales.map((m) => m.getPosition())
-                    );
-                }
-
+                const fingerprint = this._fingerprintPreviewSupervisorRuta(reclamos, ruta);
+                const estructura = this._fingerprintEstructuraPreviewSupervisorRuta(reclamos);
                 this.mapasPreviewSupervisor = {
                     ...this.mapasPreviewSupervisor,
-                    [ruta.id]: { map, markers, directionsRenderer }
+                    [ruta.id]: {
+                        map,
+                        markers,
+                        directionsRenderer,
+                        _ultimoFingerprint: fingerprint,
+                        _ultimaEstructura: estructura
+                    }
                 };
             } catch (error) {
                 console.error('Error al cargar vista previa de ruta', ruta.id, error);
@@ -629,7 +2423,8 @@ const app = Vue.createApp({
             });
         },
 
-        async recargarDatosDetalleSupervisor(rutaId) {
+        async recargarDatosDetalleSupervisor(rutaId, opciones = {}) {
+            const { silencioso = false } = opciones;
             if (!rutaId) {
                 return;
             }
@@ -647,14 +2442,29 @@ const app = Vue.createApp({
                 await this.cargarMaterialesYObservacionesDetalleSupervisor(reclamosUnicos);
 
                 const elModal = document.getElementById('modalDetalleSupervisorRuta');
-                if (elModal?.classList.contains('show') && this.modoVistaDetalleSupervisor === 'mapa') {
+                const modalMapaAbierto = elModal?.classList.contains('show') && this.modoVistaDetalleSupervisor === 'mapa';
+
+                if (modalMapaAbierto) {
                     await this.$nextTick();
-                    await new Promise((resolve) => setTimeout(resolve, 200));
-                    await this.restaurarMapaDetalleSupervisor();
+                    if (silencioso && (this.mapaVisualizacion || this.mapaVisualizacionMapbox)) {
+                        await this.refrescarMapaDetalleSupervisor({ preservarVista: true });
+                    } else {
+                        await new Promise((resolve) => setTimeout(resolve, 200));
+                        await this.restaurarMapaDetalleSupervisor();
+                    }
+                    if (this.proveedorMapaVisualizacion === 'google' && this.mapaVisualizacion) {
+                        this._sincronizarCompanionsObraGoogleVisualizacion();
+                        this.iniciarTickerVisualizacionObraSiCorresponde();
+                    }
                 }
+                this._ultimoFingerprintMapaDetalleSupervisor = this._fingerprintDatosMapaDetalleSupervisor();
             } catch (error) {
-                console.error('Error al recargar detalle de ruta:', error);
-                throw error;
+                if (silencioso) {
+                    console.warn('Recarga silenciosa detalle supervisor:', error);
+                } else {
+                    console.error('Error al recargar detalle de ruta:', error);
+                    throw error;
+                }
             }
         },
 
@@ -669,8 +2479,13 @@ const app = Vue.createApp({
             this.observacionesPorReclamoSupervisor = {};
             this.reclamosRutaVisualizando = [];
             this.rutaVisualizando = {};
+            this.indiceReclamoListaParadaVisualizacion = {};
+            this.mostrarDetalleCuadrillaSupervisor = false;
 
             try {
+                if (this.cuadrillasDisponibles.length === 0) {
+                    await this.obtenerCuadrillas();
+                }
                 await this.recargarDatosDetalleSupervisor(ruta.id);
 
                 const elModal = document.getElementById('modalDetalleSupervisorRuta');
@@ -715,6 +2530,9 @@ const app = Vue.createApp({
             if (this.proveedorMapaVisualizacion === 'mapbox') {
                 if (this.mapaVisualizacionMapbox) {
                     this.mapaVisualizacionMapbox.resize();
+                    if (!this._marcadoresVisualizacionMapbox?.length) {
+                        await this.mostrarRutaEnMapaMapbox();
+                    }
                 } else {
                     await this.inicializarMapaVisualizacionMapbox();
                     await this.mostrarRutaEnMapaMapbox();
@@ -732,10 +2550,15 @@ const app = Vue.createApp({
 
         async seleccionarReclamoDetalleSupervisor(reclamo) {
             if (this.modoVistaDetalleSupervisor !== 'mapa') {
-                this.cambiarModoVistaDetalleSupervisor('mapa');
+                this.modoVistaDetalleSupervisor = 'mapa';
                 await this.$nextTick();
-                await new Promise((resolve) => setTimeout(resolve, 350));
+                await this.restaurarMapaDetalleSupervisor();
+            } else if (this.proveedorMapaVisualizacion === 'mapbox' && this.mapaVisualizacionMapbox) {
+                if (!this._marcadoresVisualizacionMapbox?.length) {
+                    await this.mostrarRutaEnMapaMapbox();
+                }
             }
+            await this.$nextTick();
             this.centrarEnReclamo(reclamo);
         },
 
@@ -751,17 +2574,18 @@ const app = Vue.createApp({
             }
             const m = {};
             for (const r of reclamos) {
-                if ((r.municipalidad_estado || '').trim() === 'Completado') {
-                    continue;
-                }
+                const est = (r.municipalidad_estado || '').trim();
                 const sr = r.sesion_reparacion;
                 if (!sr) {
                     continue;
                 }
                 const acum = Number(sr.acumulado_ms) || 0;
-                const activo = !!sr.activo;
+                const activo = est === 'Completado' ? false : !!sr.activo;
                 if (!activo && acum <= 0) {
-                    if ((r.municipalidad_estado || '').trim() !== 'Pendiente') {
+                    if (est === 'Completado') {
+                        continue;
+                    }
+                    if (est !== 'Pendiente') {
                         continue;
                     }
                 }
@@ -790,27 +2614,43 @@ const app = Vue.createApp({
 
         textoCronometroReparacionReclamoSupervisor(reclamo) {
             const s = this.sesionReparacionReclamoSupervisor(reclamo);
-            if (!s) {
-                return '';
+            if (s) {
+                let ms = s.acumuladoMs || 0;
+                if (s.activo) {
+                    ms += this.ahoraCronometroSupervisor - s.inicioSegmentoMs;
+                }
+                const sec = Math.max(0, Math.floor(ms / 1000));
+                return this.formatearSegundosCronometroSupervisor(sec);
             }
-            let ms = s.acumuladoMs || 0;
-            if (s.activo) {
-                ms += this.ahoraCronometroSupervisor - s.inicioSegmentoMs;
+            const sr = reclamo?.sesion_reparacion;
+            const msApi = Number(sr?.acumulado_ms) || 0;
+            if (msApi > 0) {
+                return this.formatearSegundosCronometroSupervisor(Math.floor(msApi / 1000));
             }
-            const sec = Math.max(0, Math.floor(ms / 1000));
-            return this.formatearSegundosCronometroSupervisor(sec);
+            return '';
         },
 
-        claseBadgeEstadoReclamoSupervisor(estado) {
+        mostrarCronometroReparacionReclamoSupervisor(reclamo) {
+            return !!this.textoCronometroReparacionReclamoSupervisor(reclamo);
+        },
+
+        claseCronometroListaObraSupervisor(reclamo) {
+            const s = this.sesionReparacionReclamoSupervisor(reclamo);
+            const srApi = reclamo?.sesion_reparacion;
+            if (!s && !srApi) {
+                return '';
+            }
+            const nivel = this.nivelDemoraObraReclamoSupervisor(reclamo);
+            const pausado = s ? !s.activo : true;
+            return ObraCronometroUtil.claseListaCronoObra(nivel, pausado);
+        },
+
+        colorTextoSobreEstadoReclamo(estado) {
             const e = (estado || '').trim();
-            if (e === 'Recibido') return 'bg-secondary';
-            if (e === 'Asignado') return 'bg-info text-dark';
-            if (e === 'Pendiente') return 'bg-danger';
-            if (e === 'En ejecución') return 'bg-warning text-dark';
-            if (e === 'Completado') return 'bg-success';
-            if (e === 'En plan') return 'bg-secondary';
-            if (e === 'Error de datos') return 'bg-secondary';
-            return 'bg-secondary';
+            if (e === 'En ejecución' || e === 'Asignado') {
+                return '#000';
+            }
+            return '#fff';
         },
 
         materialesReclamoSupervisorLista(reclamo) {
@@ -827,13 +2667,50 @@ const app = Vue.createApp({
             return this.observacionesPorReclamoSupervisor[reclamo.id] || [];
         },
 
+        cantidadObservacionesEjecucionReclamoSupervisor(reclamo) {
+            return this.observacionesReclamoSupervisorLista(reclamo)
+                .filter((o) => !this.esEntradaCambioEstadoBitacoraObra(o))
+                .length;
+        },
+
+        textoObservacionesEjecucionBadge(cantidad) {
+            if (!cantidad || cantidad < 1) {
+                return '';
+            }
+            return cantidad > 99 ? '99+' : String(cantidad);
+        },
+
+        htmlBadgeObservacionesEjecucionConId(reclamoId, cantidad) {
+            const texto = this.textoObservacionesEjecucionBadge(cantidad);
+            if (!texto) {
+                return '';
+            }
+            return `<span class="btn-obs-ejecucion-count" data-map-iw-obs-count-id="${reclamoId}" aria-hidden="true">${texto}</span>`;
+        },
+
+        puedeVerMaterialesObservacionesSupervisor(reclamo) {
+            return !!(this.rutaDetalleSupervisorId && reclamo?.id);
+        },
+
+        paramsObservacionesSupervisorReclamo() {
+            const ejecId = this.rutaVisualizando?.ruta_ejecucion_activa_id;
+            const rutaId = this.rutaVisualizando?.id || this.rutaDetalleSupervisorId;
+            if (ejecId) {
+                return { ruta_ejecucion_id: ejecId };
+            }
+            if (rutaId) {
+                return { ruta_id: rutaId };
+            }
+            return null;
+        },
+
         async cargarMaterialesYObservacionesDetalleSupervisor(reclamos) {
-            this.materialesPorReclamoSupervisor = {};
-            this.observacionesPorReclamoSupervisor = {};
             if (!reclamos?.length) {
+                this.materialesPorReclamoSupervisor = {};
+                this.observacionesPorReclamoSupervisor = {};
                 return;
             }
-            const ejecId = this.rutaVisualizando?.ruta_ejecucion_activa_id;
+            const paramsObs = this.paramsObservacionesSupervisorReclamo();
             const materialesMap = {};
             const observacionesMap = {};
             await Promise.all(reclamos.map(async (reclamo) => {
@@ -844,17 +2721,17 @@ const app = Vue.createApp({
                     const peticiones = [
                         axios.get(BASE_URL + 'api/reclamos/' + reclamo.id + '/materiales')
                     ];
-                    if (ejecId) {
+                    if (paramsObs) {
                         peticiones.push(
                             axios.get(
                                 BASE_URL + 'api/reclamos/' + reclamo.id + '/ejecucion-observaciones',
-                                { params: { ruta_ejecucion_id: ejecId } }
+                                { params: paramsObs }
                             )
                         );
                     }
                     const resultados = await Promise.all(peticiones);
                     materialesMap[reclamo.id] = resultados[0]?.data || [];
-                    observacionesMap[reclamo.id] = ejecId ? (resultados[1]?.data || []) : [];
+                    observacionesMap[reclamo.id] = paramsObs ? (resultados[1]?.data || []) : [];
                 } catch (error) {
                     console.warn('No se pudieron cargar materiales/observaciones del reclamo', reclamo.id, error);
                     materialesMap[reclamo.id] = [];
@@ -918,9 +2795,8 @@ const app = Vue.createApp({
             if (!reclamo?.id) {
                 return;
             }
-            const ejecId = this.rutaVisualizando?.ruta_ejecucion_activa_id;
-            if (!ejecId) {
-                this.mostrarMensaje('No hay ejecución activa de la hoja para consultar observaciones.', 'warning');
+            if (!this.paramsObservacionesSupervisorReclamo()) {
+                this.mostrarMensaje('No se pudo determinar la hoja de ruta para consultar observaciones.', 'warning');
                 return;
             }
             this.reclamoSupervisorModal = { ...reclamo };
@@ -932,21 +2808,22 @@ const app = Vue.createApp({
         },
 
         async cargarHistorialObservacionesSupervisor() {
-            const ejecId = this.rutaVisualizando?.ruta_ejecucion_activa_id;
-            if (!this.reclamoSupervisorModal?.id || !ejecId) {
+            const params = this.paramsObservacionesSupervisorReclamo();
+            if (!this.reclamoSupervisorModal?.id || !params) {
                 return;
             }
             this.cargandoObservacionesSupervisor = true;
             try {
                 const r = await axios.get(
                     BASE_URL + 'api/reclamos/' + this.reclamoSupervisorModal.id + '/ejecucion-observaciones',
-                    { params: { ruta_ejecucion_id: ejecId } }
+                    { params }
                 );
                 this.historialObservacionesSupervisor = Array.isArray(r.data) ? r.data : [];
                 this.observacionesPorReclamoSupervisor = {
                     ...this.observacionesPorReclamoSupervisor,
                     [this.reclamoSupervisorModal.id]: this.historialObservacionesSupervisor
                 };
+                this.refrescarBadgesObservacionesInfoWindowMapaSupervisor();
             } catch (error) {
                 console.error('Error al cargar observaciones (supervisor):', error);
                 this.mostrarMensaje('No se pudo cargar el historial de observaciones.', 'error');
@@ -956,52 +2833,48 @@ const app = Vue.createApp({
             }
         },
 
+        crearHtmlAccionesSupervisorDetallePopup(reclamo) {
+            if (!this.puedeVerMaterialesObservacionesSupervisor(reclamo)) {
+                return '';
+            }
+
+            const rid = String(reclamo.id);
+            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--supervisor d-flex flex-wrap align-items-center gap-1 border-top pt-2 mt-2">';
+
+            if (this.mostrarCronometroReparacionReclamoSupervisor(reclamo)) {
+                const claseCrono = this.claseCronometroListaObraSupervisor(reclamo);
+                html += ObraCronometroUtil.htmlSpanCronometroBadge(
+                    `badge font-monospace map-detalle-iw-crono ruta-secuencia-crono-reparacion ${claseCrono}`,
+                    this.textoCronometroReparacionReclamoSupervisor(reclamo),
+                    'reclamo',
+                    `data-map-iw-crono-supervisor-id="${rid}" title="Tiempo en obra"`
+                );
+            }
+
+            html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="materiales" data-reclamo-id="${rid}" title="Materiales utilizados"><i class="bi bi-box-seam"></i></button>`;
+            const obsCount = this.cantidadObservacionesEjecucionReclamoSupervisor(reclamo);
+            const tituloObs = obsCount > 0
+                ? `Registro en obra (${obsCount})`
+                : 'Registro en obra';
+            html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
+            html += '</div>';
+            return html;
+        },
+
+        vincularAccionesSupervisorDetallePopup(reclamo) {
+            if (!this.rutaDetalleSupervisorId || !reclamo?.id) {
+                return;
+            }
+            document.querySelectorAll(`[data-map-accion-supervisor][data-reclamo-id="${reclamo.id}"]`).forEach((btn) => {
+                btn.onclick = (e) => this.onMapaDetalleSupervisorInfoWindowAccion(e);
+            });
+        },
+
         construirInfoWindowContentMapaDetalleSupervisor(reclamo) {
             const wrap = document.createElement('div');
             wrap.className = 'map-detalle-iw';
-            wrap.innerHTML = this.crearContenidoInfoWindow(reclamo);
-
-            const acciones = document.createElement('div');
-            acciones.className = 'map-detalle-iw-acciones border-top pt-2 mt-2 d-flex flex-wrap align-items-center gap-1';
-
-            const rid = String(reclamo.id);
-            const ses = this.sesionReparacionReclamoSupervisor(reclamo);
-
-            if (ses) {
-                const crono = document.createElement('span');
-                crono.className = 'badge bg-dark font-monospace map-detalle-iw-crono';
-                crono.setAttribute('data-map-iw-crono-supervisor-id', rid);
-                crono.textContent = this.textoCronometroReparacionReclamoSupervisor(reclamo);
-                crono.title = 'Tiempo en obra';
-                acciones.appendChild(crono);
-            }
-
-            if (this.puedeVerAccionesObraSupervisorEnReclamo(reclamo)) {
-                const bMat = document.createElement('button');
-                bMat.type = 'button';
-                bMat.className = 'btn btn-sm btn-outline-secondary';
-                bMat.innerHTML = '<i class="bi bi-box-seam"></i>';
-                bMat.title = 'Materiales utilizados';
-                bMat.setAttribute('data-map-accion-supervisor', 'materiales');
-                bMat.setAttribute('data-reclamo-id', rid);
-                acciones.appendChild(bMat);
-
-                const bObs = document.createElement('button');
-                bObs.type = 'button';
-                bObs.className = 'btn btn-sm btn-outline-secondary';
-                bObs.innerHTML = '<i class="bi bi-chat-square-text"></i>';
-                bObs.title = 'Observaciones en esta ejecución';
-                bObs.setAttribute('data-map-accion-supervisor', 'observaciones');
-                bObs.setAttribute('data-reclamo-id', rid);
-                acciones.appendChild(bObs);
-            }
-
-            if (acciones.childNodes.length) {
-                wrap.appendChild(acciones);
-            }
-
+            wrap.innerHTML = this.crearContenidoInfoWindow(reclamo) + this.crearHtmlAccionesSupervisorDetallePopup(reclamo);
             wrap.addEventListener('click', (e) => this.onMapaDetalleSupervisorInfoWindowAccion(e));
-
             return wrap;
         },
 
@@ -1037,11 +2910,38 @@ const app = Vue.createApp({
                     return;
                 }
                 const r = this.reclamosRutaVisualizando.find((x) => Number(x.id) === rid);
-                if (!r || !this.sesionReparacionReclamoSupervisor(r)) {
-                    el.textContent = '—';
+                if (!r || !this.mostrarCronometroReparacionReclamoSupervisor(r)) {
+                    ObraCronometroUtil.actualizarTextoCronometroBadge(el, '—', 'reclamo');
+                    ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, '');
                     return;
                 }
-                el.textContent = this.textoCronometroReparacionReclamoSupervisor(r);
+                ObraCronometroUtil.actualizarTextoCronometroBadge(
+                    el,
+                    this.textoCronometroReparacionReclamoSupervisor(r),
+                    'reclamo'
+                );
+                ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, this.claseCronometroListaObraSupervisor(r));
+            });
+            this.refrescarBadgesObservacionesInfoWindowMapaSupervisor();
+        },
+
+        refrescarBadgesObservacionesInfoWindowMapaSupervisor() {
+            if (!this.rutaDetalleSupervisorId) {
+                return;
+            }
+            document.querySelectorAll('[data-map-iw-obs-count-id]').forEach((el) => {
+                const rid = parseInt(el.getAttribute('data-map-iw-obs-count-id'), 10);
+                if (Number.isNaN(rid)) {
+                    return;
+                }
+                const r = this.reclamosRutaVisualizando.find((x) => Number(x.id) === rid);
+                const count = r ? this.cantidadObservacionesEjecucionReclamoSupervisor(r) : 0;
+                const texto = this.textoObservacionesEjecucionBadge(count);
+                if (!texto) {
+                    el.remove();
+                    return;
+                }
+                el.textContent = texto;
             });
         },
 
@@ -1059,6 +2959,7 @@ const app = Vue.createApp({
             this.cerrarVisualizacion();
             this.rutaDetalleSupervisorId = null;
             this.modoVistaDetalleSupervisor = 'mapa';
+            this.mostrarDetalleCuadrillaSupervisor = false;
             this.reparacionPorReclamoIdSupervisor = {};
             this.materialesPorReclamoSupervisor = {};
             this.observacionesPorReclamoSupervisor = {};
@@ -1151,21 +3052,31 @@ const app = Vue.createApp({
 
                             if (estado === 'en ejecución' || estado === 'en ejecucion') {
                                 const inicio = row.inicio_ejecucion_at || '';
+                                const tiempoEstimado = row.tiempoEstimado || '';
                                 const escAttr = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/"/g, '&quot;');
                                 let initial = '—';
+                                let msTranscurrido = 0;
                                 if (inicio) {
                                     const t0 = new Date(String(inicio).replace(' ', 'T')).getTime();
                                     if (!Number.isNaN(t0)) {
-                                        const sec = Math.max(0, Math.floor((Date.now() - t0) / 1000));
-                                        initial = vueComponent.formatearSegundosCronometroSupervisor(sec);
+                                        msTranscurrido = Math.max(0, Date.now() - t0);
+                                        initial = vueComponent.formatearSegundosCronometroSupervisor(Math.floor(msTranscurrido / 1000));
                                     }
                                 }
+                                const nivelCrono = ObraCronometroUtil.nivelDemoraEjecucionRuta(msTranscurrido, tiempoEstimado);
+                                const clasesCrono = `${ObraCronometroUtil.clasesBadgeCronometroEjecucionRuta(nivelCrono)} cronometro-ruta-supervisor`;
+                                const cronoHtml = ObraCronometroUtil.htmlSpanCronometroBadge(
+                                    clasesCrono,
+                                    initial,
+                                    'ruta',
+                                    `style="font-size: 0.75rem; letter-spacing: 0.06em;" data-inicio-ejecucion-at="${escAttr(inicio)}" data-tiempo-estimado="${escAttr(tiempoEstimado)}"`
+                                );
                                 return `
                                     <span class="d-inline-flex align-items-center gap-1 flex-wrap">
                                         <span class="badge bg-success" style="font-size: 0.75rem;">
                                             <i class="bi bi-play-circle-fill text-white me-1"></i>En ejecución
                                         </span>
-                                        <span class="badge bg-dark cronometro-ruta-supervisor font-monospace" style="font-size: 0.75rem; letter-spacing: 0.06em;" data-inicio-ejecucion-at="${escAttr(inicio)}">${initial}</span>
+                                        ${cronoHtml}
                                     </span>
                                 `;
                             }
@@ -1317,9 +3228,11 @@ const app = Vue.createApp({
             this.modoSeleccionManual = false;
             this.modoSeleccionPrimerReclamo = false;
             this.modoEdicion = false;
+            this.mostrarListaRutaVistaPrevia = false;
+            this.indiceReclamoListaParada = {};
             this.rutaOriginal = [];
             this.cuadrillaSeleccionadaCrearRuta = '';
-            this.modoVistaCrearRuta = 'mapa';
+            this.cuadrillaDetalleAbiertaId = null;
             this.limpiarVistaPrevia();
         },
 
@@ -1392,6 +3305,106 @@ const app = Vue.createApp({
             this.cuadrillaSeleccionadaCrearRuta = cuadrillaId;
         },
 
+        seleccionarCuadrillaParaAsignar(cuadrillaId) {
+            const rutaId = this.rutaParaAsignar?.id;
+            if (this.cuadrillaTieneOtraHojaAsignada(cuadrillaId, rutaId)) {
+                const msg = this.mensajeCuadrillaOcupada(cuadrillaId, rutaId);
+                if (msg) {
+                    this.mostrarMensaje(msg, 'warning');
+                }
+                return;
+            }
+            this.cuadrillaSeleccionadaParaAsignar = cuadrillaId;
+        },
+
+        toggleCuadrillaDetalleCrearRuta(cuadrillaId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            const key = String(cuadrillaId);
+            this.cuadrillaDetalleAbiertaId = this.cuadrillaDetalleAbiertaId === key ? null : key;
+        },
+
+        cuadrillaDetalleExpandida(cuadrillaId) {
+            return this.cuadrillaDetalleAbiertaId === String(cuadrillaId);
+        },
+
+        cerrarDetalleCuadrillaCrearRuta() {
+            this.cuadrillaDetalleAbiertaId = null;
+        },
+
+        async toggleDetalleCuadrillaSupervisor() {
+            if (!this.rutaVisualizando?.cuadrilla_id) {
+                return;
+            }
+            if (this.mostrarDetalleCuadrillaSupervisor) {
+                this.cerrarDetalleCuadrillaSupervisor();
+                return;
+            }
+            if (this.cuadrillasDisponibles.length === 0) {
+                await this.obtenerCuadrillas();
+            }
+            if (!this.cuadrillaAsignadaDetalleSupervisor) {
+                this.mostrarMensaje('No se encontró el detalle de la cuadrilla.', 'warning');
+                return;
+            }
+            this.mostrarDetalleCuadrillaSupervisor = true;
+        },
+
+        cerrarDetalleCuadrillaSupervisor() {
+            this.mostrarDetalleCuadrillaSupervisor = false;
+        },
+
+        urlFotoOperario(nombreArchivo) {
+            return BASE_URL + 'static/uploads/perfiles/' + nombreArchivo;
+        },
+
+        inicialesOperario(nombre) {
+            if (!nombre) return '?';
+            const partes = nombre.trim().split(/\s+/);
+            const primera = partes[0] ? partes[0][0] : '';
+            const segunda = partes.length > 1 ? partes[partes.length - 1][0] : '';
+            return (primera + segunda).toUpperCase();
+        },
+
+        colorAvatarOperario(nombre) {
+            const paleta = ['#3A3972', '#6E6D99', '#2D6A6A', '#7A5C9E', '#A65A7A', '#4C6EA8', '#9E7B3A'];
+            const texto = nombre || '';
+            let hash = 0;
+            for (let i = 0; i < texto.length; i++) {
+                hash = texto.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return paleta[Math.abs(hash) % paleta.length];
+        },
+
+        jefeDeCuadrilla(cuadrilla) {
+            if (!cuadrilla?.operarios) return null;
+            return cuadrilla.operarios.find((op) => Number(op.es_jefe) === 1) || null;
+        },
+
+        operariosCuadrillaDeRuta(ruta) {
+            if (!ruta?.cuadrilla_id) return [];
+            const cuadrilla = this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(ruta.cuadrilla_id)
+            );
+            if (!cuadrilla?.operarios?.length) return [];
+            return [...cuadrilla.operarios].sort(
+                (a, b) => Number(b.es_jefe) - Number(a.es_jefe)
+            );
+        },
+
+        tituloCuadrillaTarjetaRuta(ruta) {
+            const ops = this.operariosCuadrillaDeRuta(ruta);
+            if (!ops.length) {
+                return ruta.cuadrilla_nombre || 'Sin asignar';
+            }
+            const nombres = ops.map((op) => {
+                const rol = Number(op.es_jefe) === 1 ? ' (Jefe)' : '';
+                return `${op.nombre}${rol}`;
+            });
+            return `${ruta.cuadrilla_nombre || 'Cuadrilla'}: ${nombres.join(', ')}`;
+        },
+
         mapaCrearRutaNecesitaReinicio() {
             if (this.proveedorMapaVistaPrevia === 'mapbox') {
                 return !this.mapaMapbox;
@@ -1442,13 +3455,6 @@ const app = Vue.createApp({
             await this.mostrarVistaPreviaEnMapa();
         },
 
-        cambiarModoVistaCrearRuta(modo) {
-            this.modoVistaCrearRuta = modo;
-            if (modo === 'mapa' && this.vistaPrevia.activa) {
-                this.restaurarMapaVistaPreviaCrearRuta();
-            }
-        },
-
         getCardClassCrearRuta(reclamo) {
             const estado = reclamo?.municipalidad_estado;
             if (estado === 'Recibido') return 'border-secondary';
@@ -1468,8 +3474,8 @@ const app = Vue.createApp({
             this.limpiarVistaPrevia();
             this.vistaPrevia.activa = false;
             this.modoEdicion = false;
+            this.mostrarListaRutaVistaPrevia = false;
             this.rutaOriginal = [];
-            this.modoVistaCrearRuta = 'mapa';
         },
 
         /**
@@ -1477,9 +3483,13 @@ const app = Vue.createApp({
          */
         activarModoEdicion() {
             this.modoEdicion = true;
+            this.mostrarListaRutaVistaPrevia = false;
             // Guardar copia de la ruta original por si cancela
             this.rutaOriginal = JSON.parse(JSON.stringify(this.vistaPrevia.rutaOptimizada));
-            this.mostrarMensaje('Modo edición activado. Use el mapa o la vista lista para ajustar los reclamos.', 'info');
+            this.mostrarMensaje('Modo edición activado. Agregá reclamos en el mapa y usá Ver lista para ordenarlos.', 'info');
+            this.$nextTick(() => {
+                this.restaurarMapaVistaPreviaCrearRuta();
+            });
         },
 
         /**
@@ -1488,92 +3498,144 @@ const app = Vue.createApp({
         cancelarEdicion() {
             this.vistaPrevia.rutaOptimizada = JSON.parse(JSON.stringify(this.rutaOriginal));
             this.modoEdicion = false;
+            this.mostrarListaRutaVistaPrevia = false;
             this.rutaOriginal = [];
-            // Actualizar el mapa para reflejar la ruta original
             this.actualizarMapaVistaPrevia();
             this.mostrarMensaje('Edición cancelada. Se restauró la ruta original.', 'info');
         },
 
         /**
-         * Mueve un reclamo hacia arriba en la lista
+         * Mueve una parada (domicilio) hacia arriba en la lista
          */
-        moverReclamoArriba(index) {
-            if (index === 0) return;
-            
-            const temp = this.vistaPrevia.rutaOptimizada[index];
-            this.vistaPrevia.rutaOptimizada[index] = this.vistaPrevia.rutaOptimizada[index - 1];
-            this.vistaPrevia.rutaOptimizada[index - 1] = temp;
-            
-            // Forzar actualización de Vue
-            this.vistaPrevia.rutaOptimizada = [...this.vistaPrevia.rutaOptimizada];
-            
-            // Actualizar el mapa
-            this.actualizarMapaVistaPrevia();
+        async moverParadaArriba(paradaIndex) {
+            const paradas = this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+            if (paradaIndex === 0) return;
+
+            [paradas[paradaIndex - 1], paradas[paradaIndex]] = [paradas[paradaIndex], paradas[paradaIndex - 1]];
+            this.vistaPrevia.rutaOptimizada = paradas.flatMap((parada) => parada.reclamos);
+            await this.actualizarMapaVistaPrevia();
         },
 
         /**
-         * Mueve un reclamo hacia abajo en la lista
+         * Mueve una parada (domicilio) hacia abajo en la lista
          */
-        moverReclamoAbajo(index) {
-            if (index === this.vistaPrevia.rutaOptimizada.length - 1) return;
-            
-            const temp = this.vistaPrevia.rutaOptimizada[index];
-            this.vistaPrevia.rutaOptimizada[index] = this.vistaPrevia.rutaOptimizada[index + 1];
-            this.vistaPrevia.rutaOptimizada[index + 1] = temp;
-            
-            // Forzar actualización de Vue
-            this.vistaPrevia.rutaOptimizada = [...this.vistaPrevia.rutaOptimizada];
-            
-            // Actualizar el mapa
-            this.actualizarMapaVistaPrevia();
+        async moverParadaAbajo(paradaIndex) {
+            const paradas = this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+            if (paradaIndex >= paradas.length - 1) return;
+
+            [paradas[paradaIndex], paradas[paradaIndex + 1]] = [paradas[paradaIndex + 1], paradas[paradaIndex]];
+            this.vistaPrevia.rutaOptimizada = paradas.flatMap((parada) => parada.reclamos);
+            await this.actualizarMapaVistaPrevia();
         },
 
         /**
-         * Elimina un reclamo de la ruta
+         * Elimina una parada completa (todos los reclamos del mismo domicilio)
          */
-        eliminarReclamoDeRuta(index) {
-            const reclamo = this.vistaPrevia.rutaOptimizada[index];
-            this.vistaPrevia.rutaOptimizada.splice(index, 1);
-            
-            this.mostrarMensaje(`Reclamo #${reclamo.municipalidad_id} eliminado de la ruta`, 'success');
-            
-            // Actualizar el mapa
-            this.actualizarMapaVistaPrevia();
+        async eliminarParadaDeRuta(paradaIndex) {
+            const paradas = this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+            const parada = paradas[paradaIndex];
+            if (!parada) return;
+
+            paradas.splice(paradaIndex, 1);
+            this.vistaPrevia.rutaOptimizada = paradas.flatMap((p) => p.reclamos);
+
+            if (parada.reclamos.length === 1) {
+                this.mostrarMensaje(`Reclamo #${parada.reclamos[0].municipalidad_id} eliminado de la ruta`, 'success');
+            } else {
+                const ids = parada.reclamos.map((r) => `#${r.municipalidad_id}`).join(', ');
+                this.mostrarMensaje(`${parada.reclamos.length} reclamos del mismo domicilio eliminados (${ids})`, 'success');
+            }
+
+            await this.actualizarMapaVistaPrevia();
+        },
+
+        indiceReclamoEnParadaLista(parada) {
+            const idx = this.indiceReclamoListaParada[parada.clave];
+            if (idx === undefined || idx >= parada.reclamos.length) {
+                return 0;
+            }
+            return idx;
+        },
+
+        reclamoActivoEnParadaLista(parada) {
+            return parada.reclamos[this.indiceReclamoEnParadaLista(parada)] || parada.reclamos[0];
+        },
+
+        navegarReclamoEnParadaLista(parada, delta) {
+            if (parada.reclamos.length <= 1) return;
+
+            const total = parada.reclamos.length;
+            let idx = this.indiceReclamoEnParadaLista(parada);
+            idx = (idx + delta + total) % total;
+            this.indiceReclamoListaParada = {
+                ...this.indiceReclamoListaParada,
+                [parada.clave]: idx
+            };
         },
 
         /**
-         * Agrega un reclamo a la ruta al hacer clic en el mapa (solo en modo edición)
+         * Agrega un reclamo a la ruta al hacer clic en el mapa (solo en modo edición).
+         * Si hay varios reclamos en el mismo domicilio, agrega todos los elegibles como una sola parada.
          */
         async agregarReclamoARuta(reclamo) {
             if (!this.modoEdicion) return;
-            
-            // Verificar si el reclamo ya está en la ruta
-            const yaEstaEnRuta = this.vistaPrevia.rutaOptimizada.find(r => r.id === reclamo.id);
-            if (yaEstaEnRuta) {
-                this.mostrarMensaje('Este reclamo ya está en la ruta', 'warning');
+
+            const claveDomicilio = this.claveDomicilioReclamo(reclamo);
+            const reclamosMismoDomicilio = this.reclamos.filter(
+                (r) => this.claveDomicilioReclamo(r) === claveDomicilio
+            );
+
+            const reclamosParaAgregar = [];
+            const omitidos = { enRuta: 0, completado: 0, otraRuta: 0 };
+
+            for (const candidato of reclamosMismoDomicilio) {
+                if (candidato.municipalidad_estado === 'Completado') {
+                    omitidos.completado++;
+                    continue;
+                }
+
+                if (this.vistaPrevia.rutaOptimizada.find((r) => r.id === candidato.id)) {
+                    omitidos.enRuta++;
+                    continue;
+                }
+
+                const estaEnOtraRuta = await this.verificarReclamoEnOtraRuta(candidato.id);
+                if (estaEnOtraRuta) {
+                    omitidos.otraRuta++;
+                    continue;
+                }
+
+                reclamosParaAgregar.push(candidato);
+            }
+
+            if (reclamosParaAgregar.length === 0) {
+                if (omitidos.enRuta > 0) {
+                    this.mostrarMensaje('Este domicilio ya está en la ruta', 'warning');
+                } else if (omitidos.otraRuta > 0) {
+                    this.mostrarMensaje('Los reclamos de este domicilio ya están en otra hoja de ruta', 'warning');
+                } else if (omitidos.completado > 0) {
+                    this.mostrarMensaje('No se pueden agregar reclamos completados', 'warning');
+                } else {
+                    this.mostrarMensaje('No hay reclamos disponibles para agregar en este domicilio', 'warning');
+                }
                 return;
             }
-            
-            // Verificar si el reclamo está en otra ruta
-            const estaEnOtraRuta = await this.verificarReclamoEnOtraRuta(reclamo.id);
-            if (estaEnOtraRuta) {
-                this.mostrarMensaje('Este reclamo ya está en otra hoja de ruta', 'warning');
-                return;
+
+            for (const candidato of reclamosParaAgregar) {
+                this.vistaPrevia.rutaOptimizada.push(candidato);
             }
-            
-            // Verificar si el reclamo está completado
-            if (reclamo.municipalidad_estado === 'Completado') {
-                this.mostrarMensaje('No se pueden agregar reclamos completados', 'warning');
-                return;
+
+            if (reclamosParaAgregar.length === 1) {
+                this.mostrarMensaje(`Reclamo #${reclamosParaAgregar[0].municipalidad_id} agregado a la ruta`, 'success');
+            } else {
+                const ids = reclamosParaAgregar.map((r) => `#${r.municipalidad_id}`).join(', ');
+                this.mostrarMensaje(
+                    `${reclamosParaAgregar.length} reclamos del mismo domicilio agregados a la ruta (${ids})`,
+                    'success'
+                );
             }
-            
-            // Agregar el reclamo al final de la ruta
-            this.vistaPrevia.rutaOptimizada.push(reclamo);
-            
-            this.mostrarMensaje(`Reclamo #${reclamo.municipalidad_id} agregado a la ruta`, 'success');
-            
-            // Actualizar el mapa
-            this.actualizarMapaVistaPrevia();
+
+            await this.actualizarMapaVistaPrevia();
         },
 
         /**
@@ -1636,6 +3698,9 @@ const app = Vue.createApp({
                     center: { lat: lat, lng: lng },
                     zoom: 13,
                     mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
                     styles: [
                         {
                             featureType: "poi",
@@ -1914,8 +3979,7 @@ const app = Vue.createApp({
          * Actualiza el número de reclamos disponibles
          */
         actualizarDisponibles() {
-            // Contar solo reclamos no completados
-            this.reclamosDisponibles = this.reclamos.filter(r => r.municipalidad_estado !== 'Completado').length;
+            this.reclamosDisponibles = this.contarUnidadesDomicilioDisponibles();
         },
 
         /**
@@ -1983,11 +4047,7 @@ const app = Vue.createApp({
 
                 // Asignar datos del backend
                 this.vistaPrevia.rutaOptimizada = datosRespuesta.rutaOptimizada;
-                this.vistaPrevia.tiempoEstimado = this.convertirTiempoAMinutos(datosRespuesta.tiempoEstimado);
-                this.vistaPrevia.distanciaTotal = datosRespuesta.distanciaTotal;
                 this.vistaPrevia.activa = true;
-                this.modoVistaCrearRuta = 'mapa';
-                
                 // Inicializar mapa cuando se activa la vista previa
                 this.$nextTick(() => {
                     setTimeout(async () => {
@@ -2014,32 +4074,17 @@ const app = Vue.createApp({
         },
 
         /**
-         * Convierte tiempo en formato HH:MM:SS a minutos
-         */
-        convertirTiempoAMinutos(tiempoString) {
-            if (!tiempoString) return 0;
-            
-            const partes = tiempoString.split(':');
-            const horas = parseInt(partes[0]) || 0;
-            const minutos = parseInt(partes[1]) || 0;
-            
-            return (horas * 60) + minutos;
-        },
-
-
-        /**
          * Muestra la vista previa en el mapa usando Google Directions Service
          */
         async mostrarVistaPreviaEnMapa() {
             // Limpiar completamente la vista previa anterior primero
             this.limpiarVistaPreviaCompleto();
             
-            // PASO 1: Mostrar todas las rutas existentes en gris (discretas)
-            await this.mostrarRutasActivasEnVistaPrevia();
-            
             // Primero agregar todos los reclamos que NO están en la ruta (puntiagudos)
             const idsRutaPrevia = this.vistaPrevia.rutaOptimizada.map(r => r.id);
-            const reclamosNoEnRuta = this.reclamos.filter(r => !idsRutaPrevia.includes(r.id));
+            const reclamosNoEnRuta = this.reclamos.filter(r =>
+                !idsRutaPrevia.includes(r.id) && r.municipalidad_estado !== 'Completado'
+            );
             
             // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
             const promesasCoordenadas = reclamosNoEnRuta.map(reclamo => 
@@ -2047,93 +4092,104 @@ const app = Vue.createApp({
             );
             
             const resultados = await Promise.all(promesasCoordenadas);
-            
-            // Crear marcadores con los resultados
-            for (const { reclamo, coords: coordenadas } of resultados) {
-                    if (coordenadas) {
-                        const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                        const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
-                        const tienePrioridadAlta = colorPrioridad !== null;
-                        
-                        const marker = new google.maps.Marker({
-                            position: { lat: coordenadas.lat, lng: coordenadas.lng },
-                            map: this.mapa,
-                            title: `Reclamo #${reclamo.municipalidad_id}${tienePrioridadAlta ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
-                            icon: this.crearIconoPinMotivo(colorEstado, colorPrioridad, reclamo.municipalidad_motivo)
-                        });
+            const gruposOtros = this.agruparReclamosPorDomicilioVistaPrevia(resultados);
+            let contadorGruposOtrosGoogle = 0;
 
-                        const infoWindow = new google.maps.InfoWindow({
-                            content: this.crearContenidoInfoWindow(reclamo)
-                        });
+            for (const grupo of gruposOtros) {
+                const reclamoRef = grupo.reclamos[0];
+                const coordenadas = grupo.coordenadas;
+                const esGrupo = grupo.reclamos.length > 1;
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(grupo.reclamos);
 
-                        marker.addListener('click', () => {
-                        // Si está en modo edición, agregar reclamo a la ruta
-                        if (this.modoEdicion) {
-                            this.agregarReclamoARuta(reclamo);
-                        } else {
-                            // Si no está en modo edición, solo mostrar info window
-                            if (this.infoWindowAbiertoVistaPrevia) {
-                                this.infoWindowAbiertoVistaPrevia.close();
-                            }
-                            infoWindow.open(this.mapa, marker);
-                            this.infoWindowAbiertoVistaPrevia = infoWindow;
-                        }
-                        });
+                const marker = new google.maps.Marker({
+                    position: { lat: coordenadas.lat, lng: coordenadas.lng },
+                    map: this.mapa,
+                    title: esGrupo
+                        ? `${grupo.reclamos.length} reclamos en este domicilio`
+                        : `Reclamo #${reclamoRef.municipalidad_id}${prioridadAlta ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
+                    icon: this.crearIconoPinMotivo(
+                        colorEstado,
+                        prioridadAlta,
+                        reclamoRef.municipalidad_motivo,
+                        esGrupo ? grupo.reclamos.length : null
+                    ),
+                    optimized: false
+                });
 
-                        marker._reclamo = reclamo;
-                        marker._infoWindow = infoWindow;
-                        this.vistaPrevia.marcadoresOtros.push(marker);
+                marker._reclamo = reclamoRef;
+                marker._indicePopup = 0;
+
+                if (esGrupo) {
+                    marker._reclamosGrupo = grupo.reclamos;
+                    marker._grupoId = `grupo-vista-previa-otros-${++contadorGruposOtrosGoogle}`;
                 }
+
+                marker.addListener('click', () => {
+                    if (this.modoEdicion) {
+                        this.agregarReclamoARuta(reclamoRef);
+                        return;
+                    }
+                    this.abrirPopupVistaPreviaGoogle(marker);
+                });
+
+                this.vistaPrevia.marcadoresOtros.push(marker);
             }
             
-            // Luego agregar marcadores numerados circulares para la ruta
-            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
-            const promesasRuta = this.vistaPrevia.rutaOptimizada.map((reclamo, i) => 
-                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords, index: i }))
-            );
-            
-            const resultadosRuta = await Promise.all(promesasRuta);
-            
-            for (const { reclamo, coords: coordenadas, index: i } of resultadosRuta) {
+            // Marcadores numerados por parada (agrupa mismo domicilio)
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+            let contadorGruposVistaPrevia = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
                 if (coordenadas) {
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
-                    const tienePrioridadAlta = colorPrioridad !== null;
-                    
+                    const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                    const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                    const cantidadParada = parada.reclamos.length;
+                    const esGrupo = cantidadParada > 1;
+                    const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                    const badgeCantidad = esGrupo ? cantidadParada : null;
+
                     const marker = new google.maps.Marker({
                         position: { lat: coordenadas.lat, lng: coordenadas.lng },
                         map: this.mapa,
-                        title: `Posición ${i + 1}: Reclamo #${reclamo.municipalidad_id}${tienePrioridadAlta ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
-                        icon: this.crearIconoNumerado(i + 1, colorEstado, colorPrioridad, null, reclamo.municipalidad_motivo),
-                        zIndex: 1000
+                        title: esGrupo
+                            ? `Parada ${parada.paradaNumero}: ${cantidadParada} reclamos en el mismo domicilio`
+                            : `Posición ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                        icon: this.crearIconoNumerado(
+                            parada.paradaNumero,
+                            colorEstado,
+                            prioridadAlta,
+                            null,
+                            motivoBadge,
+                            badgeCantidad
+                        ),
+                        zIndex: 1000,
+                        optimized: false
                     });
 
-                    // Crear info window con los detalles del reclamo
-                    const reclamoConPosicion = { ...reclamo, posicion: i + 1 };
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: this.crearContenidoInfoWindow(reclamoConPosicion)
-                    });
+                    const reclamosGrupo = parada.reclamos.map((r) => ({
+                        ...r,
+                        posicion: parada.paradaNumero
+                    }));
 
-                    // Agregar evento de clic para mostrar info window
+                    marker._reclamo = reclamosGrupo[0];
+                    marker._reclamosGrupo = reclamosGrupo;
+                    marker._indicePopup = 0;
+                    if (esGrupo) {
+                        marker._grupoId = `grupo-vista-previa-${++contadorGruposVistaPrevia}`;
+                    }
+
                     marker.addListener('click', () => {
-                        // Cerrar cualquier info window abierto
-                        if (this.infoWindowAbiertoVistaPrevia) {
-                            this.infoWindowAbiertoVistaPrevia.close();
-                        }
-                        
-                        // Abrir el nuevo info window
-                        infoWindow.open(this.mapa, marker);
-                        this.infoWindowAbiertoVistaPrevia = infoWindow;
+                        this.abrirPopupVistaPreviaGoogle(marker);
                     });
-                    
-                    marker._reclamo = reclamoConPosicion;
-                    marker._infoWindow = infoWindow;
+
                     this.vistaPrevia.marcadoresRuta.push(marker);
                 }
             }
             
-            // Usar Google Directions Service para mostrar la ruta real por las calles
-            // SOLO para los marcadores de la ruta (no los otros)
             if (this.vistaPrevia.marcadoresRuta.length > 1) {
                 await this.trazarRutaConDirections();
             }
@@ -2171,7 +4227,8 @@ const app = Vue.createApp({
                                     title: `Ruta #${ruta.id} - Reclamo #${reclamo.municipalidad_id}`,
                                     icon: this.crearIconoNumerado(reclamo.posicion, '#909090', null, 24, reclamo.municipalidad_motivo),
                                     zIndex: 100, // Bajo z-index para que esté detrás de todo
-                                    opacity: 0.75
+                                    opacity: 0.75,
+                                    optimized: false
                                 });
                                 
                                 // Info window discreto
@@ -2489,20 +4546,54 @@ const app = Vue.createApp({
          * Crea un icono numerado para los marcadores de la ruta
          * Si tiene prioridad Alta, muestra animación de pulso
          */
-        crearIconoNumerado(numero, colorEstado, colorPrioridad, tamanoPersonalizado = null, motivo = null) {
-            const tienePrioridadAlta = colorPrioridad !== null && !tamanoPersonalizado;
+        crearIconoNumerado(numero, colorEstado, colorPrioridad, tamanoPersonalizado = null, motivo = null, badgeCantidad = null) {
+            const tienePrioridadAlta = typeof colorPrioridad === 'boolean'
+                ? colorPrioridad
+                : (colorPrioridad !== null && colorPrioridad !== undefined);
+            const badgePrioridadSvg = tienePrioridadAlta && !tamanoPersonalizado
+                ? this.crearSvgBadgePrioridadAlta(7, 7)
+                : '';
+            const badgeSvg = badgeCantidad > 1
+                ? this.crearSvgBadgeCantidad(badgeCantidad, tamanoPersonalizado ? tamanoPersonalizado - 6 : 25, tamanoPersonalizado ? 6 : 7, tamanoPersonalizado ? Math.max(4.5, tamanoPersonalizado * 0.17) : 6, tamanoPersonalizado ? Math.max(7, tamanoPersonalizado * 0.26) : 9)
+                : this.crearSvgBadgeMotivo(motivo, tamanoPersonalizado ? tamanoPersonalizado - 6 : 25, tamanoPersonalizado ? 6 : 7, tamanoPersonalizado ? Math.max(4.5, tamanoPersonalizado * 0.17) : 6, tamanoPersonalizado ? Math.max(7, tamanoPersonalizado * 0.26) : 9);
 
             if (tamanoPersonalizado) {
                 const size = tamanoPersonalizado;
                 const half = size / 2;
                 const r = Math.max(8, Math.floor(size * 0.42));
                 const fontSize = Math.max(8, Math.floor(size * 0.38));
+                const badgeMotivoOCantidad = badgeCantidad > 1
+                    ? badgeSvg
+                    : this.crearSvgBadgeMotivo(motivo, size - 6, 6, Math.max(4.5, size * 0.17), Math.max(7, size * 0.26));
+
+                if (tienePrioridadAlta) {
+                    const badgePrioridadX = Math.max(4, Math.round(size * 6 / 32));
+                    const badgePrioridadY = badgePrioridadX;
+                    const viewTop = -5;
+                    const viewHeight = size + Math.abs(viewTop);
+                    const displayH = viewHeight;
+                    const anchorY = Math.round(((half - viewTop) / viewHeight) * displayH);
+
+                    return {
+                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                            <svg width="${size}" height="${displayH}" viewBox="0 ${viewTop} ${size} ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                                <circle cx="${half}" cy="${half}" r="${r}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1.5"/>
+                                <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
+                                ${this.crearSvgBadgePrioridadAlta(badgePrioridadX, badgePrioridadY, true)}
+                                ${badgeMotivoOCantidad}
+                            </svg>
+                        `)}`,
+                        scaledSize: new google.maps.Size(size, displayH),
+                        anchor: new google.maps.Point(half, anchorY)
+                    };
+                }
+
                 return {
                     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                         <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
                             <circle cx="${half}" cy="${half}" r="${r}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1.5"/>
                             <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
-                            ${this.crearSvgBadgeMotivo(motivo, size - 6, 6, Math.max(4.5, size * 0.17), Math.max(7, size * 0.26))}
+                            ${badgeMotivoOCantidad}
                         </svg>
                     `)}`,
                     scaledSize: new google.maps.Size(size, size),
@@ -2511,44 +4602,36 @@ const app = Vue.createApp({
             }
             
             if (tienePrioridadAlta) {
-                // Con animación de pulso doble más grande y lenta con rojo oscuro para prioridad Alta
+                const viewTop = -7;
+                const viewHeight = 39;
+                const displayH = 39;
+                const anchorY = Math.round(((16 - viewTop) / viewHeight) * displayH);
+
                 return {
                     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Pulso exterior rojo oscuro grande y lento -->
-                            <circle cx="20" cy="20" r="0" fill="#B71C1C" opacity="0.7">
-                                <animate attributeName="r" values="0;24;0" dur="2.5s" repeatCount="indefinite"/>
-                                <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite"/>
-                            </circle>
-                            <!-- Pulso medio rojo intenso con retardo -->
-                            <circle cx="20" cy="20" r="0" fill="#C62828" opacity="0.9">
-                                <animate attributeName="r" values="0;19;0" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
-                                <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
-                            </circle>
-                            <!-- Círculo principal del marcador -->
-                            <circle cx="20" cy="20" r="15" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
-                            <!-- Número -->
-                            <text x="20" y="25" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">${numero}</text>
-                            ${this.crearSvgBadgeMotivo(motivo, 31, 9, 7, 10)}
-                        </svg>
-                    `)}`,
-                    scaledSize: new google.maps.Size(40, 40),
-                    anchor: new google.maps.Point(20, 20)
-                };
-            } else {
-                // Sin animación para prioridad Baja
-                return {
-                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="32" height="${displayH}" viewBox="0 ${viewTop} 32 ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
                             <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
                             <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
-                            ${this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
+                            ${badgePrioridadSvg}
+                            ${badgeCantidad > 1 ? this.crearSvgBadgeCantidad(badgeCantidad, 25, 7, 6, 9) : this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
                         </svg>
                     `)}`,
-                    scaledSize: new google.maps.Size(32, 32),
-                    anchor: new google.maps.Point(16, 16)
+                    scaledSize: new google.maps.Size(32, displayH),
+                    anchor: new google.maps.Point(16, anchorY)
                 };
             }
+
+            return {
+                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                        <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
+                        ${badgeCantidad > 1 ? this.crearSvgBadgeCantidad(badgeCantidad, 25, 7, 6, 9) : this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
+                    </svg>
+                `)}`,
+                scaledSize: new google.maps.Size(32, 32),
+                anchor: new google.maps.Point(16, 16)
+            };
         },
 
         /**
@@ -2559,8 +4642,6 @@ const app = Vue.createApp({
             
             // Limpiar datos
             this.vistaPrevia.rutaOptimizada = [];
-            this.vistaPrevia.tiempoEstimado = 0;
-            this.vistaPrevia.distanciaTotal = 0;
             this.vistaPrevia.activa = false; // Resetear el estado activa
             
             // Limpiar mapa Mapbox si existe
@@ -2626,7 +4707,7 @@ const app = Vue.createApp({
                     // Si está en modo edición, enviar la ruta editada manualmente
                     datosRuta = {
                         color: this.nuevaRuta.color,
-                        cantidadReclamos: this.vistaPrevia.rutaOptimizada.length,
+                        cantidadReclamos: this.contarUnidadesDomicilioEnRuta(this.vistaPrevia.rutaOptimizada),
                         reclamosManuales: this.vistaPrevia.rutaOptimizada.map(r => r.id),
                         primerReclamoManual: null,
                         modoManual: true,
@@ -2688,8 +4769,8 @@ const app = Vue.createApp({
                 // Limpiar datos anteriores
                 this.reclamosRutaVisualizando = [];
                 this.rutaVisualizando = {};
-                
-                // Obtener datos de la ruta
+                this.indiceReclamoListaParadaVisualizacion = {};
+                this.mostrarListaRutaVisualizacion = false;
                 const responseRuta = await axios.get(BASE_URL + 'api/rutas/' + id);
                 this.rutaVisualizando = responseRuta.data;
                 
@@ -2738,14 +4819,13 @@ const app = Vue.createApp({
             try {
                 const lat = -31.427;
                 const lng = -62.082;
-                const esMapaDetalleSupervisor = containerId === 'mapaDetalleSupervisor';
-
                 this.mapaVisualizacion = new google.maps.Map(el, {
                     center: { lat: lat, lng: lng },
                     zoom: 13,
                     mapTypeId: google.maps.MapTypeId.ROADMAP,
-                    streetViewControl: !esMapaDetalleSupervisor,
-                    fullscreenControl: !esMapaDetalleSupervisor,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
                     styles: [
                         {
                             featureType: "poi",
@@ -2782,85 +4862,668 @@ const app = Vue.createApp({
             }
         },
 
-        /**
-         * Agrega marcadores numerados de la ruta (optimizado)
-         */
-        async agregarMarcadoresVisualizacion() {
-            this.detenerTickerVisualizacionObra();
-            this.mapboxObraVisualizacionRefs = [];
-            // Limpiar marcadores anteriores
-            this.marcadoresVisualizacion.forEach(marker => marker.setMap(null));
-            this.marcadoresVisualizacion = [];
+        indiceReclamoEnParadaListaVisualizacion(parada) {
+            const idx = this.indiceReclamoListaParadaVisualizacion[parada.clave];
+            if (idx === undefined || idx >= parada.reclamos.length) {
+                return 0;
+            }
+            return idx;
+        },
 
-            // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
-            const promesasCoordenadas = this.reclamosRutaVisualizando.map(reclamo => 
-                this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
-            );
-            
-            const resultados = await Promise.all(promesasCoordenadas);
-            
-            for (const { reclamo, coords: coordenadas } of resultados) {
-                if (coordenadas) {
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
-                    const tienePrioridadAlta = colorPrioridad !== null;
-                    
-                    const marker = new google.maps.Marker({
-                        position: { lat: coordenadas.lat, lng: coordenadas.lng },
-                        map: this.mapaVisualizacion,
-                        title: `Reclamo #${reclamo.municipalidad_id} - Posición ${reclamo.posicion}${tienePrioridadAlta ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
-                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, null, reclamo.municipalidad_motivo),
-                        zIndex: 1000
-                    });
-                    marker._marcadorRecorridoPrincipal = true;
+        reclamoActivoEnParadaListaVisualizacion(parada) {
+            return parada.reclamos[this.indiceReclamoEnParadaListaVisualizacion(parada)] || parada.reclamos[0];
+        },
 
-                    const contenidoIw = this.rutaDetalleSupervisorId
-                        ? this.construirInfoWindowContentMapaDetalleSupervisor(reclamo)
-                        : this.crearContenidoInfoWindow(reclamo);
+        navegarReclamoEnParadaListaVisualizacion(parada, delta) {
+            if (parada.reclamos.length <= 1) return;
 
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: contenidoIw
-                    });
+            const total = parada.reclamos.length;
+            let idx = this.indiceReclamoEnParadaListaVisualizacion(parada);
+            idx = (idx + delta + total) % total;
+            this.indiceReclamoListaParadaVisualizacion = {
+                ...this.indiceReclamoListaParadaVisualizacion,
+                [parada.clave]: idx
+            };
+        },
 
-                    // Agregar evento de clic para mostrar info window
-                    marker.addListener('click', () => {
-                        // Cerrar cualquier info window abierto
-                        if (this.infoWindowAbiertoVisualizacion) {
-                            this.infoWindowAbiertoVisualizacion.close();
-                        }
-                        
-                        // Abrir el nuevo info window
-                        infoWindow.open(this.mapaVisualizacion, marker);
-                        this.infoWindowAbiertoVisualizacion = infoWindow;
-                    });
+        vincularEventosPopupVisualizacionGoogle(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
 
-                    marker._reclamo = reclamo;
-                    marker._infoWindow = infoWindow;
-                    this.marcadoresVisualizacion.push(marker);
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVisualizacion(marker, -1);
+                    };
+                }
 
-                    if (this.reclamoMuestraIndicadorObraSupervisorMapa(reclamo)) {
-                        const hms = this.textoCronometroObraSupervisor(reclamo);
-                        const offsetLng = 0.00028;
-                        const companion = new google.maps.Marker({
-                            position: { lat: coordenadas.lat, lng: coordenadas.lng + offsetLng },
-                            map: this.mapaVisualizacion,
-                            title: `En obra — ${hms}`,
-                            icon: this.crearIconoCamionHmsDataUrl(hms),
-                            zIndex: 1001,
-                            optimized: false
-                        });
-                        marker._companionObra = companion;
-                        this.marcadoresVisualizacion.push(companion);
-                    }
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVisualizacion(marker, 1);
+                    };
                 }
             }
 
+            const headerElement = document.querySelector('.gm-style-iw-ch');
+            if (headerElement) {
+                headerElement.innerHTML = this.crearEncabezadoPopupReclamo(reclamo);
+            }
+
+            this.vincularAccionesSupervisorDetallePopup(reclamo);
+        },
+
+        vincularEventosPopupVisualizacionMapbox(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVisualizacionMapbox(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVisualizacionMapbox(marker, 1);
+                    };
+                }
+            }
+
+            this.vincularAccionesSupervisorDetallePopup(reclamo);
+        },
+
+        navegarPopupGrupoVisualizacion(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupVisualizacionGoogle(marker, nuevoIndice);
+        },
+
+        abrirPopupVisualizacionGoogle(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length || !this.mapaVisualizacion) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            const infoWindow = marker._infoWindow || new google.maps.InfoWindow();
+            marker._infoWindow = infoWindow;
+
+            infoWindow.setContent(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: false,
+                incluirAccionesSupervisorDetalle: !!this.rutaDetalleSupervisorId
+            }));
+
+            if (this.infoWindowAbiertoVisualizacion) {
+                this.infoWindowAbiertoVisualizacion.close();
+            }
+
+            infoWindow.open(this.mapaVisualizacion, marker);
+            this.infoWindowAbiertoVisualizacion = infoWindow;
+
+            google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                setTimeout(() => this.vincularEventosPopupVisualizacionGoogle(marker, reclamo), 100);
+            });
+        },
+
+        abrirPopupVisualizacionMapbox(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            let popup = marker.getPopup();
+            if (!popup) {
+                popup = new mapboxgl.Popup({ offset: 25 });
+                marker.setPopup(popup);
+            }
+
+            popup.setHTML(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: true,
+                incluirAccionesSupervisorDetalle: !!this.rutaDetalleSupervisorId
+            }));
+
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            }
+
+            setTimeout(() => this.vincularEventosPopupVisualizacionMapbox(marker, reclamo), 0);
+        },
+
+        navegarPopupGrupoVisualizacionMapbox(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupVisualizacionMapbox(marker, nuevoIndice);
+        },
+
+        abrirPopupRutasActivasGoogle(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length || !this.mapaRutasActivas) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            const infoWindow = marker._infoWindow || new google.maps.InfoWindow();
+            marker._infoWindow = infoWindow;
+
+            infoWindow.setContent(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: false
+            }));
+
+            if (this.infoWindowAbiertoRutasActivas) {
+                this.infoWindowAbiertoRutasActivas.close();
+            }
+
+            infoWindow.open(this.mapaRutasActivas, marker);
+            this.infoWindowAbiertoRutasActivas = infoWindow;
+
+            google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                setTimeout(() => this.vincularEventosPopupRutasActivasGoogle(marker, reclamo), 100);
+            });
+        },
+
+        vincularEventosPopupRutasActivasGoogle(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoRutasActivasGoogle(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoRutasActivasGoogle(marker, 1);
+                    };
+                }
+            }
+
+            const headerElement = document.querySelector('.gm-style-iw-ch');
+            if (headerElement) {
+                headerElement.innerHTML = this.crearEncabezadoPopupReclamo(reclamo);
+            }
+        },
+
+        navegarPopupGrupoRutasActivasGoogle(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupRutasActivasGoogle(marker, nuevoIndice);
+        },
+
+        abrirPopupRutasActivasMapbox(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            let popup = marker.getPopup();
+            if (!popup) {
+                popup = new mapboxgl.Popup({ offset: 25 });
+                marker.setPopup(popup);
+            }
+
+            popup.setHTML(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: true
+            }));
+
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            }
+
+            setTimeout(() => this.vincularEventosPopupRutasActivasMapbox(marker, reclamo), 0);
+        },
+
+        vincularEventosPopupRutasActivasMapbox(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoRutasActivasMapbox(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoRutasActivasMapbox(marker, 1);
+                    };
+                }
+            }
+        },
+
+        navegarPopupGrupoRutasActivasMapbox(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupRutasActivasMapbox(marker, nuevoIndice);
+        },
+
+        /**
+         * Agrega marcadores numerados de la ruta agrupados por domicilio
+         */
+        async agregarMarcadoresVisualizacion() {
+            this.detenerTickerVisualizacionObra();
+            this._limpiarTodosCompanionsObraGoogleVisualizacion();
+            this.mapboxObraVisualizacionRefs = [];
+            this.marcadoresVisualizacion.forEach((marker) => marker.setMap(null));
+            this.marcadoresVisualizacion = [];
+
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+            let contadorGruposVisualizacion = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
+                if (coordenadas) {
+                    const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                    const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                    const cantidadParada = parada.reclamos.length;
+                    const esGrupo = cantidadParada > 1;
+                    const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                    const badgeCantidad = esGrupo ? cantidadParada : null;
+
+                    const marker = new google.maps.Marker({
+                        position: { lat: coordenadas.lat, lng: coordenadas.lng },
+                        map: this.mapaVisualizacion,
+                        title: esGrupo
+                            ? `Parada ${parada.paradaNumero}: ${cantidadParada} reclamos en el mismo domicilio`
+                            : `Posición ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                        icon: this.crearIconoNumerado(
+                            parada.paradaNumero,
+                            colorEstado,
+                            prioridadAlta,
+                            null,
+                            motivoBadge,
+                            badgeCantidad
+                        ),
+                        zIndex: 1000,
+                        optimized: false
+                    });
+                    marker._marcadorRecorridoPrincipal = true;
+
+                    const reclamosGrupo = parada.reclamos.map((r) => ({
+                        ...r,
+                        posicion: parada.paradaNumero
+                    }));
+
+                    marker._reclamo = reclamosGrupo[0];
+                    marker._reclamosGrupo = reclamosGrupo;
+                    marker._indicePopup = 0;
+                    if (esGrupo) {
+                        marker._grupoId = `grupo-visualizacion-${++contadorGruposVisualizacion}`;
+                    }
+
+                    marker.addListener('click', () => {
+                        this.abrirPopupVisualizacionGoogle(marker);
+                    });
+
+                    this.marcadoresVisualizacion.push(marker);
+                }
+            }
+
+            this._sincronizarCompanionsObraGoogleVisualizacion();
             this.iniciarTickerVisualizacionObraSiCorresponde();
         },
 
         /**
          * Crea el contenido del info window para un reclamo
          */
+        claveDomicilioReclamo(reclamo) {
+            const domicilio = (reclamo.municipalidad_domicilio || '').trim().toLowerCase();
+            const numero = (reclamo.municipalidad_numeroDomicilio || '').trim().toLowerCase();
+            if (domicilio) {
+                return `dom:${domicilio}|${numero}`;
+            }
+            return `id:${reclamo.id}`;
+        },
+
+        contarUnidadesDomicilioDisponibles() {
+            const claves = new Set();
+            for (const r of this.reclamos) {
+                if (r.municipalidad_estado === 'Completado') continue;
+                claves.add(this.claveDomicilioReclamo(r));
+            }
+            return claves.size;
+        },
+
+        contarUnidadesDomicilioEnRuta(reclamos) {
+            const claves = new Set();
+            for (const r of reclamos || []) {
+                claves.add(this.claveDomicilioReclamo(r));
+            }
+            return claves.size;
+        },
+
+        agruparParadasRutaVistaPrevia(rutaOptimizada) {
+            const paradas = [];
+            for (const reclamo of rutaOptimizada) {
+                const clave = this.claveDomicilioReclamo(reclamo);
+                const ultima = paradas[paradas.length - 1];
+                if (ultima && ultima.clave === clave) {
+                    ultima.reclamos.push(reclamo);
+                } else {
+                    paradas.push({ clave, reclamos: [reclamo] });
+                }
+            }
+            paradas.forEach((p, i) => { p.paradaNumero = i + 1; });
+            return paradas;
+        },
+
+        agruparReclamosPorDomicilioVistaPrevia(resultados) {
+            const mapa = new Map();
+
+            for (const { reclamo, coords } of resultados) {
+                if (!coords) continue;
+
+                const clave = this.claveDomicilioReclamo(reclamo);
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, { clave, reclamos: [], coordenadas: coords });
+                }
+                mapa.get(clave).reclamos.push(reclamo);
+            }
+
+            return Array.from(mapa.values()).map((grupo) => {
+                grupo.reclamos.sort(
+                    (a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10)
+                );
+                return grupo;
+            });
+        },
+
+        crearEncabezadoPopupReclamo(reclamo) {
+            const icono = this.iconoMotivoReclamo(reclamo.municipalidad_motivo);
+            const color = this.getColorEstado(reclamo.municipalidad_estado || 'Recibido');
+            return `
+                <div class="mapa-popup-header">
+                    <span class="mapa-popup-motivo-icon" style="background-color: ${color};" aria-hidden="true">${icono}</span>
+                    <h6>Reclamo #${reclamo.municipalidad_id}</h6>
+                </div>
+            `;
+        },
+
+        crearContenidoPopupReclamo(reclamo, opciones = {}) {
+            const { grupoId = null, indice = 0, total = 1, incluirTitulo = false } = opciones;
+            const causasPrioridadAlta = typeof MapaPrioridadUtil !== 'undefined'
+                ? MapaPrioridadUtil.obtenerCausasPrioridadAlta(reclamo)
+                : [];
+            const lineaPopup = (campo, etiqueta, valor) => (
+                typeof MapaPrioridadUtil !== 'undefined'
+                    ? MapaPrioridadUtil.crearLineaPopupCampo(etiqueta, valor, causasPrioridadAlta.includes(campo))
+                    : `<p><strong>${etiqueta}:</strong> ${valor}</p>`
+            );
+            const navegacionGrupo = total > 1 ? `
+                <div class="mapa-popup-grupo-nav">
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-prev" data-grupo-id="${grupoId}" aria-label="Reclamo anterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="mapa-popup-grupo-contador">${indice + 1} de ${total} en este domicilio</span>
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-next" data-grupo-id="${grupoId}" aria-label="Siguiente reclamo">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            ` : '';
+            const encabezado = incluirTitulo ? this.crearEncabezadoPopupReclamo(reclamo) : '';
+
+            return `
+                <div class="mapa-popup-reclamo">
+                    ${encabezado}
+                    ${navegacionGrupo}
+                    ${lineaPopup('motivo', 'Motivo', reclamo.municipalidad_motivo || 'No especificado')}
+                    ${lineaPopup('estado', 'Estado', reclamo.municipalidad_estado || 'No especificado')}
+                    <p><strong>Prioridad:</strong> ${reclamo.prioridad || 'No especificado'}</p>
+                    <p><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
+                    ${lineaPopup('fecha', 'Fecha', this.formatearFecha(reclamo.municipalidad_fechaInicio))}
+                    <p><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
+                    ${lineaPopup('descripcion', 'Descripción', reclamo.municipalidad_descripcion || 'No especificado')}
+                    <div class="mapa-popup-acciones">
+                        <button type="button" class="mapa-popup-btn mapa-popup-detalle" data-reclamo-id="${reclamo.id}">
+                            <i class="bi bi-card-text"></i> Ver detalle
+                        </button>
+                    </div>
+                    ${opciones.incluirAccionesSupervisorDetalle ? this.crearHtmlAccionesSupervisorDetallePopup(reclamo) : ''}
+                    ${opciones.incluirDetalleHistorialEjecucion ? this.crearHtmlDetalleHistorialEjecucionPopup(reclamo) : ''}
+                </div>
+            `;
+        },
+
+        crearContenidoPopupGrupoVistaPrevia(reclamo, opciones = {}) {
+            return this.crearContenidoPopupReclamo(reclamo, { ...opciones, incluirTitulo: false });
+        },
+
+        verReclamoVistaPrevia(reclamo) {
+            const completo = this.reclamos.find((r) => r.id === reclamo.id)
+                || this.reclamosRutaVisualizando.find((r) => r.id === reclamo.id)
+                || (this.historialEjecucionMapa?.reclamos || []).find((r) => r.id === reclamo.id)
+                || reclamo;
+            this.reclamoSeleccionado = { ...completo };
+            const modalEl = document.getElementById('modalVerReclamo');
+            if (modalEl) {
+                new bootstrap.Modal(modalEl).show();
+            }
+        },
+
+        vincularEventosPopupVistaPreviaGoogle(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVistaPrevia(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoVistaPrevia(marker, 1);
+                    };
+                }
+            }
+
+            const headerElement = document.querySelector('.gm-style-iw-ch');
+            if (headerElement) {
+                headerElement.innerHTML = this.crearEncabezadoPopupReclamo(reclamo);
+            }
+        },
+
+        vincularEventosPopupVistaPreviaMapbox(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapboxVistaPrevia(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapboxVistaPrevia(marker, 1);
+                    };
+                }
+            }
+        },
+
+        navegarPopupGrupoVistaPrevia(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupVistaPreviaGoogle(marker, nuevoIndice);
+        },
+
+        abrirPopupVistaPreviaGoogle(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            const infoWindow = marker._infoWindow || new google.maps.InfoWindow();
+            marker._infoWindow = infoWindow;
+
+            infoWindow.setContent(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: false
+            }));
+
+            if (this.infoWindowAbiertoVistaPrevia) {
+                this.infoWindowAbiertoVistaPrevia.close();
+            }
+
+            infoWindow.open(this.mapa, marker);
+            this.infoWindowAbiertoVistaPrevia = infoWindow;
+
+            google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                setTimeout(() => this.vincularEventosPopupVistaPreviaGoogle(marker, reclamo), 100);
+            });
+        },
+
+        abrirInfoWindowGrupoVistaPrevia(marker, indice = null) {
+            this.abrirPopupVistaPreviaGoogle(marker, indice);
+        },
+
+        abrirPopupMapboxVistaPrevia(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = reclamos[marker._indicePopup];
+            let popup = marker.getPopup();
+            if (!popup) {
+                popup = new mapboxgl.Popup({ offset: 25 });
+                marker.setPopup(popup);
+            }
+
+            popup.setHTML(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: true
+            }));
+
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            }
+
+            setTimeout(() => this.vincularEventosPopupVistaPreviaMapbox(marker, reclamo), 0);
+        },
+
+        navegarPopupGrupoMapboxVistaPrevia(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = reclamos.length - 1;
+            if (nuevoIndice >= reclamos.length) nuevoIndice = 0;
+
+            this.abrirPopupMapboxVistaPrevia(marker, nuevoIndice);
+        },
+
         crearContenidoInfoWindow(reclamo) {
             return `
                 <div style="min-width: 250px;">
@@ -2895,6 +5558,7 @@ const app = Vue.createApp({
                 
                 this.directionsRendererVisualizacion = new google.maps.DirectionsRenderer({
                     suppressMarkers: true,
+                    preserveViewport: true,
                     polylineOptions: {
                         strokeColor: colorRuta,
                         strokeOpacity: 1.0,
@@ -2974,82 +5638,114 @@ const app = Vue.createApp({
          * Centra el mapa en un reclamo específico (funciona en ambos modales)
          */
         centrarEnReclamo(reclamo) {
-            // Buscar en marcadores de visualización individual (excluir marcador compañero obra)
-            let marker = this.marcadoresVisualizacion.find(m => m._marcadorRecorridoPrincipal && m._reclamo && m._reclamo.id === reclamo.id);
-            let mapa = this.mapaVisualizacion;
-            let infoWindowAbierto = this.infoWindowAbiertoVisualizacion;
-            
-            // Si no se encuentra, buscar en marcadores de todas las rutas
-            if (!marker) {
-                marker = this.marcadoresRutasActivas.find(m => m._reclamo.id === reclamo.id);
-                mapa = this.mapaRutasActivas;
-                infoWindowAbierto = this.infoWindowAbiertoRutasActivas;
-            }
-            
-            if (marker && mapa) {
-                // Cerrar cualquier info window abierto anteriormente
-                if (infoWindowAbierto) {
-                    infoWindowAbierto.close();
+            if (this.proveedorMapaVisualizacion === 'mapbox' && this.mapaVisualizacionMapbox) {
+                if (this.centrarEnReclamoVisualizacionMapbox(reclamo)) {
+                    return;
                 }
-                
-                mapa.setCenter(marker.getPosition());
-                mapa.setZoom(16);
-                
-                // Detener cualquier animación previa
-                marker.setAnimation(null);
-                
-                // Aplicar animación de rebote
-                marker.setAnimation(google.maps.Animation.BOUNCE);
-                
-                // Detener la animación después de 1.5 segundos
-                setTimeout(() => {
-                    marker.setAnimation(null);
-                }, 1500);
-                
-                // Abrir el info window del marcador
-                if (marker._infoWindow) {
-                    marker._infoWindow.open(mapa, marker);
-                    
-                    // Actualizar la referencia del info window abierto
-                    if (mapa === this.mapaVisualizacion) {
-                        this.infoWindowAbiertoVisualizacion = marker._infoWindow;
-                    } else if (mapa === this.mapaRutasActivas) {
-                        this.infoWindowAbiertoRutasActivas = marker._infoWindow;
+            }
+
+            let marker = this.marcadoresVisualizacion.find((m) => {
+                if (!m._marcadorRecorridoPrincipal) return false;
+                if (m._reclamosGrupo) {
+                    return m._reclamosGrupo.some((r) => r.id === reclamo.id);
+                }
+                return m._reclamo && m._reclamo.id === reclamo.id;
+            });
+            let mapa = this.mapaVisualizacion;
+
+            if (!marker) {
+                marker = this.marcadoresRutasActivas.find((m) => {
+                    if (!m._marcadorRecorridoPrincipal) return false;
+                    if (m._reclamosGrupo) {
+                        return m._reclamosGrupo.some((r) => r.id === reclamo.id);
+                    }
+                    return m._reclamo && m._reclamo.id === reclamo.id;
+                });
+                mapa = this.mapaRutasActivas;
+            }
+
+            if (marker && mapa) {
+                if (marker._reclamosGrupo) {
+                    const idx = marker._reclamosGrupo.findIndex((r) => r.id === reclamo.id);
+                    if (idx >= 0) {
+                        marker._indicePopup = idx;
                     }
                 }
+
+                mapa.setCenter(marker.getPosition());
+                mapa.setZoom(16);
+
+                marker.setAnimation(null);
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(() => marker.setAnimation(null), 1500);
+
+                if (mapa === this.mapaVisualizacion) {
+                    this.abrirPopupVisualizacionGoogle(marker);
+                } else if (mapa === this.mapaRutasActivas) {
+                    this.abrirPopupRutasActivasGoogle(marker);
+                }
             }
+        },
+
+        centrarEnReclamoVisualizacionMapbox(reclamo) {
+            const markers = this._marcadoresVisualizacionMapbox || [];
+            const marker = markers.find((m) => {
+                if (!m._marcadorRecorridoPrincipal) return false;
+                if (m._reclamosGrupo) {
+                    return m._reclamosGrupo.some((r) => r.id === reclamo.id);
+                }
+                return m._reclamo && m._reclamo.id === reclamo.id;
+            });
+
+            if (!marker || !this.mapaVisualizacionMapbox) {
+                return false;
+            }
+
+            if (marker._reclamosGrupo) {
+                const idx = marker._reclamosGrupo.findIndex((r) => r.id === reclamo.id);
+                if (idx >= 0) {
+                    marker._indicePopup = idx;
+                }
+            }
+
+            const lngLat = marker.getLngLat();
+            this.mapaVisualizacionMapbox.flyTo({
+                center: [lngLat.lng, lngLat.lat],
+                zoom: 16,
+                duration: 700
+            });
+
+            this.abrirPopupVisualizacionMapbox(marker);
+            return true;
         },
 
         /**
          * Centra el mapa en un reclamo específico del modal de todas las rutas
          */
         centrarEnReclamoRutasActivas(reclamo) {
-            const marker = this.marcadoresRutasActivas.find(m => m._reclamo.id === reclamo.id);
-            if (marker) {
-                // Cerrar cualquier info window abierto anteriormente
-                if (this.infoWindowAbiertoRutasActivas) {
-                    this.infoWindowAbiertoRutasActivas.close();
+            const marker = this.marcadoresRutasActivas.find((m) => {
+                if (!m._marcadorRecorridoPrincipal) return false;
+                if (m._reclamosGrupo) {
+                    return m._reclamosGrupo.some((r) => r.id === reclamo.id);
                 }
-                
+                return m._reclamo && m._reclamo.id === reclamo.id;
+            });
+            if (marker && this.mapaRutasActivas) {
+                if (marker._reclamosGrupo) {
+                    const idx = marker._reclamosGrupo.findIndex((r) => r.id === reclamo.id);
+                    if (idx >= 0) {
+                        marker._indicePopup = idx;
+                    }
+                }
+
                 this.mapaRutasActivas.setCenter(marker.getPosition());
                 this.mapaRutasActivas.setZoom(16);
-                
-                // Detener cualquier animación previa
+
                 marker.setAnimation(null);
-                
-                // Aplicar animación de rebote
                 marker.setAnimation(google.maps.Animation.BOUNCE);
-                
-                // Detener la animación después de 1.5 segundos
-                setTimeout(() => {
-                    marker.setAnimation(null);
-                }, 1500);
-                
-                // Abrir el info window del marcador
-                if (marker._infoWindow) {
-                    marker._infoWindow.open(this.mapaRutasActivas, marker);
-                    this.infoWindowAbiertoRutasActivas = marker._infoWindow;
-                }
+                setTimeout(() => marker.setAnimation(null), 1500);
+
+                this.abrirPopupRutasActivasGoogle(marker);
             }
         },
 
@@ -3080,6 +5776,7 @@ const app = Vue.createApp({
         iconoMotivoReclamo(motivo) {
             const motivoNormalizado = this.normalizarMotivoReclamo(motivo);
 
+            if (motivoNormalizado.includes('pedido de alumbrado')) return '🌃';
             if (motivoNormalizado.includes('semaforo')) return '🚦';
             if (motivoNormalizado.includes('rama')) return '🌳';
             if (motivoNormalizado.includes('cable')) return '🔌';
@@ -3100,6 +5797,41 @@ const app = Vue.createApp({
                 .replace(/"/g, '&quot;');
         },
 
+        crearSvgBadgeCantidad(cantidad, x, y, radio = 6, fontSize = 9) {
+            const texto = cantidad > 99 ? '99+' : String(cantidad);
+            return `
+                <circle cx="${x}" cy="${y}" r="${radio}" fill="#212529" stroke="#FFFFFF" stroke-width="1"/>
+                <text x="${x}" y="${y + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="700">${texto}</text>
+            `;
+        },
+
+        agregarMarcadorMapboxRuta(mapa, elemento, coordenadas, anchor = 'center') {
+            if (!mapa || !elemento || !coordenadas) {
+                return null;
+            }
+            return new mapboxgl.Marker({ element: elemento, anchor })
+                .setLngLat([coordenadas.lng, coordenadas.lat])
+                .addTo(mapa);
+        },
+
+        finalizarMarcadoresMapboxRuta(mapa) {
+            if (!mapa) {
+                return Promise.resolve();
+            }
+            mapa.resize();
+            return new Promise((resolve) => {
+                const onIdle = () => {
+                    mapa.off('idle', onIdle);
+                    resolve();
+                };
+                if (mapa.loaded()) {
+                    mapa.once('idle', onIdle);
+                } else {
+                    mapa.once('load', () => mapa.once('idle', onIdle));
+                }
+            });
+        },
+
         crearSvgBadgeMotivo(motivo, x, y, radio = 6, fontSize = 9) {
             if (!motivo) return '';
             const icono = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
@@ -3110,22 +5842,69 @@ const app = Vue.createApp({
             `;
         },
 
-        crearIconoPinMotivo(colorEstado, colorPrioridad, motivo) {
-            const tienePrioridadAlta = colorPrioridad !== null;
-            const icono = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+        reclamoTienePrioridadAlta(reclamo) {
+            return String(reclamo?.prioridad || '').trim().toLowerCase() === 'alta';
+        },
+
+        marcadorGrupoTienePrioridadAlta(reclamos) {
+            return (Array.isArray(reclamos) ? reclamos : []).some((r) => this.reclamoTienePrioridadAlta(r));
+        },
+
+        crearSvgBadgePrioridadAlta(x = 26, y = 6, compacto = false) {
+            const radio = compacto ? 5.5 : 7;
+            const fontSize = compacto ? 8 : 10;
+            const salto = compacto ? 2 : 3;
+            const strokeWidth = compacto ? 1.25 : 1.5;
+            const textoY = compacto ? 2.8 : 3.5;
+
+            return `<g transform="translate(${x}, ${y})">
+                <g>
+                    <circle cx="0" cy="0" r="${radio}" fill="#DC3545" stroke="#FFFFFF" stroke-width="${strokeWidth}"/>
+                    <text x="0" y="${textoY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#FFFFFF">!</text>
+                    <animateTransform attributeName="transform" type="translate" values="0,0; 0,-${salto}; 0,0" dur="0.75s" repeatCount="indefinite"/>
+                </g>
+            </g>`;
+        },
+
+        crearIconoPinMotivo(colorEstado, prioridadAlta, motivo, cantidadGrupo = null) {
+            const tienePrioridadAlta = !!prioridadAlta;
+            const esNumero = cantidadGrupo !== null && cantidadGrupo > 1;
+            const contenidoCentro = esNumero
+                ? (cantidadGrupo > 99 ? '99+' : String(cantidadGrupo))
+                : this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+            const fontFamily = esNumero
+                ? 'Open Sans, Segoe UI, sans-serif'
+                : 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+            const fontWeight = esNumero ? 'font-weight="700"' : '';
+            const fontSize = esNumero ? 11 : 12;
+
+            const pinSvgCore = `
+                        <path d="M17 2.5C11.75 2.5 7.5 6.75 7.5 12c0 7.1 9.5 17.5 9.5 17.5S26.5 19.1 26.5 12C26.5 6.75 22.25 2.5 17 2.5Z" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                        <circle cx="17" cy="12" r="7.4" fill="#FFFFFF" opacity="0.94"/>
+                        <text x="17.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" ${fontWeight}>${contenidoCentro}</text>`;
+
+            if (tienePrioridadAlta) {
+                const viewTop = -7;
+                const viewHeight = 45;
+                const displayH = 45;
+                const anchorY = Math.round(((30 - viewTop) / viewHeight) * displayH);
+
+                return {
+                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                        <svg width="34" height="${displayH}" viewBox="0 ${viewTop} 34 ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                            ${pinSvgCore}
+                            ${this.crearSvgBadgePrioridadAlta(26, 8)}
+                        </svg>
+                    `)}`,
+                    scaledSize: new google.maps.Size(34, displayH),
+                    anchor: new google.maps.Point(17, anchorY)
+                };
+            }
 
             return {
                 url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                    <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg">
-                        ${tienePrioridadAlta ? `
-                            <circle cx="17" cy="15" r="0" fill="#B71C1C" opacity="0.65">
-                                <animate attributeName="r" values="0;21;0" dur="2.5s" repeatCount="indefinite"/>
-                                <animate attributeName="opacity" values="0.65;0;0.65" dur="2.5s" repeatCount="indefinite"/>
-                            </circle>
-                        ` : ''}
-                        <path d="M17 2.5C11.75 2.5 7.5 6.75 7.5 12c0 7.1 9.5 17.5 9.5 17.5S26.5 19.1 26.5 12C26.5 6.75 22.25 2.5 17 2.5Z" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
-                        <circle cx="17" cy="12" r="7.4" fill="#FFFFFF" opacity="0.94"/>
-                        <text x="17.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif" font-size="12">${icono}</text>
+                    <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                        ${pinSvgCore}
                     </svg>
                 `)}`,
                 scaledSize: new google.maps.Size(34, 38),
@@ -3133,33 +5912,56 @@ const app = Vue.createApp({
             };
         },
 
-        crearElementoMapboxPinMotivo(colorEstado, motivo) {
+        crearElementoMapboxPinMotivo(colorEstado, motivo, cantidadGrupo = null, prioridadAlta = false) {
+            const esNumero = cantidadGrupo !== null && cantidadGrupo > 1;
+            const contenidoCentro = esNumero
+                ? (cantidadGrupo > 99 ? '99+' : String(cantidadGrupo))
+                : this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+            const fontFamily = esNumero
+                ? 'Open Sans, Segoe UI, sans-serif'
+                : 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+            const fontWeight = esNumero ? 'font-weight="700"' : '';
+            const fontSize = esNumero ? 11 : 12;
+
             const elemento = document.createElement('div');
             elemento.className = 'marker-mapbox-reclamo';
+            elemento.style.width = '34px';
+            elemento.style.height = '38px';
+            elemento.style.lineHeight = '0';
+            elemento.style.cursor = 'pointer';
             elemento.innerHTML = `
-                <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg">
+                <svg width="34" height="38" viewBox="0 0 34 38" xmlns="http://www.w3.org/2000/svg" overflow="visible" aria-hidden="true">
                     <path d="M17 2.5C11.75 2.5 7.5 6.75 7.5 12c0 7.1 9.5 17.5 9.5 17.5S26.5 19.1 26.5 12C26.5 6.75 22.25 2.5 17 2.5Z" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
                     <circle cx="17" cy="12" r="7.4" fill="#FFFFFF" opacity="0.94"/>
-                    <text x="17.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif" font-size="12">${this.escaparTextoSvg(this.iconoMotivoReclamo(motivo))}</text>
+                    <text x="17.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="${fontFamily}" font-size="${fontSize}" ${fontWeight}>${contenidoCentro}</text>
+                    ${prioridadAlta ? this.crearSvgBadgePrioridadAlta(26, 8) : ''}
                 </svg>
             `;
-            elemento.style.cursor = 'pointer';
             return elemento;
         },
 
-        crearElementoMapboxNumeradoMotivo(numero, colorEstado, motivo, size = 32) {
+        crearElementoMapboxNumeradoMotivo(numero, colorEstado, motivo, size = 32, badgeCantidad = null, prioridadAlta = false) {
             const half = size / 2;
             const radio = Math.max(11, Math.floor(size * 0.43));
             const fontSize = Math.max(9, Math.floor(size * 0.36));
             const badgeX = size - 7;
             const badgeY = 7;
+            const badgeMarkup = badgeCantidad > 1
+                ? this.crearSvgBadgeCantidad(badgeCantidad, badgeX, badgeY, Math.max(5, Math.floor(size * 0.18)), Math.max(8, Math.floor(size * 0.28)))
+                : this.crearSvgBadgeMotivo(motivo, badgeX, badgeY, Math.max(5, Math.floor(size * 0.18)), Math.max(8, Math.floor(size * 0.28)));
+            const badgePrioridadSvg = prioridadAlta ? this.crearSvgBadgePrioridadAlta(7, 7) : '';
             const elemento = document.createElement('div');
             elemento.className = 'marker-mapbox-ruta';
+            elemento.style.width = `${size}px`;
+            elemento.style.height = `${size}px`;
+            elemento.style.lineHeight = '0';
+            elemento.style.cursor = 'pointer';
             elemento.innerHTML = `
-                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" overflow="visible" aria-hidden="true">
                     <circle cx="${half}" cy="${half}" r="${radio}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
                     <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
-                    ${this.crearSvgBadgeMotivo(motivo, badgeX, badgeY, Math.max(5, Math.floor(size * 0.18)), Math.max(8, Math.floor(size * 0.28)))}
+                    ${badgePrioridadSvg}
+                    ${badgeMarkup}
                 </svg>
             `;
             return elemento;
@@ -3218,19 +6020,38 @@ const app = Vue.createApp({
             return this.formatoCronometroHMSVisualizacion(this.msObraSupervisorMapa(reclamo));
         },
 
-        crearIconoCamionHmsDataUrl(hms) {
-            const esc = String(hms).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const truck = String.fromCodePoint(0x1F69A);
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="92" height="38" viewBox="0 0 92 38">
-                <rect x="1" y="1" width="90" height="36" rx="8" fill="#212529" stroke="#ffc107" stroke-width="2"/>
-                <text x="10" y="26" font-size="15">${truck}</text>
-                <text x="34" y="25" font-size="11" font-family="monospace" fill="#ffc107">${esc}</text>
-            </svg>`;
-            return {
-                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-                scaledSize: new google.maps.Size(92, 38),
-                anchor: new google.maps.Point(4, 19)
-            };
+        async cargarPromediosTiempoMotivo() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/reclamos/tiempos-promedio');
+                this.promediosTiempoMotivoMap = ObraCronometroUtil.indexarPromediosMotivo(response.data);
+            } catch (error) {
+                console.warn('No se pudieron cargar promedios de tiempo por motivo:', error);
+            }
+        },
+
+        nivelDemoraObraReclamoSupervisor(reclamo) {
+            const motivo = reclamo?.municipalidad_motivo || '';
+            const promedio = ObraCronometroUtil.promedioMinutosMotivo(this.promediosTiempoMotivoMap, motivo);
+            const s = this.sesionReparacionReclamoSupervisor(reclamo);
+            let ms = 0;
+            if (s) {
+                ms = s.acumuladoMs || 0;
+                if (s.activo) {
+                    ms += this.ahoraCronometroSupervisor - s.inicioSegmentoMs;
+                }
+            } else {
+                ms = this.msObraSupervisorMapa(reclamo);
+            }
+            return ObraCronometroUtil.nivelDemoraObra(ms, promedio);
+        },
+
+        actualizarIndicadorObraSupervisor(ref, reclamo) {
+            if (!ref || !reclamo) {
+                return;
+            }
+            const hms = this.textoCronometroObraSupervisor(reclamo);
+            const nivel = this.nivelDemoraObraReclamoSupervisor(reclamo);
+            ObraCronometroUtil.actualizarIndicadorObraMapbox(ref.wrap, ref.span, hms, nivel);
         },
 
         detenerTickerVisualizacionObra() {
@@ -3242,15 +6063,12 @@ const app = Vue.createApp({
 
         refrescarTickerMapaVisualizacionObra() {
             this.ahoraMsVisualizacionObra = Date.now();
-            if (this.mapaVisualizacion && this.marcadoresVisualizacion?.length) {
-                this.marcadoresVisualizacion.forEach((m) => {
-                    if (m._companionObra && m._reclamo && this.reclamoMuestraIndicadorObraSupervisorMapa(m._reclamo)) {
-                        const r = this.reclamosRutaVisualizando.find((x) => x.id === m._reclamo.id);
-                        if (r) {
-                            m._reclamo = r;
-                            const hms = this.textoCronometroObraSupervisor(r);
-                            m._companionObra.setIcon(this.crearIconoCamionHmsDataUrl(hms));
-                        }
+            if (this.mapaVisualizacion && this._googleObraVisualizacionMarkers?.length) {
+                this._googleObraVisualizacionMarkers.forEach((ref) => {
+                    const reclamoId = ref._reclamoIdObra;
+                    const r = this.reclamosRutaVisualizando.find((x) => Number(x.id) === Number(reclamoId));
+                    if (r && this.reclamoMuestraIndicadorObraSupervisorMapa(r)) {
+                        this.actualizarIndicadorObraSupervisor(ref, r);
                     }
                 });
             }
@@ -3258,22 +6076,26 @@ const app = Vue.createApp({
                 this.mapboxObraVisualizacionRefs.forEach((ref) => {
                     const r = this.reclamosRutaVisualizando.find((x) => x.id === ref.reclamoId);
                     if (r && ref.span && this.reclamoMuestraIndicadorObraSupervisorMapa(r)) {
-                        ref.span.textContent = this.textoCronometroObraSupervisor(r);
+                        this.actualizarIndicadorObraSupervisor(ref, r);
                     }
                 });
             }
-            if (this.mapaRutasActivas && this.marcadoresRutasActivas?.length) {
-                this.marcadoresRutasActivas.forEach((m) => {
-                    if (m._companionObra && m._reclamo && m._ruta && this.reclamoMuestraIndicadorObraEnRuta(m._reclamo, m._ruta)) {
-                        const hms = this.textoCronometroObraSupervisor(m._reclamo);
-                        m._companionObra.setIcon(this.crearIconoCamionHmsDataUrl(hms));
+            if (this.mapaRutasActivas && this._googleObraRutasActivasMarkers?.length) {
+                this._googleObraRutasActivasMarkers.forEach((ref) => {
+                    const reclamoId = ref._reclamoIdObra;
+                    const principal = (this.marcadoresRutasActivas || []).find((m) =>
+                        m._companionsObra?.includes(ref)
+                    );
+                    const r = (principal?._reclamosGrupo || []).find((x) => Number(x.id) === Number(reclamoId));
+                    if (r && principal?._ruta && this.reclamoMuestraIndicadorObraEnRuta(r, principal._ruta)) {
+                        this.actualizarIndicadorObraSupervisor(ref, r);
                     }
                 });
             }
             if (this.mapboxObraRutasActivasRefs?.length) {
                 this.mapboxObraRutasActivasRefs.forEach((ref) => {
                     if (ref.reclamo && ref.ruta && ref.span && this.reclamoMuestraIndicadorObraEnRuta(ref.reclamo, ref.ruta)) {
-                        ref.span.textContent = this.textoCronometroObraSupervisor(ref.reclamo);
+                        this.actualizarIndicadorObraSupervisor(ref, ref.reclamo);
                     }
                 });
             }
@@ -3283,9 +6105,16 @@ const app = Vue.createApp({
             this.detenerTickerVisualizacionObra();
             const hayDetalle = this.rutaModalEnEjecucionVisualizacion()
                 && this.reclamosRutaVisualizando.some((r) => this.reclamoMuestraIndicadorObraSupervisorMapa(r));
-            const hayTodasGoogle = this.marcadoresRutasActivas?.some((m) => m._companionObra);
+            const hayTodasGoogle = this.marcadoresRutasActivas?.some((m) =>
+                m._marcadorRecorridoPrincipal && (m._reclamosGrupo || []).some((r) =>
+                    m._ruta && this.reclamoMuestraIndicadorObraEnRuta(r, m._ruta)
+                )
+            );
             const hayTodasMapbox = (this.mapboxObraRutasActivasRefs?.length || 0) > 0;
             if (!hayDetalle && !hayTodasGoogle && !hayTodasMapbox) {
+                this._sincronizarCompanionsObraGoogleVisualizacion();
+                this._sincronizarCompanionsObraGoogleRutasActivas();
+                this._limpiarMarcadoresObraMapboxVisualizacion();
                 return;
             }
             this.refrescarTickerMapaVisualizacionObra();
@@ -3297,7 +6126,8 @@ const app = Vue.createApp({
          */
         cerrarVisualizacion() {
             this.detenerTickerVisualizacionObra();
-            this.mapboxObraVisualizacionRefs = [];
+            this._limpiarTodosCompanionsObraGoogleVisualizacion();
+            this._limpiarMarcadoresObraMapboxVisualizacion();
             // Cerrar info window si está abierto
             if (this.infoWindowAbiertoVisualizacion) {
                 this.infoWindowAbiertoVisualizacion.close();
@@ -3306,8 +6136,15 @@ const app = Vue.createApp({
             
             this.rutaVisualizando = {};
             this.reclamosRutaVisualizando = [];
+            this.mostrarListaRutaVisualizacion = false;
+            this.indiceReclamoListaParadaVisualizacion = {};
             this.marcadoresVisualizacion.forEach(marker => marker.setMap(null));
             this.marcadoresVisualizacion = [];
+            if (this._marcadoresVisualizacionMapbox?.length) {
+                this._marcadoresVisualizacionMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresVisualizacionMapbox = [];
+            this._limpiarMarcadoresObraMapboxVisualizacion();
             if (this.directionsRendererVisualizacion) {
                 this.directionsRendererVisualizacion.setMap(null);
                 this.directionsRendererVisualizacion = null;
@@ -3519,29 +6356,26 @@ const app = Vue.createApp({
          */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
+                let resuelto = false;
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="modal-content rutas-modal reclamo-confirm-modal">
+                                <div class="rutas-modal__header">
+                                    <div class="rutas-modal__title">
+                                        <span class="rutas-modal__icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
+                                    <p class="reclamo-confirm-modal__message">${mensaje}</p>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
-                                    </button>
+                                <div class="rutas-modal__footer rutas-modal__footer--end">
+                                    <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal" id="btnCancelar">Cancelar</button>
+                                    <button type="button" class="rutas-btn" id="btnConfirmar"><i class="bi bi-check-lg"></i> Confirmar</button>
                                 </div>
                             </div>
                         </div>
@@ -3550,29 +6384,29 @@ const app = Vue.createApp({
 
                 $('#modalConfirmacion').remove();
                 $('body').append(modalHtml);
-                
+
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
                 modal.show();
 
-                $('#btnConfirmar').on('click', () => {
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
                     modal.hide();
                     setTimeout(() => {
                         $('#modalConfirmacion').remove();
                     }, 300);
-                    resolve(true);
-                });
+                    resolve(resultado);
+                };
 
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
+                $('#btnConfirmar').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelar').on('click', () => cerrarConfirmacion(false));
 
                 $('#modalConfirmacion').on('hidden.bs.modal', () => {
                     $('#modalConfirmacion').remove();
-                    resolve(false);
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
                 });
             });
         },
@@ -3618,6 +6452,9 @@ const app = Vue.createApp({
                     center: { lat: lat, lng: lng },
                     zoom: 13,
                     mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
                     styles: [
                         {
                             featureType: "poi",
@@ -3666,82 +6503,75 @@ const app = Vue.createApp({
                     const reclamosRuta = response.data;
                     
                     const colorRuta = ruta.color || '#FF0000';
-                    
-                    // OPTIMIZACIÓN: Paralelizar obtención de coordenadas
-                    const promesasCoordenadas = reclamosRuta.map(reclamo => 
-                        this.obtenerCoordenadasReclamo(reclamo).then(coords => ({ reclamo, coords }))
-                    );
-                    
-                    const resultados = await Promise.all(promesasCoordenadas);
-                    
-                    // Agregar marcadores numerados para esta ruta
-                    for (const { reclamo, coords: coordenadas } of resultados) {
+                    const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamosRuta);
+                    let contadorGruposRutasActivas = 0;
+
+                    for (const parada of paradasRuta) {
+                        const reclamoRef = parada.reclamos[0];
+                        const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
                         if (coordenadas) {
-                            const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                            const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
-                            
+                            const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                            const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                            const cantidadParada = parada.reclamos.length;
+                            const esGrupo = cantidadParada > 1;
+                            const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                            const badgeCantidad = esGrupo ? cantidadParada : null;
+
                             const marker = new google.maps.Marker({
                                 position: { lat: coordenadas.lat, lng: coordenadas.lng },
                                 map: this.mapaRutasActivas,
-                                title: `${ruta.nombre || 'Sin nombre'} - Pos. ${reclamo.posicion}`,
-                                icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, null, reclamo.municipalidad_motivo),
-                                zIndex: 1000
+                                title: esGrupo
+                                    ? `${ruta.nombre || 'Sin nombre'} - Parada ${parada.paradaNumero}: ${cantidadParada} reclamos`
+                                    : `${ruta.nombre || 'Sin nombre'} - Pos. ${parada.paradaNumero}`,
+                                icon: this.crearIconoNumerado(
+                                    parada.paradaNumero,
+                                    colorEstado,
+                                    prioridadAlta,
+                                    null,
+                                    motivoBadge,
+                                    badgeCantidad
+                                ),
+                                zIndex: 1000,
+                                optimized: false
                             });
                             marker._marcadorRecorridoPrincipal = true;
 
-                            // Crear info window
-                            const infoWindow = new google.maps.InfoWindow({
-                                content: `
-                                    <div style="min-width: 250px;">
-                                        <h6 style="margin-bottom: 8px; color: ${colorRuta};">
-                                            <strong>${ruta.nombre || 'Sin nombre'}</strong>
-                                        </h6>
-                                        <p style="margin-bottom: 4px;"><strong>Posición:</strong> ${reclamo.posicion}</p>
-                                        <p style="margin-bottom: 4px;"><strong>Reclamo:</strong> #${reclamo.municipalidad_id}</p>
-                                        <p style="margin-bottom: 4px;"><strong>Motivo:</strong> ${reclamo.municipalidad_motivo || 'No especificado'}</p>
-                                        <p style="margin-bottom: 4px;"><strong>Estado:</strong> ${reclamo.municipalidad_estado || 'No especificado'}</p>
-                                        <p style="margin-bottom: 4px;"><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
-                                    </div>
-                                `
-                            });
+                            const reclamosGrupo = parada.reclamos.map((r) => ({
+                                ...r,
+                                posicion: parada.paradaNumero
+                            }));
+
+                            marker._reclamo = reclamosGrupo[0];
+                            marker._reclamosGrupo = reclamosGrupo;
+                            marker._indicePopup = 0;
+                            marker._ruta = ruta;
+                            if (esGrupo) {
+                                marker._grupoId = `grupo-rutas-activas-${ruta.id}-${++contadorGruposRutasActivas}`;
+                            }
 
                             marker.addListener('click', () => {
-                                if (this.infoWindowAbiertoRutasActivas) {
-                                    this.infoWindowAbiertoRutasActivas.close();
-                                }
-                                infoWindow.open(this.mapaRutasActivas, marker);
-                                this.infoWindowAbiertoRutasActivas = infoWindow;
+                                this.abrirPopupRutasActivasGoogle(marker);
                             });
 
-                            marker._reclamo = reclamo;
-                            marker._ruta = ruta;
-                            marker._infoWindow = infoWindow;
                             this.marcadoresRutasActivas.push(marker);
-
-                            if (this.reclamoMuestraIndicadorObraEnRuta(reclamo, ruta)) {
-                                const hms = this.textoCronometroObraSupervisor(reclamo);
-                                const offsetLng = 0.00028;
-                                const companion = new google.maps.Marker({
-                                    position: { lat: coordenadas.lat, lng: coordenadas.lng + offsetLng },
-                                    map: this.mapaRutasActivas,
-                                    title: `En obra — ${hms}`,
-                                    icon: this.crearIconoCamionHmsDataUrl(hms),
-                                    zIndex: 1001,
-                                    optimized: false
-                                });
-                                marker._companionObra = companion;
-                                this.marcadoresRutasActivas.push(companion);
-                            }
                         }
                     }
-                    
-                    // Trazar la ruta con su color
-                    // OPTIMIZACIÓN: Reutilizar coordenadas ya obtenidas
-                    if (reclamosRuta.length > 1) {
-                        const coordenadas = resultados
-                            .filter(r => r.coords)
-                            .map(r => ({ lat: r.coords.lat, lng: r.coords.lng }));
-                        
+
+                    const reclamosTrazado = paradasRuta.map((parada) => ({
+                        ...parada.reclamos[0],
+                        posicion: parada.paradaNumero
+                    }));
+
+                    if (reclamosTrazado.length > 1) {
+                        const promesasCoords = reclamosTrazado.map((reclamo) =>
+                            this.obtenerCoordenadasReclamo(reclamo).then((coords) => ({ reclamo, coords }))
+                        );
+                        const resultadosTrazado = await Promise.all(promesasCoords);
+                        const coordenadas = resultadosTrazado
+                            .filter((r) => r.coords)
+                            .map((r) => ({ lat: r.coords.lat, lng: r.coords.lng }));
+
                         if (coordenadas.length > 1) {
                             const directionsService = new google.maps.DirectionsService();
                             const directionsRenderer = new google.maps.DirectionsRenderer({
@@ -3783,6 +6613,9 @@ const app = Vue.createApp({
                                 });
                                 
                                 directionsRenderer.setDirections(result);
+                                directionsRenderer._rutaId = ruta.id;
+                                directionsRenderer._colorRuta = colorRuta;
+                                directionsRenderer._pathCompleto = this.extraerPathRecorridoGoogle(result);
                                 this.directionsRenderersRutasActivas.push(directionsRenderer);
                                 
                             } catch (error) {
@@ -3796,7 +6629,9 @@ const app = Vue.createApp({
                 }
             }
 
-            const principales = this.marcadoresRutasActivas.filter((m) => m._reclamo && !m._companionObra);
+            this._sincronizarCompanionsObraGoogleRutasActivas();
+
+            const principales = this.marcadoresRutasActivas.filter((m) => m._marcadorRecorridoPrincipal);
             if (principales.length > 0 && this.mapaRutasActivas) {
                 const bounds = new google.maps.LatLngBounds();
                 principales.forEach((m) => bounds.extend(m.getPosition()));
@@ -3807,40 +6642,413 @@ const app = Vue.createApp({
         },
 
         /**
-         * Centra el mapa en una ruta específica
+         * Centra el mapa en una ruta específica y anima el brillo sobre su recorrido
          */
-        async centrarEnRutaActiva(ruta) {
+        centrarEnRutaActiva(ruta) {
+            if (this.proveedorMapaRutasActivas === 'mapbox') {
+                this.centrarEnRutaActivaMapbox(ruta);
+            } else {
+                this.centrarEnRutaActivaGoogle(ruta);
+            }
+        },
+
+        extraerPathRecorridoGoogle(directionsResult) {
+            const route = directionsResult?.routes?.[0];
+            if (!route) return [];
+            if (route.overview_path?.length) return route.overview_path;
+            const path = [];
+            (route.legs || []).forEach((leg) => {
+                (leg.steps || []).forEach((step) => {
+                    (step.path || []).forEach((p) => path.push(p));
+                });
+            });
+            return path;
+        },
+
+        pathParcialRecorrido(path, progreso) {
+            if (!path?.length) return [];
+            const count = Math.max(2, Math.ceil(path.length * Math.min(progreso, 1)));
+            return path.slice(0, count);
+        },
+
+        normalizarPuntoRecorrido(punto) {
+            if (!punto) return null;
+            if (typeof punto.lat === 'function') {
+                return { lat: punto.lat(), lng: punto.lng() };
+            }
+            if (Array.isArray(punto)) {
+                return { lat: punto[1], lng: punto[0] };
+            }
+            return { lat: punto.lat, lng: punto.lng };
+        },
+
+        distanciaEntrePuntosRecorrido(a, b) {
+            const dlat = b.lat - a.lat;
+            const dlng = b.lng - a.lng;
+            return Math.sqrt(dlat * dlat + dlng * dlng);
+        },
+
+        puntoGuiaRecorridoPorProgreso(path, progreso) {
+            if (!path?.length) return null;
+            const puntos = path.map((p) => this.normalizarPuntoRecorrido(p)).filter(Boolean);
+            if (!puntos.length) return null;
+            if (puntos.length === 1) return puntos[0];
+
+            const distancias = [0];
+            let total = 0;
+            for (let i = 1; i < puntos.length; i++) {
+                total += this.distanciaEntrePuntosRecorrido(puntos[i - 1], puntos[i]);
+                distancias.push(total);
+            }
+            if (total === 0) return puntos[0];
+
+            const objetivo = total * Math.min(Math.max(progreso, 0), 1);
+            for (let i = 1; i < distancias.length; i++) {
+                if (objetivo <= distancias[i]) {
+                    const segLen = distancias[i] - distancias[i - 1];
+                    const frac = segLen > 0 ? (objetivo - distancias[i - 1]) / segLen : 0;
+                    return {
+                        lat: puntos[i - 1].lat + (puntos[i].lat - puntos[i - 1].lat) * frac,
+                        lng: puntos[i - 1].lng + (puntos[i].lng - puntos[i - 1].lng) * frac
+                    };
+                }
+            }
+            return puntos[puntos.length - 1];
+        },
+
+        crearIconoPuntoBrilloDoradoDataUrl(tamano = 24) {
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="${tamano}" height="${tamano}" viewBox="0 0 24 24">
+                    <defs>
+                        <radialGradient id="brilloDorado" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stop-color="#FFFEF0"/>
+                            <stop offset="40%" stop-color="#FFD700"/>
+                            <stop offset="100%" stop-color="#FF8C00" stop-opacity="0.35"/>
+                        </radialGradient>
+                        <filter id="brilloGlow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="blur"/>
+                            <feMerge>
+                                <feMergeNode in="blur"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <circle cx="12" cy="12" r="10" fill="url(#brilloDorado)" filter="url(#brilloGlow)" opacity="0.95"/>
+                    <circle cx="12" cy="12" r="4.5" fill="#FFFBE6" opacity="0.95"/>
+                </svg>`;
+            return {
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg.trim()),
+                scaledSize: new google.maps.Size(tamano, tamano),
+                anchor: new google.maps.Point(tamano / 2, tamano / 2)
+            };
+        },
+
+        crearElementoPuntoBrilloDoradoMapbox() {
+            const el = document.createElement('div');
+            el.className = 'recorrido-punto-brillo-dorado';
+            el.innerHTML = '<span class="recorrido-punto-brillo-dorado__halo"></span><span class="recorrido-punto-brillo-dorado__core"></span>';
+            return el;
+        },
+
+        refsBrilloRecorrido() {
+            if (!this._animBrilloRecorridoRefs) {
+                this._animBrilloRecorridoRefs = {
+                    googleGuia: null,
+                    googlePolylines: [],
+                    mapboxGuia: null
+                };
+            }
+            return this._animBrilloRecorridoRefs;
+        },
+
+        removerPuntoGuiaBrilloGoogle(marker) {
+            const refs = this.refsBrilloRecorrido();
+            const target = marker || refs.googleGuia;
+            if (!target) return;
+            target.setMap(null);
+            if (refs.googleGuia === target) {
+                refs.googleGuia = null;
+            }
+        },
+
+        removerPuntoGuiaBrilloMapbox(marker) {
+            const refs = this.refsBrilloRecorrido();
+            const target = marker || refs.mapboxGuia;
+            if (!target) return;
+            target.remove();
+            if (refs.mapboxGuia === target) {
+                refs.mapboxGuia = null;
+            }
+        },
+
+        detenerBrilloRecorridoRutasActivas() {
+            const refs = this.refsBrilloRecorrido();
+
+            if (this.brilloRecorridoRutasActivas?.frameId) {
+                cancelAnimationFrame(this.brilloRecorridoRutasActivas.frameId);
+            }
+            if (this.brilloRecorridoRutasActivas?.timeoutId) {
+                clearTimeout(this.brilloRecorridoRutasActivas.timeoutId);
+            }
+            refs.googlePolylines.forEach((p) => p.setMap(null));
+            refs.googlePolylines = [];
+            this.removerPuntoGuiaBrilloGoogle();
+            this.brilloRecorridoRutasActivas = { frameId: null, timeoutId: null, polylines: [] };
+
+            if (this.brilloRecorridoMapboxRutasActivas?.frameId) {
+                cancelAnimationFrame(this.brilloRecorridoMapboxRutasActivas.frameId);
+            }
+            if (this.brilloRecorridoMapboxRutasActivas?.timeoutId) {
+                clearTimeout(this.brilloRecorridoMapboxRutasActivas.timeoutId);
+            }
+            this.removerPuntoGuiaBrilloMapbox();
+            this.brilloRecorridoMapboxRutasActivas = { frameId: null, timeoutId: null };
+
+            const map = this.mapaRutasActivasMapbox;
+            if (map) {
+                ['route-brillo-glow-mb', 'route-brillo-core-mb'].forEach((id) => {
+                    if (map.getLayer(id)) map.removeLayer(id);
+                    if (map.getSource(id)) map.removeSource(id);
+                });
+            }
+        },
+
+        aplicarEstiloRecorridosGoogle(rutaIdSeleccionada) {
+            (this.directionsRenderersRutasActivas || []).forEach((renderer) => {
+                if (!renderer._rutaId) return;
+                const selected = renderer._rutaId === rutaIdSeleccionada;
+                renderer.setOptions({
+                    polylineOptions: {
+                        strokeColor: renderer._colorRuta || '#FF0000',
+                        strokeOpacity: selected ? 0.45 : 0.18,
+                        strokeWeight: selected ? 4 : 3
+                    }
+                });
+            });
+        },
+
+        aplicarEstiloRecorridosMapbox(rutaIdSeleccionada) {
+            const map = this.mapaRutasActivasMapbox;
+            if (!map) return;
+            (this.capasRecorridoMapboxRutasActivas || []).forEach((capa) => {
+                if (!map.getLayer(capa.layerId)) return;
+                const selected = capa.rutaId === rutaIdSeleccionada;
+                map.setPaintProperty(capa.layerId, 'line-opacity', selected ? 0.45 : 0.18);
+                map.setPaintProperty(capa.layerId, 'line-width', selected ? 4 : 3);
+            });
+        },
+
+        animarBrilloRecorridoGoogle(path, colorRuta) {
+            this.detenerBrilloRecorridoRutasActivas();
+            if (!path.length || !this.mapaRutasActivas) return;
+
+            const glowOuter = new google.maps.Polyline({
+                path: [],
+                map: this.mapaRutasActivas,
+                strokeColor: '#ffffff',
+                strokeOpacity: 0.9,
+                strokeWeight: 10,
+                zIndex: 2000
+            });
+            const glowInner = new google.maps.Polyline({
+                path: [],
+                map: this.mapaRutasActivas,
+                strokeColor: colorRuta || '#FF0000',
+                strokeOpacity: 1,
+                strokeWeight: 5,
+                zIndex: 2001
+            });
+
+            const puntoInicial = this.puntoGuiaRecorridoPorProgreso(path, 0);
+            if (!puntoInicial) return;
+
+            const guiaMarker = new google.maps.Marker({
+                position: puntoInicial,
+                map: this.mapaRutasActivas,
+                icon: this.crearIconoPuntoBrilloDoradoDataUrl(26),
+                zIndex: 2100,
+                optimized: false
+            });
+
+            const refs = this.refsBrilloRecorrido();
+            refs.googlePolylines = [glowOuter, glowInner];
+            refs.googleGuia = guiaMarker;
+
+            this.brilloRecorridoRutasActivas = {
+                frameId: null,
+                timeoutId: null,
+                polylines: []
+            };
+
+            const duracion = 2200;
+            const inicio = performance.now();
+            const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+            let puntoGuiaRemovido = false;
+
+            const tick = (now) => {
+                const t = easeOut(Math.min((now - inicio) / duracion, 1));
+                const parcial = this.pathParcialRecorrido(path, t);
+                glowOuter.setPath(parcial);
+                glowInner.setPath(parcial);
+                if (!puntoGuiaRemovido) {
+                    const guia = this.puntoGuiaRecorridoPorProgreso(path, t);
+                    if (guia) {
+                        guiaMarker.setPosition(guia);
+                    }
+                }
+                if (t < 1) {
+                    this.brilloRecorridoRutasActivas.frameId = requestAnimationFrame(tick);
+                } else {
+                    puntoGuiaRemovido = true;
+                    this.removerPuntoGuiaBrilloGoogle(guiaMarker);
+                    this.brilloRecorridoRutasActivas.timeoutId = setTimeout(() => {
+                        this.detenerBrilloRecorridoRutasActivas();
+                        this.finalizarResaltadoRecorridoRutasActivas();
+                    }, 500);
+                }
+            };
+            this.brilloRecorridoRutasActivas.frameId = requestAnimationFrame(tick);
+        },
+
+        finalizarResaltadoRecorridoRutasActivas() {
+            const rutaId = this.rutaSeleccionadaVisualizarTodasId;
+            if (!rutaId) return;
+
+            if (this.proveedorMapaRutasActivas === 'mapbox') {
+                const map = this.mapaRutasActivasMapbox;
+                (this.capasRecorridoMapboxRutasActivas || []).forEach((capa) => {
+                    if (!map?.getLayer(capa.layerId)) return;
+                    const selected = capa.rutaId === rutaId;
+                    map.setPaintProperty(capa.layerId, 'line-opacity', selected ? 0.92 : 0.18);
+                    map.setPaintProperty(capa.layerId, 'line-width', selected ? 5 : 3);
+                });
+            } else {
+                (this.directionsRenderersRutasActivas || []).forEach((renderer) => {
+                    if (!renderer._rutaId) return;
+                    const selected = renderer._rutaId === rutaId;
+                    renderer.setOptions({
+                        polylineOptions: {
+                            strokeColor: renderer._colorRuta || '#FF0000',
+                            strokeOpacity: selected ? 0.92 : 0.18,
+                            strokeWeight: selected ? 5 : 3
+                        }
+                    });
+                });
+            }
+        },
+
+        animarBrilloRecorridoMapbox(coordinates, colorRuta) {
+            const map = this.mapaRutasActivasMapbox;
+            if (!map || !coordinates || coordinates.length < 2) return;
+
+            this.detenerBrilloRecorridoRutasActivas();
+
+            const glowSourceId = 'route-brillo-glow-mb';
+            const coreSourceId = 'route-brillo-core-mb';
+            const inicioCoords = coordinates.slice(0, 2);
+
+            const crearFeature = (coords) => ({
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: coords }
+            });
+
+            map.addSource(glowSourceId, { type: 'geojson', data: crearFeature(inicioCoords) });
+            map.addSource(coreSourceId, { type: 'geojson', data: crearFeature(inicioCoords) });
+            map.addLayer({
+                id: glowSourceId,
+                type: 'line',
+                source: glowSourceId,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#ffffff', 'line-width': 8, 'line-opacity': 0.9 }
+            });
+            map.addLayer({
+                id: coreSourceId,
+                type: 'line',
+                source: coreSourceId,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': colorRuta || '#FF0000', 'line-width': 4, 'line-opacity': 1 }
+            });
+
+            const puntoInicial = this.puntoGuiaRecorridoPorProgreso(coordinates, 0);
+            if (!puntoInicial) return;
+
+            const guiaEl = this.crearElementoPuntoBrilloDoradoMapbox();
+            const guiaMarker = new mapboxgl.Marker({ element: guiaEl, anchor: 'center' })
+                .setLngLat([puntoInicial.lng, puntoInicial.lat])
+                .addTo(map);
+
+            const refs = this.refsBrilloRecorrido();
+            refs.mapboxGuia = guiaMarker;
+
+            this.brilloRecorridoMapboxRutasActivas = { frameId: null, timeoutId: null };
+
+            const duracion = 2200;
+            const inicio = performance.now();
+            const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+            let puntoGuiaRemovido = false;
+
+            const tick = (now) => {
+                const t = easeOut(Math.min((now - inicio) / duracion, 1));
+                const parcial = this.pathParcialRecorrido(coordinates, t);
+                map.getSource(glowSourceId)?.setData(crearFeature(parcial));
+                map.getSource(coreSourceId)?.setData(crearFeature(parcial));
+                if (!puntoGuiaRemovido) {
+                    const guia = this.puntoGuiaRecorridoPorProgreso(coordinates, t);
+                    if (guia) {
+                        guiaMarker.setLngLat([guia.lng, guia.lat]);
+                    }
+                }
+                if (t < 1) {
+                    this.brilloRecorridoMapboxRutasActivas.frameId = requestAnimationFrame(tick);
+                } else {
+                    puntoGuiaRemovido = true;
+                    this.removerPuntoGuiaBrilloMapbox(guiaMarker);
+                    this.brilloRecorridoMapboxRutasActivas.timeoutId = setTimeout(() => {
+                        this.detenerBrilloRecorridoRutasActivas();
+                        this.finalizarResaltadoRecorridoRutasActivas();
+                    }, 500);
+                }
+            };
+            this.brilloRecorridoMapboxRutasActivas.frameId = requestAnimationFrame(tick);
+        },
+
+        centrarEnRutaActivaGoogle(ruta) {
             if (!this.mapaRutasActivas) return;
-            
-            // Buscar todos los marcadores de esta ruta
-            const marcadoresRuta = this.marcadoresRutasActivas.filter(m => m._ruta && m._ruta.id === ruta.id);
-            
+
+            const marcadoresRuta = this.marcadoresRutasActivas.filter(
+                (m) => m._ruta && m._ruta.id === ruta.id && m._marcadorRecorridoPrincipal
+            );
+
             if (marcadoresRuta.length > 0) {
-                // Crear bounds para centrar el mapa en todos los marcadores de la ruta
                 const bounds = new google.maps.LatLngBounds();
-                
-                // Agregar todas las posiciones de los marcadores al bounds
-                marcadoresRuta.forEach(marcador => {
-                    bounds.extend(marcador.getPosition());
-                });
-                
-                // Centrar el mapa en todos los marcadores de la ruta
-                this.mapaRutasActivas.fitBounds(bounds);
-                
-                // Aplicar animación de rebote a todos los marcadores de la ruta
-                marcadoresRuta.forEach(marcador => {
-                    // Detener cualquier animación previa
-                    marcador.setAnimation(null);
-                    
-                    // Aplicar animación de rebote
-                    marcador.setAnimation(google.maps.Animation.BOUNCE);
-                    
-                    // Detener la animación después de 2 segundos
-                    setTimeout(() => {
-                        marcador.setAnimation(null);
-                    }, 2000);
-                });
-                
+                marcadoresRuta.forEach((marcador) => bounds.extend(marcador.getPosition()));
+                this.mapaRutasActivas.fitBounds(bounds, 40);
+            }
+
+            this.aplicarEstiloRecorridosGoogle(ruta.id);
+
+            const renderer = this.directionsRenderersRutasActivas.find((r) => r._rutaId === ruta.id);
+            const path = renderer?._pathCompleto || [];
+            if (path.length >= 2) {
+                this.animarBrilloRecorridoGoogle(path, renderer._colorRuta || ruta.color || '#FF0000');
+            }
+        },
+
+        centrarEnRutaActivaMapbox(ruta) {
+            const map = this.mapaRutasActivasMapbox;
+            if (!map) return;
+
+            const capa = this.capasRecorridoMapboxRutasActivas.find((c) => c.rutaId === ruta.id);
+            if (capa?.coordinates?.length) {
+                const bounds = new mapboxgl.LngLatBounds();
+                capa.coordinates.forEach((c) => bounds.extend(c));
+                map.fitBounds(bounds, { padding: 40, duration: 600 });
+            }
+
+            this.aplicarEstiloRecorridosMapbox(ruta.id);
+
+            if (capa?.coordinates?.length >= 2) {
+                this.animarBrilloRecorridoMapbox(capa.coordinates, capa.color || ruta.color || '#FF0000');
             }
         },
 
@@ -3848,16 +7056,18 @@ const app = Vue.createApp({
          * Limpia la visualización de todas las rutas
          */
         limpiarVisualizacionRutasActivas() {
+            this.detenerBrilloRecorridoRutasActivas();
+            this.capasRecorridoMapboxRutasActivas = [];
             if (this.infoWindowAbiertoRutasActivas) {
                 this.infoWindowAbiertoRutasActivas.close();
                 this.infoWindowAbiertoRutasActivas = null;
             }
 
-            this.marcadoresRutasActivas.forEach(marker => {
-                if (marker && marker._companionObra) {
-                    marker._companionObra.setMap(null);
+            this._limpiarTodosCompanionsObraGoogleRutasActivas();
+            this.marcadoresRutasActivas.forEach((marker) => {
+                if (marker) {
+                    marker.setMap(null);
                 }
-                if (marker) marker.setMap(null);
             });
             this.marcadoresRutasActivas = [];
             this.mapboxObraRutasActivasRefs = [];
@@ -3977,6 +7187,9 @@ const app = Vue.createApp({
 
             await new Promise(resolve => this.mapaMapbox.on('load', resolve));
             
+            this.mapaMapbox.resize();
+            await this.finalizarMarcadoresMapboxRuta(this.mapaMapbox);
+            
             // Ocultar POI (Points of Interest) para que solo se vean los reclamos
             this.mapaMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
             this.mapaMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
@@ -4001,6 +7214,9 @@ const app = Vue.createApp({
 
             await new Promise(resolve => this.mapaVisualizacionMapbox.on('load', resolve));
             
+            this.mapaVisualizacionMapbox.resize();
+            await this.finalizarMarcadoresMapboxRuta(this.mapaVisualizacionMapbox);
+            
             // Ocultar POI (Points of Interest) para que solo se vean los reclamos
             this.mapaVisualizacionMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
             this.mapaVisualizacionMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
@@ -4020,10 +7236,14 @@ const app = Vue.createApp({
                 container: 'mapaVisualizarRutasMapbox',
                 style: 'mapbox://styles/mapbox/streets-v12',
                 center: [-62.082, -31.427],
-                zoom: 13
+                zoom: 13,
+                attributionControl: false
             });
 
             await new Promise(resolve => this.mapaRutasActivasMapbox.on('load', resolve));
+
+            this.mapaRutasActivasMapbox.resize();
+            await this.finalizarMarcadoresMapboxRuta(this.mapaRutasActivasMapbox);
             
             // Ocultar POI (Points of Interest) para que solo se vean los reclamos
             this.mapaRutasActivasMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
@@ -4044,64 +7264,121 @@ const app = Vue.createApp({
             const marcadoresAnteriores = document.querySelectorAll('#mapaCrearRutaMapbox .mapboxgl-marker');
             marcadoresAnteriores.forEach(m => m.remove());
 
-            // Agregar marcadores de reclamos NO en ruta
+            // Agregar marcadores de reclamos NO en ruta (agrupados por domicilio)
             const idsRutaPrevia = this.vistaPrevia.rutaOptimizada.map(r => r.id);
-            
-            for (const reclamo of this.reclamos) {
-                if (!idsRutaPrevia.includes(reclamo.id)) {
-                    const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                    
-                    if (coordenadas) {
-                        const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                        
-                        // Crear elemento del marcador
-                        const el = this.crearElementoMapboxPinMotivo(colorEstado, reclamo.municipalidad_motivo);
-                        
-                        const marker = new mapboxgl.Marker(el)
-                            .setLngLat([coordenadas.lng, coordenadas.lat])
-                            .addTo(this.mapaMapbox);
-                        
-                        // Popup para el marcador
-                        const popup = new mapboxgl.Popup({ offset: 25 })
-                            .setHTML(this.crearContenidoInfoWindow(reclamo));
-                        
-                        el.addEventListener('click', () => {
-                            if (this.modoEdicion) {
-                                this.agregarReclamoARuta(reclamo);
-                            } else {
-                                marker.setPopup(popup);
-                                marker.togglePopup();
-                            }
-                        });
+            const reclamosNoEnRuta = this.reclamos.filter(
+                (r) => !idsRutaPrevia.includes(r.id) && r.municipalidad_estado !== 'Completado'
+            );
+
+            const promesasOtros = reclamosNoEnRuta.map((reclamo) =>
+                this.obtenerCoordenadasReclamo(reclamo).then((coords) => ({ reclamo, coords }))
+            );
+            const resultadosOtros = await Promise.all(promesasOtros);
+            const gruposOtros = this.agruparReclamosPorDomicilioVistaPrevia(resultadosOtros);
+            let contadorGruposOtrosMapbox = 0;
+
+            for (const grupo of gruposOtros) {
+                const reclamoRef = grupo.reclamos[0];
+                const coordenadas = grupo.coordenadas;
+                const esGrupo = grupo.reclamos.length > 1;
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(grupo.reclamos);
+
+                const el = this.crearElementoMapboxPinMotivo(
+                    colorEstado,
+                    reclamoRef.municipalidad_motivo,
+                    esGrupo ? grupo.reclamos.length : null,
+                    prioridadAlta
+                );
+
+                const marker = this.agregarMarcadorMapboxRuta(
+                    this.mapaMapbox,
+                    el,
+                    coordenadas,
+                    'bottom'
+                );
+
+                marker._reclamo = reclamoRef;
+                marker._reclamosGrupo = esGrupo ? grupo.reclamos : [reclamoRef];
+                marker._indicePopup = 0;
+
+                if (esGrupo) {
+                    marker._grupoId = `grupo-vista-previa-otros-mb-${++contadorGruposOtrosMapbox}`;
+                }
+
+                el.addEventListener('click', () => {
+                    if (this.modoEdicion) {
+                        this.agregarReclamoARuta(reclamoRef);
+                        return;
                     }
-                }
+                    this.abrirPopupMapboxVistaPrevia(marker);
+                });
             }
 
-            // Agregar marcadores numerados para la ruta
-            for (let i = 0; i < this.vistaPrevia.rutaOptimizada.length; i++) {
-                const reclamo = this.vistaPrevia.rutaOptimizada[i];
-                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                
+            // Marcadores numerados por parada (agrupa mismo domicilio)
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(this.vistaPrevia.rutaOptimizada);
+            let contadorGruposMapboxVistaPrevia = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
                 if (coordenadas) {
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    
-                    const el = this.crearElementoMapboxNumeradoMotivo(i + 1, colorEstado, reclamo.municipalidad_motivo, 32);
-                    
-                    const marker = new mapboxgl.Marker(el)
-                        .setLngLat([coordenadas.lng, coordenadas.lat])
-                        .addTo(this.mapaMapbox);
-                    
-                    const popup = new mapboxgl.Popup({ offset: 25 })
-                        .setHTML(this.crearContenidoInfoWindow({ ...reclamo, posicion: i + 1 }));
-                    
-                    marker.setPopup(popup);
+                    const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                    const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                    const cantidadParada = parada.reclamos.length;
+                    const esGrupo = cantidadParada > 1;
+                    const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                    const badgeCantidad = esGrupo ? cantidadParada : null;
+
+                    const el = this.crearElementoMapboxNumeradoMotivo(
+                        parada.paradaNumero,
+                        colorEstado,
+                        motivoBadge,
+                        32,
+                        badgeCantidad,
+                        prioridadAlta
+                    );
+
+                    const marker = this.agregarMarcadorMapboxRuta(
+                        this.mapaMapbox,
+                        el,
+                        coordenadas,
+                        'center'
+                    );
+
+                    const reclamosGrupo = parada.reclamos.map((r) => ({
+                        ...r,
+                        posicion: parada.paradaNumero
+                    }));
+
+                    marker._reclamo = reclamosGrupo[0];
+                    marker._reclamosGrupo = reclamosGrupo;
+                    marker._indicePopup = 0;
+                    if (esGrupo) {
+                        marker._grupoId = `grupo-vista-previa-mb-${++contadorGruposMapboxVistaPrevia}`;
+                    }
+
+                    el.addEventListener('click', () => {
+                        if (this.modoEdicion) {
+                            this.agregarReclamoARuta(reclamoRef);
+                            return;
+                        }
+                        this.abrirPopupMapboxVistaPrevia(marker);
+                    });
                 }
             }
 
-            // Trazar ruta en Mapbox
-            if (this.vistaPrevia.rutaOptimizada.length > 1) {
-                await this.trazarRutaMapbox(this.vistaPrevia.rutaOptimizada, this.mapaMapbox, this.nuevaRuta.color);
+            const reclamosTrazado = paradasRuta.map((parada) => ({
+                ...parada.reclamos[0],
+                posicion: parada.paradaNumero
+            }));
+
+            if (reclamosTrazado.length > 1) {
+                await this.trazarRutaMapbox(reclamosTrazado, this.mapaMapbox, this.nuevaRuta.color);
             }
+
+            await this.finalizarMarcadoresMapboxRuta(this.mapaMapbox);
         },
 
         /**
@@ -4111,50 +7388,81 @@ const app = Vue.createApp({
             if (!this.mapaVisualizacionMapbox) return;
 
             this.detenerTickerVisualizacionObra();
-            this.mapboxObraVisualizacionRefs = [];
+            this._limpiarMarcadoresObraMapboxVisualizacion();
 
-            // Limpiar capas anteriores
             if (this.mapaVisualizacionMapbox.getLayer('route')) this.mapaVisualizacionMapbox.removeLayer('route');
             if (this.mapaVisualizacionMapbox.getSource('route')) this.mapaVisualizacionMapbox.removeSource('route');
-            
-            const marcadoresAnteriores = document.querySelectorAll('#' + this.contenedorMapaVisualizacionMapbox + ' .mapboxgl-marker');
-            marcadoresAnteriores.forEach(m => m.remove());
 
-            // Agregar marcadores
-            for (const reclamo of this.reclamosRutaVisualizando) {
-                const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                
+            if (this._marcadoresVisualizacionMapbox?.length) {
+                this._marcadoresVisualizacionMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresVisualizacionMapbox = [];
+
+            const paradasRuta = this.agruparParadasRutaVistaPrevia(this.reclamosRutaVisualizando);
+            let contadorGruposMapboxVisualizacion = 0;
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
                 if (coordenadas) {
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    
-                    const el = this.crearElementoMapboxNumeradoMotivo(reclamo.posicion, colorEstado, reclamo.municipalidad_motivo, 32);
-                    
-                    new mapboxgl.Marker(el)
-                        .setLngLat([coordenadas.lng, coordenadas.lat])
-                        .setPopup(new mapboxgl.Popup().setHTML(this.crearContenidoInfoWindow(reclamo)))
-                        .addTo(this.mapaVisualizacionMapbox);
+                    const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                    const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                    const cantidadParada = parada.reclamos.length;
+                    const esGrupo = cantidadParada > 1;
+                    const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                    const badgeCantidad = esGrupo ? cantidadParada : null;
 
-                    if (this.reclamoMuestraIndicadorObraSupervisorMapa(reclamo)) {
-                        const obraWrap = document.createElement('div');
-                        obraWrap.style.cssText = 'display:flex;align-items:center;gap:4px;background:#212529;border:2px solid #ffc107;border-radius:8px;padding:2px 8px;box-shadow:0 2px 6px rgba(0,0,0,.35);pointer-events:none;';
-                        const hms = this.textoCronometroObraSupervisor(reclamo);
-                        obraWrap.innerHTML = `<span style="font-size:15px;line-height:1" aria-hidden="true">🚚</span><span class="cron-obra-hms" style="font-family:monospace;font-size:11px;color:#ffc107;font-weight:600;">${hms}</span>`;
-                        const span = obraWrap.querySelector('.cron-obra-hms');
-                        const offsetLng = 0.00028;
-                        new mapboxgl.Marker({ element: obraWrap, anchor: 'left' })
-                            .setLngLat([coordenadas.lng + offsetLng, coordenadas.lat])
-                            .addTo(this.mapaVisualizacionMapbox);
-                        if (span) {
-                            this.mapboxObraVisualizacionRefs.push({ reclamoId: reclamo.id, span });
-                        }
+                    const el = this.crearElementoMapboxNumeradoMotivo(
+                        parada.paradaNumero,
+                        colorEstado,
+                        motivoBadge,
+                        32,
+                        badgeCantidad,
+                        prioridadAlta
+                    );
+
+                    const marker = this.agregarMarcadorMapboxRuta(
+                        this.mapaVisualizacionMapbox,
+                        el,
+                        coordenadas,
+                        'center'
+                    );
+
+                    const reclamosGrupo = parada.reclamos.map((r) => ({
+                        ...r,
+                        posicion: parada.paradaNumero
+                    }));
+
+                    marker._reclamo = reclamosGrupo[0];
+                    marker._reclamosGrupo = reclamosGrupo;
+                    marker._indicePopup = 0;
+                    marker._marcadorRecorridoPrincipal = true;
+                    if (esGrupo) {
+                        marker._grupoId = `grupo-visualizacion-mb-${++contadorGruposMapboxVisualizacion}`;
                     }
+
+                    this._marcadoresVisualizacionMapbox.push(marker);
+
+                    el.addEventListener('click', () => {
+                        this.abrirPopupVisualizacionMapbox(marker);
+                    });
+
+                    this._agregarMarcadoresObraMapboxVisualizacionParada(parada, coordenadas);
                 }
             }
 
-            // Trazar ruta
-            const colorRuta = this.rutaVisualizando.color || '#FF0000';
-            await this.trazarRutaMapbox(this.reclamosRutaVisualizando, this.mapaVisualizacionMapbox, colorRuta);
+            const reclamosTrazado = paradasRuta.map((parada) => ({
+                ...parada.reclamos[0],
+                posicion: parada.paradaNumero
+            }));
 
+            const colorRuta = this.rutaVisualizando.color || '#FF0000';
+            if (reclamosTrazado.length > 1) {
+                await this.trazarRutaMapbox(reclamosTrazado, this.mapaVisualizacionMapbox, colorRuta);
+            }
+
+            await this.finalizarMarcadoresMapboxRuta(this.mapaVisualizacionMapbox);
             this.iniciarTickerVisualizacionObraSiCorresponde();
         },
 
@@ -4166,6 +7474,8 @@ const app = Vue.createApp({
 
             this.detenerTickerVisualizacionObra();
             this.mapboxObraRutasActivasRefs = [];
+            this.detenerBrilloRecorridoRutasActivas();
+            this.capasRecorridoMapboxRutasActivas = [];
 
             // Limpiar capas anteriores
             this.rutasActivas.forEach((ruta, idx) => {
@@ -4186,52 +7496,99 @@ const app = Vue.createApp({
                     const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
                     const reclamosRuta = response.data;
                     const colorRuta = ruta.color || '#FF0000';
+                    const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamosRuta);
+                    let contadorGruposRutasActivasMb = 0;
 
-                    // Agregar marcadores
-                    for (const reclamo of reclamosRuta) {
-                        const coordenadas = await this.obtenerCoordenadasReclamo(reclamo);
-                        
+                    for (const parada of paradasRuta) {
+                        const reclamoRef = parada.reclamos[0];
+                        const coordenadas = await this.obtenerCoordenadasReclamo(reclamoRef);
+
                         if (coordenadas) {
-                            const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                            
-                            const el = this.crearElementoMapboxNumeradoMotivo(reclamo.posicion, colorEstado, reclamo.municipalidad_motivo, 30);
-                            
-                            new mapboxgl.Marker(el)
-                                .setLngLat([coordenadas.lng, coordenadas.lat])
-                                .setPopup(new mapboxgl.Popup().setHTML(`
-                                    <div style="min-width: 200px;">
-                                        <h6 style="color: ${colorRuta};"><strong>${ruta.nombre}</strong></h6>
-                                        <p><strong>Posición:</strong> ${reclamo.posicion}</p>
-                                        <p><strong>Reclamo:</strong> #${reclamo.municipalidad_id}</p>
-                                        <p><strong>Motivo:</strong> ${reclamo.municipalidad_motivo}</p>
-                                    </div>
-                                `))
-                                .addTo(this.mapaRutasActivasMapbox);
+                            const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                            const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                            const cantidadParada = parada.reclamos.length;
+                            const esGrupo = cantidadParada > 1;
+                            const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                            const badgeCantidad = esGrupo ? cantidadParada : null;
 
-                            if (this.reclamoMuestraIndicadorObraEnRuta(reclamo, ruta)) {
-                                const obraWrap = document.createElement('div');
-                                obraWrap.style.cssText = 'display:flex;align-items:center;gap:4px;background:#212529;border:2px solid #ffc107;border-radius:8px;padding:2px 8px;box-shadow:0 2px 6px rgba(0,0,0,.35);pointer-events:none;';
-                                const hms = this.textoCronometroObraSupervisor(reclamo);
-                                obraWrap.innerHTML = `<span style="font-size:15px;line-height:1" aria-hidden="true">🚚</span><span class="cron-obra-hms" style="font-family:monospace;font-size:11px;color:#ffc107;font-weight:600;">${hms}</span>`;
-                                const span = obraWrap.querySelector('.cron-obra-hms');
-                                const offsetLng = 0.00028;
-                                new mapboxgl.Marker({ element: obraWrap, anchor: 'left' })
-                                    .setLngLat([coordenadas.lng + offsetLng, coordenadas.lat])
-                                    .addTo(this.mapaRutasActivasMapbox);
-                                if (span) {
-                                    this.mapboxObraRutasActivasRefs.push({ reclamo, ruta, span });
+                            const el = this.crearElementoMapboxNumeradoMotivo(
+                                parada.paradaNumero,
+                                colorEstado,
+                                motivoBadge,
+                                30,
+                                badgeCantidad,
+                                prioridadAlta
+                            );
+
+                            const marker = this.agregarMarcadorMapboxRuta(
+                                this.mapaRutasActivasMapbox,
+                                el,
+                                coordenadas,
+                                'center'
+                            );
+
+                            const reclamosGrupo = parada.reclamos.map((r) => ({
+                                ...r,
+                                posicion: parada.paradaNumero
+                            }));
+
+                            marker._reclamo = reclamosGrupo[0];
+                            marker._reclamosGrupo = reclamosGrupo;
+                            marker._indicePopup = 0;
+                            marker._ruta = ruta;
+                            if (esGrupo) {
+                                marker._grupoId = `grupo-rutas-activas-mb-${ruta.id}-${++contadorGruposRutasActivasMb}`;
+                            }
+
+                            el.addEventListener('click', () => {
+                                this.abrirPopupRutasActivasMapbox(marker);
+                            });
+
+                            for (let i = 0; i < parada.reclamos.length; i++) {
+                                const reclamo = parada.reclamos[i];
+                                if (this.reclamoMuestraIndicadorObraEnRuta(reclamo, ruta)) {
+                                    const hms = this.textoCronometroObraSupervisor(reclamo);
+                                    const nivel = this.nivelDemoraObraReclamoSupervisor(reclamo);
+                                    const { wrap, span } = ObraCronometroUtil.crearElementoIndicadorObraMapbox(hms, nivel);
+                                    const offsetLng = 0.00028 + (i * 0.00006);
+                                    new mapboxgl.Marker({ element: wrap, anchor: 'left' })
+                                        .setLngLat([coordenadas.lng + offsetLng, coordenadas.lat])
+                                        .addTo(this.mapaRutasActivasMapbox);
+                                    if (span) {
+                                        this.mapboxObraRutasActivasRefs.push({ reclamo, ruta, span, wrap });
+                                    }
                                 }
                             }
                         }
                     }
 
-                    await this.trazarRutaMapboxConId(reclamosRuta, this.mapaRutasActivasMapbox, colorRuta, `route-${rutaIdx}`);
+                    const reclamosTrazado = paradasRuta.map((parada) => ({
+                        ...parada.reclamos[0],
+                        posicion: parada.paradaNumero
+                    }));
+
+                    const coordenadasRecorrido = await this.trazarRutaMapboxConId(
+                        reclamosTrazado,
+                        this.mapaRutasActivasMapbox,
+                        colorRuta,
+                        `route-${rutaIdx}`
+                    );
+                    if (coordenadasRecorrido?.length) {
+                        this.capasRecorridoMapboxRutasActivas.push({
+                            rutaId: ruta.id,
+                            sourceId: `route-${rutaIdx}`,
+                            layerId: `route-${rutaIdx}`,
+                            color: colorRuta,
+                            coordinates: coordenadasRecorrido
+                        });
+                    }
                     
                 } catch (error) {
                     console.warn('Error al cargar ruta en Mapbox:', error);
                 }
             }
 
+            await this.finalizarMarcadoresMapboxRuta(this.mapaRutasActivasMapbox);
             this.iniciarTickerVisualizacionObraSiCorresponde();
         },
 
@@ -4303,7 +7660,7 @@ const app = Vue.createApp({
                     }
                 }
 
-                if (coordenadas.length < 2) return;
+                if (coordenadas.length < 2) return null;
 
                 const coordinates = coordenadas.map(c => `${c[0]},${c[1]}`).join(';');
                 const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordinates}?geometries=geojson&access_token=${this.mapboxToken}`;
@@ -4333,10 +7690,13 @@ const app = Vue.createApp({
                             'line-opacity': 0.8
                         }
                     });
+
+                    return route.coordinates || null;
                 }
             } catch (error) {
                 console.error('Error al trazar ruta en Mapbox:', error);
             }
+            return null;
         },
 
         /**
@@ -4402,10 +7762,10 @@ const app = Vue.createApp({
 
             try {
                 const cuadrilla = this.cuadrillasDisponibles.find(c => c.id == this.cuadrillaSeleccionadaParaAsignar);
-                const nombreCuadrilla = cuadrilla ? cuadrilla.nombre : 'la cuadrilla seleccionada';
-
-                const mensajeConfirmacion = `¿Está seguro que desea asignar la hoja de ruta "${this.rutaParaAsignar.nombre}" a la cuadrilla "${nombreCuadrilla}"?`;
-                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Asignar Hoja de Ruta');
+                const nombreCuadrilla = cuadrilla ? cuadrilla.nombre : 'la cuadrilla';
+                const accion = this.rutaParaAsignar.asignada == 1 ? 'cambiar' : 'asignar';
+                const mensajeConfirmacion = `¿${accion === 'cambiar' ? 'Cambiar' : 'Asignar'} "${this.rutaParaAsignar.nombre}" a ${nombreCuadrilla}?`;
+                const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, accion === 'cambiar' ? 'Cambiar cuadrilla' : 'Asignar cuadrilla');
 
                 if (!confirmacion) return;
 
@@ -5006,15 +8366,31 @@ const app = Vue.createApp({
     async mounted() {
         // Cargar cuadrillas primero antes de inicializar la tabla
         await this.obtenerCuadrillas();
+        await this.cargarPromediosTiempoMotivo();
         await this.obtenerReclamos();
         await this.obtenerRutas();
         if (this.esSupervisorVistaTarjetas) {
             this.configurarModalDetalleSupervisor();
+            if (this.solapaRutas === 'activas') {
+                this.iniciarPollingSupervisorActivas();
+            }
         }
+        if (this.puedeVerHistorialEjecuciones) {
+            this.configurarModalHistorialMapa();
+        }
+        this._onClickBitacoraFotoAmpliar = (event) => this.onClickBitacoraFotoAmpliar(event);
+        document.addEventListener('click', this._onClickBitacoraFotoAmpliar);
     },
 
     beforeUnmount() {
+        this.cerrarModalFotoBitacoraObra();
+        if (this._onClickBitacoraFotoAmpliar) {
+            document.removeEventListener('click', this._onClickBitacoraFotoAmpliar);
+        }
         this.detenerCronometroSupervisorRutas();
+        this.detenerPollingSupervisorActivas();
+        this.detenerBrilloRecorridoRutasActivas();
         this.limpiarMapasPreviewSupervisor();
+        this.limpiarMapaHistorialEjecucion();
     }
 });

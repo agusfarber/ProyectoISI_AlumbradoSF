@@ -72,6 +72,72 @@ class Usuarios extends ResourceController
         return $this->respondDeleted(['mensaje' => 'Usuario eliminado con éxito.']);
     }
 
+    /**
+     * Sube/actualiza la foto de perfil de un usuario.
+     * Recibe el archivo en el campo 'foto' (multipart/form-data).
+     * Guarda el archivo en public/static/uploads/perfiles/ y almacena
+     * solo el nombre del archivo en la columna foto_perfil.
+     */
+    public function subirFoto($id = null)
+    {
+        $usuario = $id ? $this->model->find($id) : null;
+        if (!$usuario) {
+            return $this->failNotFound('Usuario no encontrado.');
+        }
+
+        $archivo = $this->request->getFile('foto');
+        if (!$archivo || !$archivo->isValid()) {
+            return $this->failValidationErrors('No se recibió un archivo válido.');
+        }
+
+        // Validar tipo de imagen permitido
+        $tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!in_array($archivo->getMimeType(), $tiposPermitidos, true)) {
+            return $this->failValidationErrors('Formato no permitido. Use JPG, PNG o WEBP.');
+        }
+
+        // Validar tamaño máximo (2 MB)
+        if ($archivo->getSize() > 2 * 1024 * 1024) {
+            return $this->failValidationErrors('La imagen no debe superar los 2 MB.');
+        }
+
+        // Carpeta de destino dentro de public/static/uploads/perfiles
+        $directorio = FCPATH . 'static/uploads/perfiles';
+        if (!is_dir($directorio)) {
+            mkdir($directorio, 0775, true);
+        }
+
+        // Nombre único: u{id}_{random}.{ext}
+        $extension = $archivo->getExtension() ?: 'jpg';
+        $nombreArchivo = 'u' . $id . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+
+        if (!$archivo->move($directorio, $nombreArchivo)) {
+            return $this->failServerError('No se pudo guardar la imagen.');
+        }
+
+        // Eliminar la foto anterior si existía
+        if (!empty($usuario['foto_perfil'])) {
+            $anterior = $directorio . DIRECTORY_SEPARATOR . $usuario['foto_perfil'];
+            if (is_file($anterior)) {
+                @unlink($anterior);
+            }
+        }
+
+        $this->model->update($id, ['foto_perfil' => $nombreArchivo]);
+
+        // Si el usuario que actualiza su foto es el logueado, refrescar la sesión
+        $session = \Config\Services::session();
+        if ((string) $session->get('user_id') === (string) $id) {
+            $session->set('foto_perfil', $nombreArchivo);
+        }
+
+        return $this->respond([
+            'mensaje' => 'Foto actualizada correctamente.',
+            'foto_perfil' => $nombreArchivo,
+            'url' => base_url('static/uploads/perfiles/' . $nombreArchivo),
+        ]);
+    }
+
     public function operarios()
     {
         try {
@@ -80,7 +146,7 @@ class Usuarios extends ResourceController
             
             // Obtener todos los usuarios con rol 3 (operarios)
             $query = $db->table('usuario')
-                        ->select('id, nombre, email, legajo')
+                        ->select('id, nombre, email, legajo, foto_perfil')
                         ->where('idRol', 3) // Asumiendo que el rol 3 es operario
                         ->get();
             
@@ -90,7 +156,7 @@ class Usuarios extends ResourceController
             if (empty($operarios)) {
                 log_message('info', 'No se encontraron operarios con rol 3, obteniendo todos los usuarios');
                 $query = $db->table('usuario')
-                            ->select('id, nombre, email, legajo')
+                            ->select('id, nombre, email, legajo, foto_perfil')
                             ->get();
                 $operarios = $query->getResultArray();
             }

@@ -10,7 +10,7 @@ class UsuarioModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['nombre','email','legajo','contrasena','idRol'];
+  protected $allowedFields = ['nombre','email','legajo','contrasena','idRol','foto_perfil'];
 
   /**
    * Valida el login por legajo con validación estricta

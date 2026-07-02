@@ -191,7 +191,7 @@ class Rutas extends ResourceController
                             ->where("(COALESCE(ruta.estado_ejecucion,'') <> 'finalizada')", null, false)
                             ->findAll();
 
-        return $this->respond($rutas);
+        return $this->respond($this->enriquecerRutasCantidadReclamosPorDomicilio($rutas));
     }
 
     public function show($id = null)
@@ -207,6 +207,8 @@ class Rutas extends ResourceController
         if ($this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($ruta) === 'en ejecución') {
             $ruta['ruta_ejecucion_activa_id'] = RutaEjecucionHistorialService::findActiveEjecucionIdByRutaId((int) $ruta['id']);
         }
+
+        $ruta['cantidadReclamos'] = $this->cantidadReclamosPorDomicilioRuta((int) $ruta['id']);
 
         return $this->respond($ruta);
     }
@@ -342,6 +344,14 @@ class Rutas extends ResourceController
 
                 // Obtener coordenadas para todos los reclamos
                 $reclamosConCoordenadas = $this->obtenerCoordenadasReclamos($reclamosDisponibles, $direccionModel);
+
+                if ($this->contarUnidadesDomicilio($reclamosConCoordenadas) < $cantidadReclamos) {
+                    return $this->failValidationErrors(
+                        'No hay suficientes domicilios disponibles. Domicilios: '
+                        . $this->contarUnidadesDomicilio($reclamosConCoordenadas)
+                        . ', Solicitados: ' . $cantidadReclamos
+                    );
+                }
                 
                 // Seleccionar reclamos para la ruta
                 $reclamosSeleccionados = $this->seleccionarReclamosParaRuta(
@@ -366,7 +376,7 @@ class Rutas extends ResourceController
             $rutaData = [
                 'nombre' => $nombre,
                 'color' => $color,
-                'cantidadReclamos' => count($rutaOptimizada),
+                'cantidadReclamos' => $this->contarUnidadesDomicilio($rutaOptimizada),
                 'asignada' => $cuadrillaId ? 1 : 0,
                 'cuadrilla_id' => $cuadrillaId,
                 'tiempoEstimado' => $this->calcularTiempoEstimado($rutaOptimizada),
@@ -442,8 +452,11 @@ class Rutas extends ResourceController
 
         $ruta      = $this->model->find($id);
         $sesiones  = [];
-        $enEjec    = $ruta && $this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($ruta) === 'en ejecución';
-        if ($enEjec) {
+        $estadoRuta = $ruta && $this->tieneEstadoEjecucion
+            ? $this->normalizarEstadoEjecucion($ruta)
+            : '';
+        $incluirSesiones = in_array($estadoRuta, ['en ejecución', 'asignada'], true);
+        if ($incluirSesiones) {
             $idsReclamos = [];
             foreach ($reclamosConDetalles as $rc) {
                 $idr = (int) ($rc['id'] ?? 0);
@@ -461,7 +474,7 @@ class Rutas extends ResourceController
         }
 
         foreach ($reclamosConDetalles as &$reclamo) {
-            if ($enEjec) {
+            if ($incluirSesiones) {
                 $rid                         = (int) $reclamo['id'];
                 $reclamo['sesion_reparacion'] = $sesiones[$rid] ?? [
                     'activo'               => false,
@@ -499,6 +512,251 @@ class Rutas extends ResourceController
 
             return ! $estaEnRuta && ! $estaCompletado;
         });
+    }
+
+    /**
+     * Clave única de domicilio (calle + número). Sin domicilio, un reclamo = una unidad.
+     */
+    private function claveDomicilioReclamo(array $reclamo): string
+    {
+        $domicilio = mb_strtolower(trim($reclamo['municipalidad_domicilio'] ?? ''));
+        $numero    = mb_strtolower(trim($reclamo['municipalidad_numeroDomicilio'] ?? ''));
+
+        if ($domicilio !== '') {
+            return 'dom:' . $domicilio . '|' . $numero;
+        }
+
+        return 'id:' . ($reclamo['id'] ?? '0');
+    }
+
+    private function idsReclamos(array $reclamos): array
+    {
+        return array_map('intval', array_column($reclamos, 'id'));
+    }
+
+    private function contarUnidadesDomicilio(array $reclamos): int
+    {
+        $claves = [];
+        foreach ($reclamos as $reclamo) {
+            $claves[$this->claveDomicilioReclamo($reclamo)] = true;
+        }
+
+        return count($claves);
+    }
+
+    private function cantidadReclamosPorDomicilioRuta(int $rutaId): int
+    {
+        $cantidades = $this->calcularCantidadesReclamosPorDomicilioParaRutas([$rutaId]);
+
+        return $cantidades[$rutaId] ?? 0;
+    }
+
+    private function enriquecerRutasCantidadReclamosPorDomicilio(array $rutas): array
+    {
+        if ($rutas === []) {
+            return $rutas;
+        }
+
+        $rutaIds    = array_map('intval', array_column($rutas, 'id'));
+        $cantidades = $this->calcularCantidadesReclamosPorDomicilioParaRutas($rutaIds);
+
+        foreach ($rutas as &$ruta) {
+            $id = (int) ($ruta['id'] ?? 0);
+            if (isset($cantidades[$id])) {
+                $ruta['cantidadReclamos'] = $cantidades[$id];
+            }
+        }
+        unset($ruta);
+
+        return $rutas;
+    }
+
+    private function calcularCantidadesReclamosPorDomicilioParaRutas(array $rutaIds): array
+    {
+        if ($rutaIds === []) {
+            return [];
+        }
+
+        $db   = \Config\Database::connect();
+        $rows = $db->table('ruta_reclamo rr')
+            ->select('rr.ruta_id, r.id, r.municipalidad_domicilio, r.municipalidad_numeroDomicilio')
+            ->join('reclamo r', 'r.id = rr.reclamo_id')
+            ->whereIn('rr.ruta_id', $rutaIds)
+            ->get()
+            ->getResultArray();
+
+        $porRuta = [];
+        foreach ($rows as $row) {
+            $rutaId = (int) $row['ruta_id'];
+            if (! isset($porRuta[$rutaId])) {
+                $porRuta[$rutaId] = [];
+            }
+            $porRuta[$rutaId][] = $row;
+        }
+
+        $resultado = [];
+        foreach ($porRuta as $rutaId => $reclamos) {
+            $resultado[$rutaId] = $this->contarUnidadesDomicilio($reclamos);
+        }
+
+        return $resultado;
+    }
+
+    private function filtrarReclamosMismoDomicilio(array $reclamoRef, array $pool): array
+    {
+        $clave = $this->claveDomicilioReclamo($reclamoRef);
+
+        return array_values(array_filter($pool, function ($reclamo) use ($clave) {
+            return $this->claveDomicilioReclamo($reclamo) === $clave;
+        }));
+    }
+
+    /**
+     * Agrega todos los reclamos del mismo domicilio (elegibles en $poolCompleto) y los quita del pool de trabajo.
+     */
+    private function agregarUnidadDomicilio(array &$seleccionados, array &$pool, array $reclamoRef, array $poolCompleto): void
+    {
+        $grupo    = $this->filtrarReclamosMismoDomicilio($reclamoRef, $poolCompleto);
+        $idsGrupo = $this->idsReclamos($grupo);
+        $idsYa    = $this->idsReclamos($seleccionados);
+
+        foreach ($grupo as $reclamo) {
+            if (! in_array((int) $reclamo['id'], $idsYa, true)) {
+                $seleccionados[] = $reclamo;
+                $idsYa[]         = (int) $reclamo['id'];
+            }
+        }
+
+        $pool = array_values(array_filter($pool, function ($reclamo) use ($idsGrupo) {
+            return ! in_array((int) $reclamo['id'], $idsGrupo, true);
+        }));
+    }
+
+    private function limitarReclamosPorUnidadesDomicilio(array $reclamos, int $cantidadUnidades): array
+    {
+        $resultado = [];
+        $claves    = [];
+
+        foreach ($reclamos as $reclamo) {
+            $clave = $this->claveDomicilioReclamo($reclamo);
+            if (! isset($claves[$clave])) {
+                if (count($claves) >= $cantidadUnidades) {
+                    continue;
+                }
+                $claves[$clave] = true;
+            }
+            $resultado[] = $reclamo;
+        }
+
+        return $resultado;
+    }
+
+    private function construirUnidadesDomicilioDesdeReclamos(array $reclamos): array
+    {
+        $mapa = [];
+
+        foreach ($reclamos as $reclamo) {
+            $clave = $this->claveDomicilioReclamo($reclamo);
+            if (! isset($mapa[$clave])) {
+                $mapa[$clave] = [
+                    'clave'    => $clave,
+                    'reclamo'  => $reclamo,
+                    'reclamos' => [],
+                ];
+            }
+            $mapa[$clave]['reclamos'][] = $reclamo;
+        }
+
+        return array_values($mapa);
+    }
+
+    private function expandirUnidadesDomicilioAReclamos(array $unidades): array
+    {
+        $resultado = [];
+
+        foreach ($unidades as $unidad) {
+            $reclamos = $unidad['reclamos'];
+            usort($reclamos, function ($a, $b) {
+                return (int) ($b['municipalidad_id'] ?? 0) <=> (int) ($a['municipalidad_id'] ?? 0);
+            });
+            foreach ($reclamos as $reclamo) {
+                $resultado[] = $reclamo;
+            }
+        }
+
+        return $resultado;
+    }
+
+    private function encontrarUnidadMasCercana(array $unidades, array $punto): ?array
+    {
+        $distanciaMinima   = PHP_FLOAT_MAX;
+        $unidadMasCercana = null;
+
+        foreach ($unidades as $unidad) {
+            $reclamo = $unidad['reclamo'] ?? null;
+            if (! $reclamo || ! isset($reclamo['coordenadas'])) {
+                continue;
+            }
+
+            $distancia = $this->calcularDistancia(
+                $punto['lat'],
+                $punto['lng'],
+                $reclamo['coordenadas']['lat'],
+                $reclamo['coordenadas']['lng']
+            );
+
+            if ($distancia < $distanciaMinima) {
+                $distanciaMinima   = $distancia;
+                $unidadMasCercana = $unidad;
+            }
+        }
+
+        return $unidadMasCercana;
+    }
+
+    private function optimizarOrdenUnidadesDomicilio(array $unidades): array
+    {
+        if (empty($unidades)) {
+            return [];
+        }
+
+        $rutaOptimizada    = [];
+        $unidadesRestantes = $unidades;
+        $tanqueAgua        = $this->obtenerPuntoBase();
+
+        $primerUnidad = $this->encontrarUnidadMasCercana($unidadesRestantes, $tanqueAgua);
+
+        if ($primerUnidad) {
+            $rutaOptimizada[] = $primerUnidad;
+            $unidadActual     = $primerUnidad;
+            $unidadesRestantes = array_values(array_filter($unidadesRestantes, function ($u) use ($primerUnidad) {
+                return $u['clave'] !== $primerUnidad['clave'];
+            }));
+        } else {
+            $unidadActual      = array_shift($unidadesRestantes);
+            $rutaOptimizada[]  = $unidadActual;
+        }
+
+        while (! empty($unidadesRestantes)) {
+            $punto = $unidadActual['reclamo']['coordenadas'] ?? null;
+            if (! $punto) {
+                break;
+            }
+
+            $unidadMasCercana = $this->encontrarUnidadMasCercana($unidadesRestantes, $punto);
+
+            if ($unidadMasCercana) {
+                $rutaOptimizada[] = $unidadMasCercana;
+                $unidadActual     = $unidadMasCercana;
+                $unidadesRestantes = array_values(array_filter($unidadesRestantes, function ($u) use ($unidadMasCercana) {
+                    return $u['clave'] !== $unidadMasCercana['clave'];
+                }));
+            } else {
+                break;
+            }
+        }
+
+        return $rutaOptimizada;
     }
 
     /**
@@ -552,26 +810,33 @@ class Rutas extends ResourceController
     private function seleccionarReclamosParaRuta($reclamos, $cantidad, $reclamosManuales, $primerReclamoManual)
     {
         $reclamosSeleccionados = [];
+        $poolCompleto          = array_values($reclamos);
         
-        // Agregar reclamos manuales primero
+        // Agregar reclamos manuales primero (incluye todos los del mismo domicilio)
         foreach ($reclamosManuales as $reclamoId) {
-            $reclamo = array_filter($reclamos, function($r) use ($reclamoId) {
+            $reclamo = array_filter($reclamos, function ($r) use ($reclamoId) {
                 return $r['id'] == $reclamoId;
             });
             
-            if (!empty($reclamo)) {
-                $reclamosSeleccionados[] = array_values($reclamo)[0];
+            if (! empty($reclamo)) {
+                $ref         = array_values($reclamo)[0];
+                $poolTrabajo = array_values(array_filter($poolCompleto, function ($r) use ($reclamosSeleccionados) {
+                    return ! in_array((int) $r['id'], $this->idsReclamos($reclamosSeleccionados), true);
+                }));
+                if (! empty($poolTrabajo)) {
+                    $this->agregarUnidadDomicilio($reclamosSeleccionados, $poolTrabajo, $ref, $poolCompleto);
+                }
             }
         }
         
-        // Si ya tenemos suficientes reclamos, retornar solo los necesarios
-        if (count($reclamosSeleccionados) >= $cantidad) {
-            return array_slice($reclamosSeleccionados, 0, $cantidad);
+        // Si ya tenemos suficientes unidades de domicilio, retornar
+        if ($this->contarUnidadesDomicilio($reclamosSeleccionados) >= $cantidad) {
+            return $this->limitarReclamosPorUnidadesDomicilio($reclamosSeleccionados, $cantidad);
         }
 
         // Filtrar reclamos ya seleccionados
         $reclamosDisponibles = array_filter($reclamos, function ($reclamo) use ($reclamosSeleccionados) {
-            return ! in_array($reclamo['id'], array_column($reclamosSeleccionados, 'id'));
+            return ! in_array((int) $reclamo['id'], $this->idsReclamos($reclamosSeleccionados), true);
         });
 
         // Separar reclamos por prioridad (solo Alta y Baja)
@@ -582,15 +847,16 @@ class Rutas extends ResourceController
             return ($r['prioridad'] ?? 'Baja') === 'Baja';
         });
 
-        // Calcular cuántos reclamos necesitamos
-        $cantidadNecesaria = $cantidad - count($reclamosSeleccionados);
+        // Calcular cuántas unidades de domicilio necesitamos
+        $cantidadNecesaria = $cantidad - $this->contarUnidadesDomicilio($reclamosSeleccionados);
 
         // Seleccionar reclamos por prioridad
         $reclamosSeleccionados = $this->seleccionarPorPrioridad(
             $reclamosSeleccionados,
             $reclamosAlta,
             $reclamosBaja,
-            $cantidadNecesaria
+            $cantidadNecesaria,
+            $poolCompleto
         );
 
         return $reclamosSeleccionados;
@@ -603,43 +869,63 @@ class Rutas extends ResourceController
      * 2. Si hay < N Alta: Incluye todos Alta + los Baja más cercanos a esos Alta
      * 3. Si no hay Alta: Selecciona solo Baja
      */
-    private function seleccionarPorPrioridad($reclamosSeleccionados, $reclamosAlta, $reclamosBaja, $cantidadNecesaria)
+    private function seleccionarPorPrioridad($reclamosSeleccionados, $reclamosAlta, $reclamosBaja, $cantidadNecesaria, $poolCompleto = [])
     {
-        $cantidadAlta = count($reclamosAlta);
+        if (empty($poolCompleto)) {
+            $poolCompleto = array_merge(array_values($reclamosAlta), array_values($reclamosBaja));
+        }
+
+        $unidadesIniciales = $this->contarUnidadesDomicilio($reclamosSeleccionados);
+        $cantidadAlta      = $this->contarUnidadesDomicilio(array_values($reclamosAlta));
         
         // CASO 1: Hay suficientes Alta para llenar la ruta completa
         if ($cantidadAlta >= $cantidadNecesaria) {
-            // Seleccionar los N de Alta que formen la ruta más corta usando vecino más cercano
-            $reclamosSeleccionadosAlta = $this->seleccionarReclamosCercanos($reclamosAlta, $cantidadNecesaria);
+            $reclamosSeleccionadosAlta = $this->seleccionarReclamosCercanos(array_values($reclamosAlta), $cantidadNecesaria, $poolCompleto);
             foreach ($reclamosSeleccionadosAlta as $reclamo) {
-                $reclamosSeleccionados[] = $reclamo;
+                if (! in_array((int) $reclamo['id'], $this->idsReclamos($reclamosSeleccionados), true)) {
+                    $reclamosSeleccionados[] = $reclamo;
+                }
             }
+
             return $reclamosSeleccionados;
         }
         
         // CASO 2: Hay algunos Alta pero no suficientes, completar con Baja
         if ($cantidadAlta > 0) {
-            // Incluir TODOS los Alta
-            foreach ($reclamosAlta as $reclamo) {
-                $reclamosSeleccionados[] = $reclamo;
+            $poolAlta = array_values($reclamosAlta);
+            while (! empty($poolAlta)) {
+                $this->agregarUnidadDomicilio($reclamosSeleccionados, $poolAlta, $poolAlta[0], $poolCompleto);
             }
+
+            $reclamosBaja = array_values(array_filter($reclamosBaja, function ($r) use ($reclamosSeleccionados) {
+                return ! in_array((int) $r['id'], $this->idsReclamos($reclamosSeleccionados), true);
+            }));
             
-            // Calcular cuántos Baja necesitamos
-            $cantidadBajaNecesaria = $cantidadNecesaria - $cantidadAlta;
+            $cantidadBajaNecesaria = $cantidadNecesaria - ($this->contarUnidadesDomicilio($reclamosSeleccionados) - $unidadesIniciales);
             
-            // Seleccionar los Baja más cercanos al grupo de Alta usando vecino más cercano
-            $reclamosBajaSeleccionados = $this->seleccionarReclamosCercanosAGrupo($reclamosBaja, $reclamosAlta, $cantidadBajaNecesaria);
-            foreach ($reclamosBajaSeleccionados as $reclamo) {
-                $reclamosSeleccionados[] = $reclamo;
+            if ($cantidadBajaNecesaria > 0) {
+                $reclamosBajaSeleccionados = $this->seleccionarReclamosCercanosAGrupo(
+                    $reclamosBaja,
+                    array_values($reclamosAlta),
+                    $cantidadBajaNecesaria,
+                    $poolCompleto
+                );
+                foreach ($reclamosBajaSeleccionados as $reclamo) {
+                    if (! in_array((int) $reclamo['id'], $this->idsReclamos($reclamosSeleccionados), true)) {
+                        $reclamosSeleccionados[] = $reclamo;
+                    }
+                }
             }
             
             return $reclamosSeleccionados;
         }
         
         // CASO 3: No hay Alta, solo Baja
-        $reclamosBajaSeleccionados = $this->seleccionarReclamosCercanos($reclamosBaja, $cantidadNecesaria);
+        $reclamosBajaSeleccionados = $this->seleccionarReclamosCercanos(array_values($reclamosBaja), $cantidadNecesaria, $poolCompleto);
         foreach ($reclamosBajaSeleccionados as $reclamo) {
-            $reclamosSeleccionados[] = $reclamo;
+            if (! in_array((int) $reclamo['id'], $this->idsReclamos($reclamosSeleccionados), true)) {
+                $reclamosSeleccionados[] = $reclamo;
+            }
         }
         
         return $reclamosSeleccionados;
@@ -654,7 +940,7 @@ class Rutas extends ResourceController
             return [];
         }
         
-        $tanqueAgua = ['lat' => -31.426516, 'lng' => -62.110954];
+        $tanqueAgua = $this->obtenerPuntoBase();
         
         usort($reclamos, function($a, $b) use ($tanqueAgua) {
             $distA = $this->calcularDistancia(
@@ -693,41 +979,32 @@ class Rutas extends ResourceController
      * Selecciona N reclamos cercanos usando algoritmo de vecino más cercano desde el tanque de agua
      * Este método se usa cuando todos los reclamos tienen la misma prioridad
      */
-    private function seleccionarReclamosCercanos($reclamos, $cantidad)
+    private function seleccionarReclamosCercanos($reclamos, $cantidad, $poolCompleto = null)
     {
         if (empty($reclamos) || $cantidad <= 0) {
             return [];
         }
+
+        $poolCompleto = $poolCompleto ?? array_values($reclamos);
         
         $reclamosSeleccionados = [];
-        $reclamosRestantes = $reclamos;
-        $tanqueAgua = ['lat' => -31.426516, 'lng' => -62.110954];
+        $reclamosRestantes     = array_values($reclamos);
+        $tanqueAgua            = $this->obtenerPuntoBase();
         
-        // Empezar por el más cercano al tanque
         $primerReclamo = $this->encontrarReclamoMasCercano($reclamosRestantes, $tanqueAgua);
-        if (!$primerReclamo) {
+        if (! $primerReclamo) {
             return [];
         }
         
-        $reclamosSeleccionados[] = $primerReclamo;
-        $reclamoActual = $primerReclamo;
+        $this->agregarUnidadDomicilio($reclamosSeleccionados, $reclamosRestantes, $primerReclamo, $poolCompleto);
+        $reclamoActual = $reclamosSeleccionados[count($reclamosSeleccionados) - 1];
         
-        // Remover el primer reclamo
-        $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($primerReclamo) {
-            return $r['id'] != $primerReclamo['id'];
-        });
-        
-        // Continuar con vecino más cercano hasta tener N reclamos
-        while (count($reclamosSeleccionados) < $cantidad && !empty($reclamosRestantes)) {
+        while ($this->contarUnidadesDomicilio($reclamosSeleccionados) < $cantidad && ! empty($reclamosRestantes)) {
             $reclamoMasCercano = $this->encontrarReclamoMasCercano($reclamosRestantes, $reclamoActual['coordenadas']);
             
             if ($reclamoMasCercano) {
-                $reclamosSeleccionados[] = $reclamoMasCercano;
-                $reclamoActual = $reclamoMasCercano;
-                
-                $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($reclamoMasCercano) {
-                    return $r['id'] != $reclamoMasCercano['id'];
-                });
+                $this->agregarUnidadDomicilio($reclamosSeleccionados, $reclamosRestantes, $reclamoMasCercano, $poolCompleto);
+                $reclamoActual = $reclamosSeleccionados[count($reclamosSeleccionados) - 1];
             } else {
                 break;
             }
@@ -740,50 +1017,41 @@ class Rutas extends ResourceController
      * Selecciona N reclamos cercanos a un grupo base usando algoritmo de vecino más cercano
      * Este método se usa para completar con Baja cuando ya hay algunos Alta seleccionados
      */
-    private function seleccionarReclamosCercanosAGrupo($reclamos, $grupoBase, $cantidad)
+    private function seleccionarReclamosCercanosAGrupo($reclamos, $grupoBase, $cantidad, $poolCompleto = null)
     {
         if (empty($reclamos) || $cantidad <= 0) {
             return [];
         }
+
+        $poolCompleto = $poolCompleto ?? array_values($reclamos);
         
         $reclamosSeleccionados = [];
-        $reclamosRestantes = $reclamos;
+        $reclamosRestantes     = array_values($reclamos);
         
-        // Empezar por el Baja más cercano a cualquiera de los Alta
-        $primerReclamo = null;
+        $primerReclamo   = null;
         $distanciaMinima = PHP_FLOAT_MAX;
         
         foreach ($reclamosRestantes as $reclamo) {
             $distancia = $this->calcularDistanciaMinimaAGrupo($reclamo, $grupoBase);
             if ($distancia < $distanciaMinima) {
                 $distanciaMinima = $distancia;
-                $primerReclamo = $reclamo;
+                $primerReclamo   = $reclamo;
             }
         }
         
-        if (!$primerReclamo) {
+        if (! $primerReclamo) {
             return [];
         }
         
-        $reclamosSeleccionados[] = $primerReclamo;
-        $reclamoActual = $primerReclamo;
+        $this->agregarUnidadDomicilio($reclamosSeleccionados, $reclamosRestantes, $primerReclamo, $poolCompleto);
+        $reclamoActual = $reclamosSeleccionados[count($reclamosSeleccionados) - 1];
         
-        // Remover el primer reclamo
-        $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($primerReclamo) {
-            return $r['id'] != $primerReclamo['id'];
-        });
-        
-        // Continuar con vecino más cercano
-        while (count($reclamosSeleccionados) < $cantidad && !empty($reclamosRestantes)) {
+        while ($this->contarUnidadesDomicilio($reclamosSeleccionados) < $cantidad && ! empty($reclamosRestantes)) {
             $reclamoMasCercano = $this->encontrarReclamoMasCercano($reclamosRestantes, $reclamoActual['coordenadas']);
             
             if ($reclamoMasCercano) {
-                $reclamosSeleccionados[] = $reclamoMasCercano;
-                $reclamoActual = $reclamoMasCercano;
-                
-                $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($reclamoMasCercano) {
-                    return $r['id'] != $reclamoMasCercano['id'];
-                });
+                $this->agregarUnidadDomicilio($reclamosSeleccionados, $reclamosRestantes, $reclamoMasCercano, $poolCompleto);
+                $reclamoActual = $reclamosSeleccionados[count($reclamosSeleccionados) - 1];
             } else {
                 break;
             }
@@ -897,48 +1165,11 @@ class Rutas extends ResourceController
         if (empty($reclamos)) {
             return [];
         }
-        
-        $rutaOptimizada = [];
-        $reclamosRestantes = $reclamos;
-        
-        // Coordenadas del tanque de agua de San Francisco
-        $tanqueAgua = ['lat' => -31.426516, 'lng' => -62.110954];
-        
-        // Encontrar el reclamo más cercano al tanque de agua para empezar la ruta
-        $primerReclamo = $this->encontrarReclamoMasCercano($reclamosRestantes, $tanqueAgua);
-        
-        if ($primerReclamo) {
-            $rutaOptimizada[] = $primerReclamo;
-            $reclamoActual = $primerReclamo;
-            
-            // Remover el primer reclamo de la lista de restantes
-            $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($primerReclamo) {
-                return $r['id'] != $primerReclamo['id'];
-            });
-        } else {
-            // Fallback: usar el primer reclamo de la lista si no se encuentra el más cercano
-            $reclamoActual = array_shift($reclamosRestantes);
-            $rutaOptimizada[] = $reclamoActual;
-        }
-        
-        // Continuar con el algoritmo del vecino más cercano
-        while (!empty($reclamosRestantes)) {
-            $reclamoMasCercano = $this->encontrarReclamoMasCercano($reclamosRestantes, $reclamoActual['coordenadas']);
-            
-            if ($reclamoMasCercano) {
-                $rutaOptimizada[] = $reclamoMasCercano;
-                $reclamoActual = $reclamoMasCercano;
-                
-                // Remover el reclamo seleccionado
-                $reclamosRestantes = array_filter($reclamosRestantes, function($r) use ($reclamoMasCercano) {
-                    return $r['id'] != $reclamoMasCercano['id'];
-                });
-            } else {
-                break;
-            }
-        }
-        
-        return $rutaOptimizada;
+
+        $unidades          = $this->construirUnidadesDomicilioDesdeReclamos(array_values($reclamos));
+        $unidadesOrdenadas = $this->optimizarOrdenUnidadesDomicilio($unidades);
+
+        return $this->expandirUnidadesDomicilioAReclamos($unidadesOrdenadas);
     }
 
     /**
@@ -1129,6 +1360,203 @@ class Rutas extends ResourceController
     }
 
     /**
+     * Punto de base operativa (tanque de agua de San Francisco, Córdoba).
+     */
+    private function obtenerPuntoBase(): array
+    {
+        return ['lat' => -31.426516, 'lng' => -62.110954];
+    }
+
+    /**
+     * Calcula tiempo y distancia de un tramo entre dos coordenadas (Google → Mapbox → Haversine).
+     */
+    private function calcularTiempoTramo(array $origen, array $destino): array
+    {
+        if (! isset($origen['lat'], $origen['lng'], $destino['lat'], $destino['lng'])) {
+            return [
+                'exito' => false,
+                'tiempo_minutos' => 0,
+                'distancia_km' => 0,
+                'proveedor' => null,
+            ];
+        }
+
+        $resultadoGoogle = $this->calcularTiempoTramoGoogle($origen, $destino);
+        if ($resultadoGoogle['exito']) {
+            return $resultadoGoogle;
+        }
+
+        $resultadoMapbox = $this->calcularTiempoTramoMapbox($origen, $destino);
+        if ($resultadoMapbox['exito']) {
+            return $resultadoMapbox;
+        }
+
+        $distanciaKm = $this->calcularDistancia(
+            $origen['lat'],
+            $origen['lng'],
+            $destino['lat'],
+            $destino['lng']
+        );
+        $tiempoMinutos = ($distanciaKm / 30) * 60;
+
+        return [
+            'exito' => true,
+            'proveedor' => 'Haversine',
+            'tiempo_minutos' => $tiempoMinutos,
+            'distancia_km' => $distanciaKm,
+        ];
+    }
+
+    /**
+     * Calcula un tramo con Google Maps Directions API.
+     */
+    private function calcularTiempoTramoGoogle(array $origen, array $destino): array
+    {
+        try {
+            $client = \Config\Services::curlrequest();
+            $url = 'https://maps.googleapis.com/maps/api/directions/json';
+            $params = [
+                'origin' => $origen['lat'] . ',' . $origen['lng'],
+                'destination' => $destino['lat'] . ',' . $destino['lng'],
+                'mode' => 'driving',
+                'key' => $this->googleMapsApiKey,
+                'language' => 'es',
+            ];
+
+            $response = $client->get($url, ['query' => $params]);
+            $data = json_decode($response->getBody(), true);
+
+            if ($response->getStatusCode() !== 200 || ($data['status'] ?? '') !== 'OK') {
+                throw new \Exception('Google Maps API error: ' . ($data['status'] ?? 'Unknown'));
+            }
+
+            if (empty($data['routes']) || empty($data['routes'][0]['legs'])) {
+                throw new \Exception('No route found');
+            }
+
+            $leg = $data['routes'][0]['legs'][0];
+            $distanciaKm = ($leg['distance']['value'] ?? 0) / 1000;
+            $tiempoMinutos = ($leg['duration']['value'] ?? 0) / 60;
+
+            return [
+                'exito' => true,
+                'proveedor' => 'Google Maps',
+                'tiempo_minutos' => $tiempoMinutos,
+                'distancia_km' => $distanciaKm,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'exito' => false,
+                'error' => $e->getMessage(),
+                'tiempo_minutos' => 0,
+                'distancia_km' => 0,
+                'proveedor' => null,
+            ];
+        }
+    }
+
+    /**
+     * Calcula un tramo con Mapbox Directions API.
+     */
+    private function calcularTiempoTramoMapbox(array $origen, array $destino): array
+    {
+        try {
+            $client = \Config\Services::curlrequest();
+            $coordsString = $origen['lng'] . ',' . $origen['lat'] . ';' . $destino['lng'] . ',' . $destino['lat'];
+            $url = "https://api.mapbox.com/directions/v5/mapbox/driving/{$coordsString}";
+            $params = [
+                'access_token' => $this->mapboxApiKey,
+                'geometries' => 'geojson',
+                'steps' => 'false',
+            ];
+
+            $response = $client->get($url, ['query' => $params]);
+            $data = json_decode($response->getBody(), true);
+
+            if ($response->getStatusCode() !== 200 || empty($data['routes'])) {
+                throw new \Exception('Mapbox API error: ' . ($data['message'] ?? 'Unknown'));
+            }
+
+            $route = $data['routes'][0];
+            $distanciaKm = ($route['distance'] ?? 0) / 1000;
+            $tiempoMinutos = ($route['duration'] ?? 0) / 60;
+
+            return [
+                'exito' => true,
+                'proveedor' => 'Mapbox',
+                'tiempo_minutos' => $tiempoMinutos,
+                'distancia_km' => $distanciaKm,
+            ];
+        } catch (\Exception $e) {
+            return [
+                'exito' => false,
+                'error' => $e->getMessage(),
+                'tiempo_minutos' => 0,
+                'distancia_km' => 0,
+                'proveedor' => null,
+            ];
+        }
+    }
+
+    /**
+     * Suma desplazamiento base → primer reclamo y último reclamo → base.
+     */
+    private function sumarDesplazamientoBase(array $reclamos): array
+    {
+        $tiempoMinutos = 0;
+        $distanciaKm = 0;
+        $tramos = [];
+
+        if (empty($reclamos)) {
+            return [
+                'tiempo_minutos' => 0,
+                'distancia_km' => 0,
+                'tramos' => [],
+            ];
+        }
+
+        $base = $this->obtenerPuntoBase();
+        $primerReclamo = $reclamos[0];
+        $ultimoReclamo = $reclamos[count($reclamos) - 1];
+
+        if (isset($primerReclamo['coordenadas'])) {
+            $tramoIda = $this->calcularTiempoTramo($base, $primerReclamo['coordenadas']);
+            if ($tramoIda['exito']) {
+                $tiempoMinutos += $tramoIda['tiempo_minutos'];
+                $distanciaKm += $tramoIda['distancia_km'];
+                $tramos[] = [
+                    'origen' => 'Base',
+                    'destino' => $primerReclamo['municipalidad_id'] ?? $primerReclamo['id'] ?? 'N/A',
+                    'distancia_km' => $tramoIda['distancia_km'],
+                    'tiempo_minutos' => $tramoIda['tiempo_minutos'],
+                    'proveedor' => $tramoIda['proveedor'],
+                ];
+            }
+        }
+
+        if (isset($ultimoReclamo['coordenadas'])) {
+            $tramoVuelta = $this->calcularTiempoTramo($ultimoReclamo['coordenadas'], $base);
+            if ($tramoVuelta['exito']) {
+                $tiempoMinutos += $tramoVuelta['tiempo_minutos'];
+                $distanciaKm += $tramoVuelta['distancia_km'];
+                $tramos[] = [
+                    'origen' => $ultimoReclamo['municipalidad_id'] ?? $ultimoReclamo['id'] ?? 'N/A',
+                    'destino' => 'Base',
+                    'distancia_km' => $tramoVuelta['distancia_km'],
+                    'tiempo_minutos' => $tramoVuelta['tiempo_minutos'],
+                    'proveedor' => $tramoVuelta['proveedor'],
+                ];
+            }
+        }
+
+        return [
+            'tiempo_minutos' => $tiempoMinutos,
+            'distancia_km' => $distanciaKm,
+            'tramos' => $tramos,
+        ];
+    }
+
+    /**
      * Calcula la distancia entre dos puntos geográficos (fórmula de Haversine)
      * Usado como último fallback si las APIs de mapas fallan
      */
@@ -1150,9 +1578,8 @@ class Rutas extends ResourceController
      */
     private function calcularTiempoEstimado($reclamos)
     {
-        if (count($reclamos) < 2) {
-            log_message('info', 'CALCULO TIEMPO ESTIMADO: Menos de 2 reclamos, retornando 30 minutos mínimo');
-            return '00:30:00'; // 30 minutos mínimo
+        if (empty($reclamos)) {
+            return '00:00:00';
         }
         
         log_message('info', "CALCULO TIEMPO ESTIMADO: Iniciando cálculo para ruta con " . count($reclamos) . " reclamos");
@@ -1209,17 +1636,31 @@ class Rutas extends ResourceController
         }
         log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total de reparación (sin desplazamiento): {$tiempoTotalMinutos} minutos");
         
-        // Tiempo de desplazamiento entre reclamos usando APIs de mapas
+        // Tiempo de desplazamiento: base → 1ª parada, entre reclamos y última parada → base
         $tiempoDesplazamientoTotal = 0;
         $distanciaTotal = 0;
+
+        $desplazamientoBase = $this->sumarDesplazamientoBase($reclamos);
+        $tiempoDesplazamientoTotal += $desplazamientoBase['tiempo_minutos'];
+        $distanciaTotal += $desplazamientoBase['distancia_km'];
+
+        foreach ($desplazamientoBase['tramos'] as $tramo) {
+            log_message(
+                'info',
+                '  - Desplazamiento (' . ($tramo['proveedor'] ?? 'N/A') . '): '
+                . $tramo['origen'] . ' → ' . $tramo['destino']
+                . ' | Distancia: ' . round($tramo['distancia_km'], 2) . ' km'
+                . ' | Tiempo: ' . round($tramo['tiempo_minutos'], 2) . ' min'
+            );
+        }
         
         if (count($reclamos) > 1) {
             // Intentar obtener tiempos usando Google Maps Directions API
             $resultadoAPI = $this->calcularTiempoDesplazamientoConAPI($reclamos);
             
             if ($resultadoAPI['exito']) {
-                $tiempoDesplazamientoTotal = $resultadoAPI['tiempo_minutos'];
-                $distanciaTotal = $resultadoAPI['distancia_km'];
+                $tiempoDesplazamientoTotal += $resultadoAPI['tiempo_minutos'];
+                $distanciaTotal += $resultadoAPI['distancia_km'];
                 log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempos obtenidos usando {$resultadoAPI['proveedor']} API");
                 
                 // Log detallado de cada tramo
@@ -1255,11 +1696,12 @@ class Rutas extends ResourceController
         }
         
         $tiempoTotalMinutos += $tiempoDesplazamientoTotal;
-        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total de desplazamiento: " . round($tiempoDesplazamientoTotal, 2) . " minutos | Distancia total: " . round($distanciaTotal, 2) . " km");
+        log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total de desplazamiento (incl. base): " . round($tiempoDesplazamientoTotal, 2) . " minutos | Distancia total: " . round($distanciaTotal, 2) . " km");
         log_message('info', "CALCULO TIEMPO ESTIMADO: Tiempo total estimado (reparación + desplazamiento): {$tiempoTotalMinutos} minutos");
         
         // Convertir a formato HH:MM:SS
-        $horas = floor($tiempoTotalMinutos / 60);
+        $tiempoTotalMinutos = (int) round($tiempoTotalMinutos);
+        $horas = intdiv($tiempoTotalMinutos, 60);
         $minutos = $tiempoTotalMinutos % 60;
         
         $tiempoFormateado = sprintf('%02d:%02d:00', $horas, $minutos);
@@ -1297,15 +1739,9 @@ class Rutas extends ResourceController
             );
             $rutaOptimizada = $this->optimizarOrdenRuta($reclamosSeleccionados);
 
-            // Calcular estadísticas
-            $tiempoEstimado = $this->calcularTiempoEstimado($rutaOptimizada);
-            $distanciaTotal = $this->calcularDistanciaTotal($rutaOptimizada);
-
             return $this->respond([
                 'rutaOptimizada' => $rutaOptimizada,
-                'tiempoEstimado' => $tiempoEstimado,
-                'distanciaTotal' => $distanciaTotal,
-                'cantidadReclamos' => count($rutaOptimizada)
+                'cantidadReclamos' => $this->contarUnidadesDomicilio($rutaOptimizada)
             ]);
 
         } catch (\Exception $e) {
@@ -1319,18 +1755,40 @@ class Rutas extends ResourceController
      */
     private function calcularDistanciaTotal($reclamos)
     {
-        if (count($reclamos) < 2) {
+        if (empty($reclamos)) {
             return 0;
         }
 
         $distanciaTotal = 0;
+        $base = $this->obtenerPuntoBase();
+        $primerReclamo = $reclamos[0];
+        $ultimoReclamo = $reclamos[count($reclamos) - 1];
+
+        if (isset($primerReclamo['coordenadas'])) {
+            $distanciaTotal += $this->calcularDistancia(
+                $base['lat'], $base['lng'],
+                $primerReclamo['coordenadas']['lat'], $primerReclamo['coordenadas']['lng']
+            );
+        }
+
         for ($i = 0; $i < count($reclamos) - 1; $i++) {
             $actual = $reclamos[$i];
             $siguiente = $reclamos[$i + 1];
+
+            if (! isset($actual['coordenadas'], $siguiente['coordenadas'])) {
+                continue;
+            }
             
             $distanciaTotal += $this->calcularDistancia(
                 $actual['coordenadas']['lat'], $actual['coordenadas']['lng'],
                 $siguiente['coordenadas']['lat'], $siguiente['coordenadas']['lng']
+            );
+        }
+
+        if (isset($ultimoReclamo['coordenadas'])) {
+            $distanciaTotal += $this->calcularDistancia(
+                $ultimoReclamo['coordenadas']['lat'], $ultimoReclamo['coordenadas']['lng'],
+                $base['lat'], $base['lng']
             );
         }
 
@@ -1535,6 +1993,8 @@ class Rutas extends ResourceController
                 $ruta['operario_es_jefe'] = (int)($asignacionesPorCuadrilla[$ruta['cuadrilla_id']] ?? 0);
                 $ruta['estado_ejecucion'] = $this->normalizarEstadoEjecucion($ruta);
             }
+
+            $rutas = $this->enriquecerRutasCantidadReclamosPorDomicilio($rutas);
 
             return $this->respond($rutas);
 
@@ -1931,7 +2391,7 @@ class Rutas extends ResourceController
         $db = \Config\Database::connect();
 
         $cab = $db->table('ruta_ejecucion re')
-            ->select('re.*, r.nombre AS ruta_nombre, r.color AS ruta_color, c.nombre AS cuadrilla_nombre')
+            ->select('re.*, r.nombre AS ruta_nombre, r.color AS ruta_color, r.cantidadReclamos, c.nombre AS cuadrilla_nombre')
             ->join('ruta r', 'r.id = re.ruta_id', 'left')
             ->join('cuadrilla c', 'c.id = re.cuadrilla_id', 'left')
             ->where('re.id', $ejecucionId)
@@ -1943,7 +2403,7 @@ class Rutas extends ResourceController
         }
 
         $eventos = $db->table('ruta_ejecucion_evento e')
-            ->select('e.*, u.nombre AS usuario_nombre, rec.municipalidad_id AS reclamo_municipalidad_id')
+            ->select('e.*, u.nombre AS usuario_nombre, u.foto_perfil AS usuario_foto_perfil, rec.municipalidad_id AS reclamo_municipalidad_id')
             ->join('usuario u', 'u.id = e.usuario_id', 'left')
             ->join('reclamo rec', 'rec.id = e.reclamo_id', 'left')
             ->where('e.ruta_ejecucion_id', $ejecucionId)
@@ -1959,9 +2419,72 @@ class Rutas extends ResourceController
             }
         }
 
+        $observaciones = $db->table('ruta_ejecucion_reclamo_observacion o')
+            ->select('o.id, o.ruta_ejecucion_id, o.reclamo_id, o.texto, o.created_at, o.usuario_id, u.nombre AS usuario_nombre, u.foto_perfil AS usuario_foto_perfil, rec.municipalidad_id AS reclamo_municipalidad_id' . ($db->fieldExists('tipo', 'ruta_ejecucion_reclamo_observacion') ? ', o.tipo, o.archivo' : ''))
+            ->join('usuario u', 'u.id = o.usuario_id', 'left')
+            ->join('reclamo rec', 'rec.id = o.reclamo_id', 'left')
+            ->where('o.ruta_ejecucion_id', $ejecucionId)
+            ->orderBy('o.created_at', 'ASC')
+            ->orderBy('o.id', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $rutaId              = (int) ($cab['ruta_id'] ?? 0);
+        $reclamosConDetalles = [];
+        if ($rutaId > 0) {
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $reclamoModel     = new ReclamoModel();
+            $direccionModel   = new DireccionModel();
+            $reclamosRuta     = $rutaReclamoModel->where('ruta_id', $rutaId)
+                ->orderBy('posicion', 'ASC')
+                ->findAll();
+
+            $idsReclamos = [];
+            foreach ($reclamosRuta as $rutaReclamo) {
+                $idr = (int) ($rutaReclamo['reclamo_id'] ?? 0);
+                if ($idr > 0) {
+                    $idsReclamos[] = $idr;
+                }
+            }
+
+            $sesiones = RutaEjecucionHistorialService::computeSesionesReparacionHastaCierreEjecucion(
+                $ejecucionId,
+                $idsReclamos
+            );
+
+            $estadosAlCierre = RutaEjecucionHistorialService::computeEstadosReclamosAlCierreEjecucion(
+                $ejecucionId,
+                $cab['inicio_at'] ?? null,
+                $cab['fin_at'] ?? null,
+                $idsReclamos
+            );
+
+            foreach ($reclamosRuta as $rutaReclamo) {
+                $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
+                if (! $reclamo) {
+                    continue;
+                }
+                $reclamo['coordenadas'] = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
+                $reclamo['posicion']    = $rutaReclamo['posicion'];
+                $rid                    = (int) $reclamo['id'];
+                $sr                     = $sesiones[$rid] ?? [
+                    'activo'             => false,
+                    'acumulado_ms'       => 0,
+                    'inicio_segmento_at' => null,
+                ];
+                $sr['activo']                         = false;
+                $reclamo['sesion_reparacion']         = $sr;
+                $reclamo['estado_al_cierre_ejecucion'] = $estadosAlCierre[$rid]
+                    ?? ($reclamo['municipalidad_estado'] ?? 'Asignado');
+                $reclamosConDetalles[]                = $reclamo;
+            }
+        }
+
         return $this->respond([
-            'ejecucion' => $cab,
-            'eventos'   => $eventos,
+            'ejecucion'     => $cab,
+            'eventos'       => $eventos,
+            'observaciones' => $observaciones,
+            'reclamos'      => $reclamosConDetalles,
         ]);
     }
 
@@ -2184,9 +2707,9 @@ class Rutas extends ResourceController
                 'municipalidad_fechaModificacion' => date('Y-m-d H:i:s')
             ]);
 
-            // Actualizar la cantidad de reclamos en la ruta
+            // Actualizar la cantidad de domicilios distintos en la ruta
             $this->model->update($rutaId, [
-                'cantidadReclamos' => $nuevaPosicion
+                'cantidadReclamos' => $this->cantidadReclamosPorDomicilioRuta((int) $rutaId)
             ]);
 
             // Obtener el reclamo actualizado con información de la ruta

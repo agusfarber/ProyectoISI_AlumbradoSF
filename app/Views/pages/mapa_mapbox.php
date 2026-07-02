@@ -4,130 +4,124 @@
 
 <div id="app" class="container-fluid">
     <div class="mapa-reclamos-contenedor">
-                <div class="mapa-reclamos-toolbar">
-                    <a href="<?= base_url('/mapa_google'); ?>" class="btn btn-sm btn-success shadow-sm mapa-cambiar-proveedor-btn">
-                        <i class="bi bi-geo-alt-fill text-white"></i>
-                        <span class="d-none d-md-inline">Google Maps</span>
-                    </a>
-                    <button type="button"
-                            class="btn btn-sm btn-light shadow-sm mapa-lista-toggle"
-                            @click.stop="mostrarListaReclamosMapa = !mostrarListaReclamosMapa"
-                            title="Mostrar u ocultar reclamos visibles">
-                        <i class="bi bi-list-ul"></i>
-                        <span class="d-none d-md-inline">Reclamos</span>
-                    </button>
-                    <?php if (in_array((string)($userRole ?? ''), ['1', '2', '3'], true)): ?>
-                    <button type="button"
-                            class="btn btn-sm btn-light shadow-sm mapa-exportar-imagen-btn"
-                            @click.stop="exportarMapaImagen"
-                            :disabled="exportandoMapa"
-                            title="Exportar vista del mapa como imagen">
-                        <i class="bi bi-download"></i>
-                        <span class="d-none d-md-inline">Exportar</span>
-                    </button>
-                    <?php endif; ?>
-                    <div class="dropdown">
-                        <button type="button" class="btn btn-sm btn-light shadow-sm dropdown-toggle mapa-filtro-prioridad-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                            <i class="bi bi-exclamation-triangle"></i> Filtrar por Prioridad
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end mapa-filtro-prioridad-menu p-2">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="filtroTodasPrioridades" @change="toggleTodasPrioridades" :checked="prioridadesSeleccionadas.length === 0">
-                                <label class="form-check-label" for="filtroTodasPrioridades">
-                                    <i class="bi bi-eye"></i> Mostrar todas
-                                </label>
-                            </div>
-                            <hr class="dropdown-divider my-2">
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="filtroPrioridadAlta" value="Alta" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Alta')">
-                                <label class="form-check-label" for="filtroPrioridadAlta">🔺 Alta</label>
-                            </div>
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="filtroPrioridadBaja" value="Baja" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Baja')">
-                                <label class="form-check-label" for="filtroPrioridadBaja">🔻 Baja</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="dropdown">
-                        <button type="button" class="btn btn-sm btn-light shadow-sm dropdown-toggle mapa-filtro-estados-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
-                            <i class="bi bi-funnel"></i> Filtrar por Estado
-                        </button>
-                        <div class="dropdown-menu dropdown-menu-end mapa-filtro-estados-menu p-2">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="filtroTodos" @change="toggleTodosEstados" :checked="estadosSeleccionados.length === 0">
-                                <label class="form-check-label" for="filtroTodos">
-                                    <i class="bi bi-eye"></i> Mostrar todos
-                                </label>
-                            </div>
-                            <hr class="dropdown-divider my-2">
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="filtroRecibido" value="Recibido" @change="toggleEstado" :checked="estadosSeleccionados.includes('Recibido')">
-                                <label class="form-check-label" for="filtroRecibido">⚫ Recibido</label>
-                            </div>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="filtroAsignado" value="Asignado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Asignado')">
-                                <label class="form-check-label" for="filtroAsignado">🔵 Asignado</label>
-                            </div>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="filtroPendiente" value="Pendiente" @change="toggleEstado" :checked="estadosSeleccionados.includes('Pendiente')">
-                                <label class="form-check-label" for="filtroPendiente">🔴 Pendiente</label>
-                            </div>
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" id="filtroEnEjecucion" value="En ejecución" @change="toggleEstado" :checked="estadosSeleccionados.includes('En ejecución')">
-                                <label class="form-check-label" for="filtroEnEjecucion">🟡 En ejecución</label>
-                            </div>
-                            <div class="form-check mb-0">
-                                <input class="form-check-input" type="checkbox" id="filtroCompletado" value="Completado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Completado')">
-                                <label class="form-check-label" for="filtroCompletado">🟢 Completado</label>
-                            </div>
-                        </div>
-                    </div>
+        <div class="mapa-cambiar-proveedor-wrap">
+            <a href="<?= base_url('/mapa_google'); ?>" class="reclamos-btn reclamos-btn--sm mapa-cambiar-proveedor-btn">
+                <i class="bi bi-geo-alt-fill"></i>
+                <span class="d-none d-md-inline">Google Maps</span>
+            </a>
+        </div>
+        <div class="mapa-reclamos-toolbar">
+            <button type="button"
+                    class="reclamos-btn reclamos-btn--outline reclamos-btn--sm mapa-lista-toggle"
+                    @click.stop="mostrarListaReclamosMapa = !mostrarListaReclamosMapa"
+                    title="Mostrar u ocultar reclamos visibles">
+                <i class="bi bi-list-ul"></i>
+                <span class="d-none d-md-inline">Reclamos</span>
+            </button>
+            <?php if (in_array((string)($userRole ?? ''), ['1', '2', '3'], true)): ?>
+            <button type="button"
+                    class="reclamos-btn reclamos-btn--outline reclamos-btn--sm mapa-exportar-imagen-btn"
+                    @click.stop="exportarMapaImagen"
+                    :disabled="exportandoMapa"
+                    title="Exportar vista del mapa como imagen">
+                <i class="bi bi-download"></i>
+                <span class="d-none d-md-inline">Exportar</span>
+            </button>
+            <?php endif; ?>
+        </div>
+        <div class="mapa-filtros-inferior-panel">
+            <div class="mapa-filtro-prioridades-panel">
+                <div class="form-check mapa-filtro-prioridad mapa-filtro-prioridad--alta">
+                    <input class="form-check-input" type="checkbox" id="filtroPrioridadAlta" value="Alta" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Alta')">
+                    <label class="form-check-label" for="filtroPrioridadAlta" title="Prioridad alta">Alta</label>
                 </div>
-                <div v-show="mostrarListaReclamosMapa" class="mapa-reclamos-lista-overlay shadow">
-                    <div class="mapa-reclamos-lista-header">
-                        <strong>Reclamos visibles</strong>
-                        <span class="badge bg-secondary">{{ reclamosVisiblesMapa.length }}</span>
-                        <button type="button" class="btn-close btn-close-sm ms-auto" @click="mostrarListaReclamosMapa = false" aria-label="Cerrar"></button>
-                    </div>
-                    <div class="mapa-reclamos-lista-search">
-                        <input
-                            type="search"
-                            class="form-control form-control-sm"
-                            v-model="busquedaReclamosMapa"
-                            placeholder="Buscar por ID, calle o motivo..."
-                        >
-                    </div>
-                    <div class="mapa-reclamos-lista-body">
-                        <button
-                            v-for="reclamo in reclamosVisiblesMapa"
-                            :key="reclamo.id"
-                            type="button"
-                            class="mapa-reclamos-lista-item"
-                            @click="resaltarReclamoEnMapa(reclamo)"
-                        >
-                            <span class="mapa-reclamos-lista-icon" :style="{ backgroundColor: colorEstadoReclamo(reclamo.municipalidad_estado) }">
-                                {{ iconoMotivoReclamo(reclamo.municipalidad_motivo) }}
-                            </span>
-                            <span class="mapa-reclamos-lista-text">
-                                <strong>#{{ reclamo.municipalidad_id }}</strong>
-                                <small>{{ reclamo.municipalidad_domicilio || 'Sin domicilio' }} {{ reclamo.municipalidad_numeroDomicilio || '' }}</small>
-                            </span>
-                        </button>
-                        <p v-if="reclamosVisiblesMapa.length === 0" class="text-muted small text-center my-3">
-                            No hay reclamos visibles con los filtros actuales.
-                        </p>
-                    </div>
+                <div class="form-check mapa-filtro-prioridad mapa-filtro-prioridad--baja">
+                    <input class="form-check-input" type="checkbox" id="filtroPrioridadBaja" value="Baja" @change="togglePrioridad" :checked="prioridadesSeleccionadas.includes('Baja')">
+                    <label class="form-check-label" for="filtroPrioridadBaja" title="Prioridad baja">Baja</label>
                 </div>
-                <div id="map"></div>
+            </div>
+            <div class="mapa-filtro-estados-panel">
+            <div class="form-check mapa-filtro-estado mapa-filtro-estado--recibido">
+                <input class="form-check-input" type="checkbox" id="filtroRecibido" value="Recibido" @change="toggleEstado" :checked="estadosSeleccionados.includes('Recibido')">
+                <label class="form-check-label" for="filtroRecibido">Recibido</label>
+            </div>
+            <div class="form-check mapa-filtro-estado mapa-filtro-estado--asignado">
+                <input class="form-check-input" type="checkbox" id="filtroAsignado" value="Asignado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Asignado')">
+                <label class="form-check-label" for="filtroAsignado">Asignado</label>
+            </div>
+            <div class="form-check mapa-filtro-estado mapa-filtro-estado--pendiente">
+                <input class="form-check-input" type="checkbox" id="filtroPendiente" value="Pendiente" @change="toggleEstado" :checked="estadosSeleccionados.includes('Pendiente')">
+                <label class="form-check-label" for="filtroPendiente">Pendiente</label>
+            </div>
+            <div class="form-check mapa-filtro-estado mapa-filtro-estado--en-ejecucion">
+                <input class="form-check-input" type="checkbox" id="filtroEnEjecucion" value="En ejecución" @change="toggleEstado" :checked="estadosSeleccionados.includes('En ejecución')">
+                <label class="form-check-label" for="filtroEnEjecucion">En ejecución</label>
+            </div>
+            <div class="form-check mapa-filtro-estado mapa-filtro-estado--completado">
+                <input class="form-check-input" type="checkbox" id="filtroCompletado" value="Completado" @change="toggleEstado" :checked="estadosSeleccionados.includes('Completado')">
+                <label class="form-check-label" for="filtroCompletado">Completado</label>
+            </div>
+            </div>
+        </div>
+        <div v-show="mostrarListaReclamosMapa" class="mapa-reclamos-lista-overlay">
+            <div class="mapa-reclamos-lista-header">
+                <span>Reclamos visibles</span>
+                <span class="mapa-lista-badge">{{ reclamosVisiblesMapa.length }}</span>
+                <button type="button" class="mapa-modal__close" @click="mostrarListaReclamosMapa = false" aria-label="Cerrar">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div class="mapa-reclamos-lista-search">
+                <input
+                    type="search"
+                    class="form-control form-control-sm"
+                    v-model="busquedaReclamosMapa"
+                    placeholder="Buscar por ID, calle o motivo..."
+                >
+            </div>
+            <div class="mapa-reclamos-lista-body">
+                <button
+                    v-for="reclamo in reclamosVisiblesMapa"
+                    :key="reclamo.id"
+                    type="button"
+                    class="mapa-reclamos-lista-item"
+                    @click="resaltarReclamoEnMapa(reclamo)"
+                >
+                    <span class="mapa-reclamos-lista-icon-wrap">
+                        <span class="mapa-reclamos-lista-icon" :style="{ backgroundColor: colorEstadoReclamo(reclamo.municipalidad_estado) }">
+                            {{ iconoMotivoReclamo(reclamo.municipalidad_motivo) }}
+                        </span>
+                        <span
+                            v-if="reclamo.prioridad === 'Alta'"
+                            class="mapa-prioridad-alta-badge mapa-reclamos-lista-prioridad-badge"
+                            aria-label="Prioridad alta"
+                        >!</span>
+                    </span>
+                    <span class="mapa-reclamos-lista-text">
+                        <strong>#{{ reclamo.municipalidad_id }}</strong>
+                        <small>{{ reclamo.municipalidad_domicilio || 'Sin domicilio' }} {{ reclamo.municipalidad_numeroDomicilio || '' }}</small>
+                    </span>
+                </button>
+                <p v-if="reclamosVisiblesMapa.length === 0" class="mapa-reclamos-lista-empty">
+                    No hay reclamos visibles con los filtros actuales.
+                </p>
+            </div>
+        </div>
+        <div id="map"></div>
     </div>
 
     <!-- Modal Ver Detalles Reclamo -->
     <div class="modal fade" id="modalVerReclamo" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Detalles del Reclamo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content mapa-modal reclamo-modal">
+                <div class="reclamo-modal__header">
+                    <div class="reclamo-modal__title">
+                        <span class="reclamo-modal__icon"><i class="bi bi-card-text"></i></span>
+                        <h5>Detalles del reclamo</h5>
+                    </div>
+                    <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -160,7 +154,7 @@
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
-                                <p>{{ reclamoSeleccionado.municipalidad_estado }}</p>
+                                <p>{{ reclamoSeleccionado.municipalidad_estado || 'No especificado' }}</p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Prioridad:</label>
@@ -203,8 +197,8 @@
                         <p>{{ reclamoSeleccionado.municipalidad_descripcion || 'No especificado' }}</p>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="reclamo-modal__footer reclamo-modal__footer--end">
+                    <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -212,11 +206,16 @@
 
     <!-- Modal Estado de Ubicación -->
     <div class="modal fade" id="modalEstadoUbicacion" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Estado de Ubicación del Reclamo</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content mapa-modal">
+                <div class="mapa-modal__header">
+                    <div class="mapa-modal__title">
+                        <span class="mapa-modal__icon"><i class="bi bi-geo-alt-fill"></i></span>
+                        <h5>Estado de ubicación</h5>
+                    </div>
+                    <button type="button" class="mapa-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -227,38 +226,44 @@
                         <label class="fw-bold">Dirección:</label>
                         <p>{{ reclamoParaReubicar.municipalidad_domicilio }} {{ reclamoParaReubicar.municipalidad_numeroDomicilio }}</p>
                     </div>
-                    
-                    <!-- Estado de ubicación -->
                     <div class="mb-3">
-                        <label class="fw-bold">Estado de Ubicación:</label>
+                        <label class="fw-bold">Estado de ubicación:</label>
                         <div v-if="ubicacionPersonalizada">
-                            <div class="alert alert-info">
-                                <i class="bi bi-geo-alt-fill text-primary"></i>
-                                <strong>Ubicación Personalizada</strong>
+                            <div class="mapa-modal-alert mapa-modal-alert--info">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                <div>
+                                    <strong>Ubicación personalizada</strong>
+                                </div>
                             </div>
-                            <div class="mb-2">
+                            <div class="mapa-modal-coords">
                                 <label class="fw-bold">Coordenadas personalizadas:</label>
-                                <p class="mb-1">Latitud: {{ ubicacionPersonalizada.latitud }}</p>
-                                <p class="mb-1">Longitud: {{ ubicacionPersonalizada.longitud }}</p>
+                                <p>Latitud: {{ ubicacionPersonalizada.latitud }}</p>
+                                <p>Longitud: {{ ubicacionPersonalizada.longitud }}</p>
                             </div>
                         </div>
                         <div v-else>
-                            <div class="alert alert-warning">
-                                <i class="bi bi-geo-alt text-warning"></i>
-                                <strong>Ubicación por Defecto (Mapbox)</strong>
+                            <div class="mapa-modal-alert mapa-modal-alert--default">
+                                <i class="bi bi-geo-alt"></i>
+                                <div>
+                                    <strong>Ubicación por defecto (Mapbox)</strong>
+                                </div>
                             </div>
-                            <p class="mb-0">El punto se ubica automáticamente usando las coordenadas obtenidas de Mapbox.</p>
+                            <p class="mb-0" style="font-size: 0.82rem; font-weight: 500; color: var(--color-medium-gray);">El punto se ubica automáticamente usando las coordenadas obtenidas de Mapbox.</p>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button v-if="ubicacionPersonalizada" type="button" class="btn btn-danger" @click="eliminarUbicacionPersonalizada">
-                        <i class="bi bi-trash text-white"></i> Eliminar Ubicación Personalizada
-                    </button>
-                    <button v-if="!ubicacionPersonalizada" type="button" class="btn btn-primary" @click="iniciarReubicacionDesdeModal">
-                        <i class="bi bi-geo-alt text-white"></i> Reubicar Punto
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="mapa-modal__footer mapa-modal__footer--between">
+                    <div>
+                        <button v-if="ubicacionPersonalizada" type="button" class="ce-btn-eliminar" @click="eliminarUbicacionPersonalizada">
+                            <i class="bi bi-trash"></i> Eliminar ubicación
+                        </button>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap justify-content-end">
+                        <button v-if="!ubicacionPersonalizada" type="button" class="reclamos-btn" @click="iniciarReubicacionDesdeModal">
+                            <i class="bi bi-geo-alt"></i> Reubicar punto
+                        </button>
+                        <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
                 </div>
             </div>
         </div>

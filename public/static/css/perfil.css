@@ -1,0 +1,195 @@
+/* ========================================
+   ESTILOS PARA LA PÁGINA DE PERFIL
+   Diseño minimalista
+   ======================================== */
+
+.perfil-page {
+    width: 100%;
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.perfil-page-title {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    margin-bottom: 1.5rem;
+}
+
+.perfil-card {
+    max-width: 560px;
+    margin: 0 auto;
+    background: var(--color-white);
+    border-radius: 18px;
+    border: 1px solid var(--color-light-gray);
+    box-shadow: 0 6px 24px rgba(6, 4, 75, 0.06);
+    overflow: hidden;
+}
+
+/* ---------- Cabecera ---------- */
+.perfil-card__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 2.25rem 1.5rem 1.75rem;
+    background: var(--gradient-light, #f7f7fb);
+    border-bottom: 1px solid var(--color-light-gray);
+}
+
+.perfil-avatar {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+}
+
+.perfil-avatar img,
+.perfil-avatar__iniciales {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 4px solid var(--color-white);
+    box-shadow: 0 4px 14px rgba(6, 4, 75, 0.18);
+}
+
+.perfil-avatar__iniciales {
+    color: var(--color-white);
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.perfil-avatar__editar {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 3px solid var(--color-white);
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.perfil-avatar__editar i {
+    color: var(--color-white);
+}
+
+.perfil-avatar__editar:hover {
+    transform: scale(1.08);
+}
+
+.perfil-avatar__editar.cargando {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.perfil-nombre {
+    margin: 0.4rem 0 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.5px;
+    text-align: center;
+}
+
+.perfil-rol-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    background: rgba(110, 109, 153, 0.12);
+    color: var(--color-purple-medium);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* ---------- Detalles ---------- */
+.perfil-card__body {
+    padding: 1.25rem 1.5rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.perfil-dato {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 0.5rem;
+    border-bottom: 1px solid var(--color-light-gray);
+}
+
+.perfil-dato:last-child {
+    border-bottom: none;
+}
+
+.perfil-dato__icon {
+    width: 42px;
+    height: 42px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: var(--gradient-light, #f0f0f6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-purple-medium);
+    font-size: 1.1rem;
+}
+
+.perfil-dato__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.perfil-dato__label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-medium-gray);
+}
+
+.perfil-dato__valor {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+    word-break: break-word;
+}
+
+.perfil-dato__vacio {
+    font-weight: 500;
+    font-style: italic;
+    color: var(--color-medium-gray);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 576px) {
+    .perfil-card {
+        border-radius: 14px;
+    }
+
+    .perfil-avatar,
+    .perfil-avatar img,
+    .perfil-avatar__iniciales {
+        width: 92px;
+        height: 92px;
+    }
+
+    .perfil-avatar__iniciales {
+        font-size: 2rem;
+    }
+}

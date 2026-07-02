@@ -48,10 +48,19 @@ const app = Vue.createApp({
             mapaDetalleGoogle: null,
             marcadoresDetalleGoogle: [],
             directionsRendererDetalleGoogle: null,
+            infoWindowAbiertoMapaDetalleOperario: null,
+            proveedorMapaDetalleOperario: 'google',
+            mapaDetalleOperarioMapbox: null,
+            _marcadoresDetalleOperarioMapbox: [],
+            _mapboxObraDetalleOperarioRefs: [],
+            _googleObraDetalleOperarioRefs: [],
 
             /** Mini mapas en panel de hojas (operario) */
             mapasPreviewOperario: {},
             reclamosCachePorRutaId: {},
+            cuadrillasDisponibles: [],
+            /** Índice del reclamo visible en paradas con varios reclamos (vista lista operario) */
+            indiceReclamoListaParadaOperario: {},
             
             // API Key de Mapbox
             mapboxToken: 'pk.eyJ1IjoicHJveWVjdG9maW5hbGFsdW1icmFkb3B1YmxpY28iLCJhIjoiY21mY3FpanE3MDB6ejJub3ByZmpldm1mYSJ9.sjk91HIU-CxPuXoj9oVRiw',
@@ -99,11 +108,21 @@ const app = Vue.createApp({
 
             /** Modal acciones: solo pestaña materiales (operario) */
             modalAccionesSoloMateriales: false,
+            modalMaterialesSoloLectura: false,
 
             observacionEjecucionTexto: '',
             historialObservacionesEjecucion: [],
+            observacionesPorReclamoOperario: {},
+            archivoFotoBitacora: null,
+            previewFotoBitacora: null,
+            guardandoFotoBitacora: false,
+            promediosTiempoMotivoMap: {},
             cargandoObservacionesEjecucion: false,
-            guardandoObservacionEjecucion: false
+            guardandoObservacionEjecucion: false,
+
+            bitacoraFotoAmpliadaUrl: '',
+            bitacoraFotoAmpliadaCaption: '',
+            bitacoraFotoAmpliadaActiva: false
         };
     },
 
@@ -181,6 +200,10 @@ const app = Vue.createApp({
 
                 return posA - posB;
             });
+        },
+
+        paradasOrdenRuta() {
+            return this.agruparParadasRutaVistaPrevia(this.reclamosOrdenRuta);
         },
 
         rutaSeleccionada() {
@@ -267,10 +290,30 @@ const app = Vue.createApp({
             }
         },
 
+        historialBitacoraEjecucionOrdenado() {
+            const lista = Array.isArray(this.historialObservacionesEjecucion)
+                ? [...this.historialObservacionesEjecucion]
+                : [];
+            lista.sort((a, b) => {
+                const ta = new Date(a.created_at || 0).getTime();
+                const tb = new Date(b.created_at || 0).getTime();
+                if (ta !== tb) {
+                    return ta - tb;
+                }
+                return (Number(a.id) || 0) - (Number(b.id) || 0);
+            });
+            return lista;
+        },
+
         puedeGuardarObservacionEjecucion() {
-            if (!this.puedeEditarTareasRutaSeleccionada) return false;
-            if (this.rutaEjecucionActivaId == null) return false;
+            if (!this.puedeRegistrarBitacoraEjecucion(this.reclamoSeleccionado)) {
+                return false;
+            }
             return (this.observacionEjecucionTexto || '').trim().length > 0;
+        },
+
+        puedeSubirFotoBitacoraEjecucion() {
+            return this.puedeRegistrarBitacoraEjecucion(this.reclamoSeleccionado) && !!this.archivoFotoBitacora;
         }
     },
 
@@ -338,11 +381,13 @@ const app = Vue.createApp({
 
                 this.reclamos = this.eliminarDuplicadosReclamos(reclamosConRuta);
                 this.aplicarSesionesReparacionDesdeReclamos(this.reclamos);
+                this.indiceReclamoListaParadaOperario = {};
 
                 await this.sincronizarRutaEjecucionActivaId();
+                await this.cargarObservacionesEjecucionOperario(this.reclamos);
 
                 if (this.esOperario && this.modoVistaRuta === 'mapa') {
-                    this.$nextTick(() => this.inicializarMapaDetalleOperarioGoogle());
+                    this.$nextTick(() => this.inicializarMapaDetalleOperario());
                 }
             } catch (error) {
                 console.error('Error al obtener reclamos de la ruta seleccionada:', error);
@@ -354,8 +399,15 @@ const app = Vue.createApp({
 
         async obtenerTodasLasRutas() {
             try {
-                const response = await axios.get(BASE_URL + 'api/rutas');
-                this.rutasPanel = response.data || [];
+                const url = this.esOperario
+                    ? BASE_URL + 'api/rutas/operario/mis-rutas'
+                    : BASE_URL + 'api/rutas';
+                const response = await axios.get(url);
+                const rutas = response.data || [];
+                this.rutasPanel = rutas;
+                if (this.esOperario) {
+                    this.rutas = rutas;
+                }
                 if (this.esOperario && this.vistaOperarioActual === 'panel') {
                     await this.$nextTick();
                     this.inicializarMapasPreviewOperario();
@@ -363,6 +415,9 @@ const app = Vue.createApp({
             } catch (error) {
                 console.error('Error al obtener hojas de ruta:', error);
                 this.rutasPanel = [];
+                if (this.esOperario) {
+                    this.rutas = [];
+                }
                 this.mostrarMensaje('Error al cargar las hojas de ruta', 'error');
             }
         },
@@ -376,6 +431,7 @@ const app = Vue.createApp({
             if (!ruta || !ruta.id) return;
             this.limpiarMapasPreviewOperario();
             this.limpiarSesionesReparacionReclamos();
+            this.indiceReclamoListaParadaOperario = {};
             this.rutaSeleccionadaId = ruta.id;
             this.vistaOperarioActual = 'detalle';
             this.modoVistaRuta = 'lista';
@@ -463,7 +519,7 @@ const app = Vue.createApp({
                     this.rutaSeleccionadaId = null;
                     this.reclamos = [];
                     this.vistaOperarioActual = 'panel';
-                    this.limpiarMapaDetalleOperarioGoogle();
+                    this.limpiarMapaDetalleOperario();
                 }
 
                 this.mostrarMensaje(response.data?.mensaje || 'Ejecución finalizada.', 'success');
@@ -523,13 +579,40 @@ const app = Vue.createApp({
             return 'bg-secondary';
         },
 
+        msTranscurridoEjecucionRuta(ruta) {
+            if (!this.esEstadoEjecucionRuta(ruta)) {
+                return 0;
+            }
+            const ini = ruta?.inicio_ejecucion_at;
+            if (!ini) {
+                return 0;
+            }
+            const t0 = new Date(String(ini).replace(' ', 'T')).getTime();
+            if (Number.isNaN(t0)) {
+                return 0;
+            }
+            return Math.max(0, this.ahoraCronometro - t0);
+        },
+
+        nivelDemoraEjecucionRuta(ruta) {
+            return ObraCronometroUtil.nivelDemoraEjecucionRuta(
+                this.msTranscurridoEjecucionRuta(ruta),
+                ruta?.tiempoEstimado
+            );
+        },
+
+        claseCronometroEjecucionRuta(ruta) {
+            if (!this.esEstadoEjecucionRuta(ruta)) {
+                return 'badge bg-dark font-monospace cronometro-ejecucion cronometro-badge-con-ico';
+            }
+            return ObraCronometroUtil.clasesBadgeCronometroEjecucionRuta(this.nivelDemoraEjecucionRuta(ruta));
+        },
+
         tiempoTranscurridoEjecucion(ruta) {
             if (!this.esEstadoEjecucionRuta(ruta)) return '';
             const ini = ruta.inicio_ejecucion_at;
             if (!ini) return '—';
-            const t0 = new Date(String(ini).replace(' ', 'T')).getTime();
-            if (Number.isNaN(t0)) return '—';
-            const sec = Math.max(0, Math.floor((this.ahoraCronometro - t0) / 1000));
+            const sec = Math.floor(this.msTranscurridoEjecucionRuta(ruta) / 1000);
             return this.formatearSegundosCronometro(sec);
         },
 
@@ -560,10 +643,12 @@ const app = Vue.createApp({
         volverAPanelRutas() {
             this.limpiarSesionesReparacionReclamos();
             this.rutaEjecucionActivaId = null;
+            this.observacionesPorReclamoOperario = {};
+            this.indiceReclamoListaParadaOperario = {};
             this.vistaOperarioActual = 'panel';
             this.rutaSeleccionadaId = null;
             this.reclamos = [];
-            this.limpiarMapaDetalleOperarioGoogle();
+            this.limpiarMapaDetalleOperario();
             this.$nextTick(() => this.inicializarMapasPreviewOperario());
         },
 
@@ -598,6 +683,194 @@ const app = Vue.createApp({
                 return null;
             }
             return { lat, lng };
+        },
+
+        claveDomicilioReclamo(reclamo) {
+            const domicilio = (reclamo.municipalidad_domicilio || '').trim().toLowerCase();
+            const numero = (reclamo.municipalidad_numeroDomicilio || '').trim().toLowerCase();
+            if (domicilio) {
+                return `dom:${domicilio}|${numero}`;
+            }
+            return `id:${reclamo.id}`;
+        },
+
+        agruparParadasRutaVistaPrevia(rutaOptimizada) {
+            const paradas = [];
+            for (const reclamo of rutaOptimizada) {
+                const clave = this.claveDomicilioReclamo(reclamo);
+                const ultima = paradas[paradas.length - 1];
+                if (ultima && ultima.clave === clave) {
+                    ultima.reclamos.push(reclamo);
+                } else {
+                    paradas.push({ clave, reclamos: [reclamo] });
+                }
+            }
+            paradas.forEach((p, i) => { p.paradaNumero = i + 1; });
+            return paradas;
+        },
+
+        indiceReclamoEnParadaOperario(parada) {
+            const idx = this.indiceReclamoListaParadaOperario[parada.clave];
+            if (idx === undefined || idx >= parada.reclamos.length) {
+                return 0;
+            }
+            return idx;
+        },
+
+        reclamoActivoEnParadaOperario(parada) {
+            return parada.reclamos[this.indiceReclamoEnParadaOperario(parada)] || parada.reclamos[0];
+        },
+
+        navegarReclamoEnParadaOperario(parada, delta) {
+            if (parada.reclamos.length <= 1) return;
+
+            const total = parada.reclamos.length;
+            let idx = this.indiceReclamoEnParadaOperario(parada);
+            idx = (idx + delta + total) % total;
+            this.indiceReclamoListaParadaOperario = {
+                ...this.indiceReclamoListaParadaOperario,
+                [parada.clave]: idx
+            };
+        },
+
+        async iniciarReparacionParada(parada) {
+            if (!parada?.reclamos?.length) return;
+            const elegibles = parada.reclamos.filter((r) => this.puedeMostrarIniciarReparacionReclamo(r));
+            if (!elegibles.length) return;
+            for (const reclamo of elegibles) {
+                await this.iniciarReparacionReclamo(reclamo);
+            }
+        },
+
+        paradaReclamosConObraActiva(parada) {
+            return (parada?.reclamos || []).filter((r) => {
+                const s = this.sesionReparacionReclamo(r);
+                return s && s.activo;
+            });
+        },
+
+        paradaReclamosContinuables(parada) {
+            return (parada?.reclamos || []).filter((r) => {
+                const s = this.sesionReparacionReclamo(r);
+                if (!s || s.activo) return false;
+                return this.puedeMostrarContinuarReparacionReclamo(r);
+            });
+        },
+
+        paradaTieneSesionReparacion(parada) {
+            return (parada?.reclamos || []).some((r) => this.sesionReparacionReclamo(r));
+        },
+
+        paradaTieneObraActiva(parada) {
+            return this.paradaReclamosConObraActiva(parada).length > 0;
+        },
+
+        puedeMostrarContinuarParada(parada) {
+            return this.paradaReclamosContinuables(parada).length > 0;
+        },
+
+        async ejecutarCierreParadaObra(parada, tipo) {
+            if (!parada?.reclamos?.length) return;
+            const targets = this.paradaReclamosConObraActiva(parada);
+            if (!targets.length) {
+                this.mostrarMensaje('No hay trabajo en curso en esta parada.', 'warning');
+                return;
+            }
+            let ok = 0;
+            for (const reclamo of targets) {
+                const resultado = await this.ejecutarCierreReclamoObra(reclamo, tipo, { silencioso: true });
+                if (resultado) ok++;
+            }
+            await this.obtenerReclamosPorRutaSeleccionada();
+            if (this.esOperario && this.modoVistaRuta === 'mapa') {
+                this.$nextTick(() => this.redibujarMapaDetalleOperario());
+            }
+            const n = targets.length;
+            if (ok === 0) {
+                this.mostrarMensaje('No se pudo cerrar el trabajo en la parada.', 'error');
+                return;
+            }
+            const etiqueta = n > 1 ? `${ok} reclamos de la parada` : 'Reclamo';
+            this.mostrarMensaje(
+                tipo === 'completado'
+                    ? `${etiqueta} completado${n > 1 ? 's' : ''}. Tiempo de reparación registrado automáticamente.`
+                    : `${etiqueta} en estado Pendiente para continuar otro día.`,
+                'success'
+            );
+        },
+
+        async continuarReparacionParada(parada) {
+            if (!parada?.reclamos?.length) return;
+            const targets = this.paradaReclamosContinuables(parada);
+            if (!targets.length) return;
+            for (const reclamo of targets) {
+                await this.continuarReparacionReclamo(reclamo, { silencioso: true });
+            }
+            if (this.esOperario && this.modoVistaRuta === 'mapa') {
+                this.$nextTick(() => this.redibujarMapaDetalleOperario());
+            }
+        },
+
+        estilosMapaPreviewCompacto() {
+            return [
+                { featureType: 'all', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+                { featureType: 'transit', stylers: [{ visibility: 'off' }] }
+            ];
+        },
+
+        async obtenerCuadrillas() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/cuadrillas');
+                this.cuadrillasDisponibles = response.data || [];
+            } catch (error) {
+                console.error('Error al obtener cuadrillas:', error);
+            }
+        },
+
+        urlFotoOperario(nombreArchivo) {
+            return BASE_URL + 'static/uploads/perfiles/' + nombreArchivo;
+        },
+
+        inicialesOperario(nombre) {
+            if (!nombre) return '?';
+            const partes = nombre.trim().split(/\s+/);
+            const primera = partes[0] ? partes[0][0] : '';
+            const segunda = partes.length > 1 ? partes[partes.length - 1][0] : '';
+            return (primera + segunda).toUpperCase();
+        },
+
+        colorAvatarOperario(nombre) {
+            const paleta = ['#3A3972', '#6E6D99', '#2D6A6A', '#7A5C9E', '#A65A7A', '#4C6EA8', '#9E7B3A'];
+            const texto = nombre || '';
+            let hash = 0;
+            for (let i = 0; i < texto.length; i++) {
+                hash = texto.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return paleta[Math.abs(hash) % paleta.length];
+        },
+
+        operariosCuadrillaDeRuta(ruta) {
+            if (!ruta?.cuadrilla_id) return [];
+            const cuadrilla = this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(ruta.cuadrilla_id)
+            );
+            if (!cuadrilla?.operarios?.length) return [];
+            return [...cuadrilla.operarios].sort(
+                (a, b) => Number(b.es_jefe) - Number(a.es_jefe)
+            );
+        },
+
+        tituloCuadrillaTarjetaRuta(ruta) {
+            const ops = this.operariosCuadrillaDeRuta(ruta);
+            if (!ops.length) {
+                return ruta.cuadrilla_nombre || 'Sin asignar';
+            }
+            const nombres = ops.map((op) => {
+                const rol = Number(op.es_jefe) === 1 ? ' (Jefe)' : '';
+                return `${op.nombre}${rol}`;
+            });
+            return `${ruta.cuadrilla_nombre || 'Cuadrilla'}: ${nombres.join(', ')}`;
         },
 
         async esperarGoogleMapsOperario(timeoutMs = 15000) {
@@ -652,27 +925,39 @@ const app = Vue.createApp({
                     fullscreenControl: false,
                     zoomControl: false,
                     mapTypeId: google.maps.MapTypeId.ROADMAP,
-                    styles: [
-                        {
-                            featureType: 'poi',
-                            elementType: 'labels',
-                            stylers: [{ visibility: 'off' }]
-                        }
-                    ]
+                    styles: this.estilosMapaPreviewCompacto()
                 });
 
                 const markers = [];
                 const bounds = new google.maps.LatLngBounds();
+                const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamos);
 
-                for (const reclamo of reclamos) {
-                    const coords = this.coordenadasReclamoPreview(reclamo);
+                for (const parada of paradasRuta) {
+                    const reclamoRef = parada.reclamos[0];
+                    const coords = this.coordenadasReclamoPreview(reclamoRef);
                     if (!coords) continue;
-                    const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                    const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
+
+                    const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                    const colorPrioridad = this.getColorPrioridad(reclamoRef.prioridad || 'Baja');
+                    const cantidadParada = parada.reclamos.length;
+                    const esGrupo = cantidadParada > 1;
+                    const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                    const badgeCantidad = esGrupo ? cantidadParada : null;
+
                     const marker = new google.maps.Marker({
                         position: coords,
                         map,
-                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
+                        title: esGrupo
+                            ? `Parada ${parada.paradaNumero}: ${cantidadParada} reclamos en el mismo domicilio`
+                            : `Posición ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                        icon: this.crearIconoNumerado(
+                            parada.paradaNumero,
+                            colorEstado,
+                            colorPrioridad,
+                            26,
+                            motivoBadge,
+                            badgeCantidad
+                        ),
                         zIndex: 100
                     });
                     marker._marcadorRecorridoPrincipal = true;
@@ -789,17 +1074,18 @@ const app = Vue.createApp({
             }
             const m = {};
             for (const r of reclamos) {
-                if ((r.municipalidad_estado || '').trim() === 'Completado') {
-                    continue;
-                }
+                const est = (r.municipalidad_estado || '').trim();
                 const sr = r.sesion_reparacion;
                 if (!sr) {
                     continue;
                 }
                 const acum = Number(sr.acumulado_ms) || 0;
-                const activo = !!sr.activo;
+                const activo = est === 'Completado' ? false : !!sr.activo;
                 if (!activo && acum <= 0) {
-                    if ((r.municipalidad_estado || '').trim() !== 'Pendiente') {
+                    if (est === 'Completado') {
+                        continue;
+                    }
+                    if (est !== 'Pendiente') {
                         continue;
                     }
                 }
@@ -826,12 +1112,15 @@ const app = Vue.createApp({
 
         tiempoMsSesionReparacionReclamo(reclamo) {
             const s = this.sesionReparacionReclamo(reclamo);
-            if (!s) return 0;
-            let ms = s.acumuladoMs || 0;
-            if (s.activo) {
-                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            if (s) {
+                let ms = s.acumuladoMs || 0;
+                if (s.activo) {
+                    ms += this.ahoraCronometro - s.inicioSegmentoMs;
+                }
+                return Math.max(0, ms);
             }
-            return Math.max(0, ms);
+            const sr = reclamo?.sesion_reparacion;
+            return Math.max(0, Number(sr?.acumulado_ms) || 0);
         },
 
         _aplicarCierreSegmentoReclamoLocal(reclamo) {
@@ -857,15 +1146,18 @@ const app = Vue.createApp({
             const datos = {
                 ...reclamo,
                 municipalidad_estado: 'En ejecución',
-                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina(),
-                prioridad: 'Alta'
+                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
             };
-            await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
+            const response = await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
+            const actualizado = response.data || {};
             const idx = this.reclamos.findIndex(r => r.id === reclamo.id);
             if (idx !== -1) {
-                this.reclamos[idx].municipalidad_estado = 'En ejecución';
-                this.reclamos[idx].prioridad = 'Alta';
-                this.reclamos[idx].municipalidad_fechaModificacion = datos.municipalidad_fechaModificacion;
+                this.reclamos[idx].municipalidad_estado = actualizado.municipalidad_estado || 'En ejecución';
+                this.reclamos[idx].municipalidad_fechaModificacion = actualizado.municipalidad_fechaModificacion
+                    || datos.municipalidad_fechaModificacion;
+                if (Object.prototype.hasOwnProperty.call(actualizado, 'prioridad')) {
+                    this.reclamos[idx].prioridad = actualizado.prioridad;
+                }
             }
         },
 
@@ -892,8 +1184,8 @@ const app = Vue.createApp({
                     acumuladoMs: 0
                 }
             };
-            if (this.esOperario && this.modoVistaRuta === 'mapa' && this.mapaDetalleGoogle) {
-                this.$nextTick(() => this.dibujarRutaDetalleOperarioGoogle());
+            if (this.esOperario && this.modoVistaRuta === 'mapa') {
+                this.$nextTick(() => this.redibujarMapaDetalleOperario());
             }
         },
 
@@ -915,11 +1207,14 @@ const app = Vue.createApp({
             return est === 'Pendiente' || est === 'En ejecución';
         },
 
-        async ejecutarCierreReclamoObra(reclamo, tipo) {
+        async ejecutarCierreReclamoObra(reclamo, tipo, opciones = {}) {
+            const { silencioso = false } = opciones;
             const s = this.sesionReparacionReclamo(reclamo);
             if (!s || !s.activo) {
-                this.mostrarMensaje('No hay trabajo en curso en este reclamo.', 'warning');
-                return;
+                if (!silencioso) {
+                    this.mostrarMensaje('No hay trabajo en curso en este reclamo.', 'warning');
+                }
+                return false;
             }
             const msTotal = this.tiempoMsSesionReparacionReclamo(reclamo);
             const minutos = Math.max(1, Math.round(msTotal / 60000));
@@ -931,11 +1226,26 @@ const app = Vue.createApp({
                 const mensaje = error?.response?.data?.message
                     || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
                     || 'No se pudo registrar el fin de trabajo en el reclamo.';
-                this.mostrarMensaje(mensaje, 'error');
-                return;
+                if (!silencioso) {
+                    this.mostrarMensaje(mensaje, 'error');
+                }
+                return false;
             }
 
             this._aplicarCierreSegmentoReclamoLocal(reclamo);
+
+            const msFinal = this.tiempoMsSesionReparacionReclamo(reclamo);
+            const idxLocal = this.reclamos.findIndex((r) => r.id === reclamo.id);
+            if (idxLocal !== -1) {
+                this.reclamos[idxLocal] = {
+                    ...this.reclamos[idxLocal],
+                    sesion_reparacion: {
+                        activo: false,
+                        acumulado_ms: msFinal,
+                        inicio_segmento_at: null
+                    }
+                };
+            }
 
             const datos = {
                 ...reclamo,
@@ -943,43 +1253,51 @@ const app = Vue.createApp({
             };
             if (tipo === 'completado') {
                 datos.municipalidad_estado = 'Completado';
-                datos.prioridad = null;
             } else {
                 datos.municipalidad_estado = 'Pendiente';
-                datos.prioridad = 'Alta';
             }
 
             try {
                 await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
             } catch (error) {
                 console.error('Error al actualizar reclamo:', error);
-                this.mostrarMensaje(error?.response?.data?.message || 'No se pudo actualizar el reclamo.', 'error');
-                await this.obtenerReclamosPorRutaSeleccionada();
-                return;
+                if (!silencioso) {
+                    this.mostrarMensaje(error?.response?.data?.message || 'No se pudo actualizar el reclamo.', 'error');
+                    await this.obtenerReclamosPorRutaSeleccionada();
+                }
+                return false;
             }
 
             try {
-                await axios.post(BASE_URL + 'api/reclamos/' + reclamo.id + '/tiempo-reparacion', {
-                    tiempo_reparacion_minutos: minutos
-                });
+                if (tipo === 'completado') {
+                    await axios.post(BASE_URL + 'api/reclamos/' + reclamo.id + '/tiempo-reparacion', {
+                        tiempo_reparacion_minutos: minutos
+                    });
+                }
             } catch (error) {
                 console.warn('Tiempo de reparación automático:', error);
-                this.mostrarMensaje('Reclamo actualizado, pero no se pudo guardar el tiempo de reparación automático.', 'warning');
+                if (!silencioso && tipo === 'completado') {
+                    this.mostrarMensaje('Reclamo actualizado, pero no se pudo guardar el tiempo de reparación automático.', 'warning');
+                }
             }
 
-            await this.obtenerReclamosPorRutaSeleccionada();
-            this.mostrarMensaje(
-                tipo === 'completado'
-                    ? 'Reclamo completado. Tiempo de reparación registrado automáticamente.'
-                    : 'Reclamo en estado Pendiente para continuar otro día. Tiempo de esta salida registrado.',
-                'success'
-            );
+            if (!silencioso) {
+                await this.obtenerReclamosPorRutaSeleccionada();
+                this.mostrarMensaje(
+                    tipo === 'completado'
+                        ? 'Reclamo completado. Tiempo de reparación registrado automáticamente.'
+                        : 'Reclamo en estado Pendiente para continuar otro día.',
+                    'success'
+                );
+            }
+            return true;
         },
 
-        async continuarReparacionReclamo(reclamo) {
-            if (!reclamo || reclamo.id == null) return;
+        async continuarReparacionReclamo(reclamo, opciones = {}) {
+            const { silencioso = false } = opciones;
+            if (!reclamo || reclamo.id == null) return false;
             const s = this.sesionReparacionReclamo(reclamo);
-            if (!s || s.activo) return;
+            if (!s || s.activo) return false;
             try {
                 await this.sincronizarEstadoReclamoEnEjecucion(reclamo);
                 await this.registrarEventoEjecucionReclamo('ejecucion_reclamo_inicio', reclamo);
@@ -988,8 +1306,10 @@ const app = Vue.createApp({
                 const mensaje = error?.response?.data?.message
                     || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
                     || 'No se pudo registrar la continuación de trabajo en el reclamo.';
-                this.mostrarMensaje(mensaje, 'error');
-                return;
+                if (!silencioso) {
+                    this.mostrarMensaje(mensaje, 'error');
+                }
+                return false;
             }
             this.reparacionPorReclamoId = {
                 ...this.reparacionPorReclamoId,
@@ -999,26 +1319,87 @@ const app = Vue.createApp({
                     acumuladoMs: s.acumuladoMs
                 }
             };
-            if (this.esOperario && this.modoVistaRuta === 'mapa' && this.mapaDetalleGoogle) {
-                this.$nextTick(() => this.dibujarRutaDetalleOperarioGoogle());
+            if (!silencioso && this.esOperario && this.modoVistaRuta === 'mapa') {
+                this.$nextTick(() => this.redibujarMapaDetalleOperario());
             }
+            return true;
         },
 
         onModalAccionesOculto() {
             this.modalAccionesSoloMateriales = false;
+            this.modalMaterialesSoloLectura = false;
+        },
+
+        estadoReclamoOperario(reclamo) {
+            return (reclamo?.municipalidad_estado || '').trim();
+        },
+
+        reclamoEstaCompletadoOperario(reclamo) {
+            return this.estadoReclamoOperario(reclamo) === 'Completado';
+        },
+
+        reclamoEstaPendienteOperario(reclamo) {
+            return this.estadoReclamoOperario(reclamo) === 'Pendiente';
+        },
+
+        puedeVerRegistrosObraReclamo(reclamo) {
+            if (!this.puedeOperarRutaSeleccionada) {
+                return false;
+            }
+            if (!reclamo?.id) {
+                return false;
+            }
+            const est = this.estadoReclamoOperario(reclamo);
+
+            if (!this.rutaSeleccionadaEnEjecucion) {
+                if (est === 'Pendiente') {
+                    return true;
+                }
+                if (est === 'Completado') {
+                    return this.mostrarCronometroReparacionReclamo(reclamo)
+                        || this.cantidadObservacionesEjecucionReclamoOperario(reclamo) > 0;
+                }
+                return false;
+            }
+
+            if (est === 'Completado' || est === 'Pendiente') {
+                return true;
+            }
+            if (this.sesionReparacionReclamo(reclamo)) {
+                return true;
+            }
+            return this.cantidadObservacionesEjecucionReclamoOperario(reclamo) > 0;
+        },
+
+        registrosObraReclamoSoloLectura(reclamo) {
+            if (!reclamo) {
+                return true;
+            }
+            if (this.reclamoEstaCompletadoOperario(reclamo)) {
+                return true;
+            }
+            if (this.reclamoEstaPendienteOperario(reclamo) && !this.sesionReparacionReclamo(reclamo)?.activo) {
+                return true;
+            }
+            return !this.puedeRegistrarBitacoraEjecucion(reclamo);
         },
 
         abrirModalMaterialesReclamo(reclamo) {
-            if (!this.puedeEditarTareasRutaSeleccionada) {
-                this.mostrarMensaje('Solo el jefe de cuadrilla puede registrar materiales.', 'warning');
+            if (!this.puedeVerRegistrosObraReclamo(reclamo)) {
+                this.mostrarMensaje('No hay registros de materiales para este reclamo.', 'warning');
                 return;
             }
-            if (!this.sesionReparacionReclamo(reclamo)) {
-                this.mostrarMensaje('Inicie el reclamo en obra para registrar materiales.', 'warning');
-                return;
+            const soloLectura = this.registrosObraReclamoSoloLectura(reclamo)
+                || !this.puedeEditarTareasRutaSeleccionada;
+            if (!soloLectura) {
+                if (!this.sesionReparacionReclamo(reclamo)) {
+                    this.mostrarMensaje('Inicie el reclamo en obra para registrar materiales.', 'warning');
+                    return;
+                }
             }
             this.reclamoSeleccionado = { ...reclamo };
             this.modalAccionesSoloMateriales = true;
+            this.modalMaterialesSoloLectura = soloLectura;
             this.materialSeleccionado = {
                 tipo_id: '',
                 material_id: '',
@@ -1029,10 +1410,13 @@ const app = Vue.createApp({
             this.modoMaterialNuevo = false;
             this.materialesFiltrados = [];
             this.historialMateriales = [];
-            this.mostrarHistorialMateriales = false;
+            this.mostrarHistorialMateriales = soloLectura;
 
             const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
             modal.show();
+            if (soloLectura) {
+                this.cargarMateriales();
+            }
             this.$nextTick(() => {
                 const materialesTab = document.getElementById('materiales-tab');
                 const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
@@ -1053,38 +1437,244 @@ const app = Vue.createApp({
             });
         },
 
-        abrirModalObservacionesEjecucionReclamo(reclamo) {
-            if (!this.puedeEditarTareasRutaSeleccionada) {
-                this.mostrarMensaje('Solo el jefe de cuadrilla puede registrar observaciones.', 'warning');
-                return;
+        cantidadObservacionesEjecucionReclamoOperario(reclamo) {
+            if (!reclamo?.id) {
+                return 0;
             }
-            if (!this.sesionReparacionReclamo(reclamo)) {
-                this.mostrarMensaje('Inicie el reclamo en obra para registrar observaciones.', 'warning');
-                return;
+            return (this.observacionesPorReclamoOperario[reclamo.id] || [])
+                .filter((o) => !this.esEntradaCambioEstadoBitacora(o))
+                .length;
+        },
+
+        puedeRegistrarBitacoraEjecucion(reclamo) {
+            if (!this.puedeOperarRutaSeleccionada || !this.rutaSeleccionadaEnEjecucion) {
+                return false;
             }
             if (this.rutaEjecucionActivaId == null) {
-                this.mostrarMensaje('No hay ejecución activa de la hoja. Espere a sincronizar o reinicie la vista.', 'warning');
+                return false;
+            }
+            const s = this.sesionReparacionReclamo(reclamo);
+            return !!(s && s.activo);
+        },
+
+        puedeAbrirBitacoraEjecucion(reclamo) {
+            return this.puedeVerRegistrosObraReclamo(reclamo);
+        },
+
+        textoObservacionesEjecucionBadge(cantidad) {
+            if (!cantidad || cantidad < 1) {
+                return '';
+            }
+            return cantidad > 99 ? '99+' : String(cantidad);
+        },
+
+        htmlBadgeObservacionesEjecucionConId(reclamoId, cantidad) {
+            const texto = this.textoObservacionesEjecucionBadge(cantidad);
+            if (!texto) {
+                return '';
+            }
+            return `<span class="btn-obs-ejecucion-count" data-map-iw-obs-count-id="${reclamoId}" aria-hidden="true">${texto}</span>`;
+        },
+
+        paramsObservacionesEjecucionOperario() {
+            if (this.rutaEjecucionActivaId != null) {
+                return { ruta_ejecucion_id: this.rutaEjecucionActivaId };
+            }
+            if (this.rutaSeleccionadaId) {
+                return { ruta_id: this.rutaSeleccionadaId };
+            }
+            return null;
+        },
+
+        async cargarObservacionesEjecucionOperario(reclamos) {
+            const params = this.paramsObservacionesEjecucionOperario();
+            if (!reclamos?.length || !params) {
+                this.observacionesPorReclamoOperario = {};
+                return;
+            }
+            const observacionesMap = {};
+            await Promise.all(reclamos.map(async (reclamo) => {
+                if (!reclamo?.id) {
+                    return;
+                }
+                try {
+                    const r = await axios.get(
+                        `${BASE_URL}api/reclamos/${reclamo.id}/ejecucion-observaciones`,
+                        { params }
+                    );
+                    observacionesMap[reclamo.id] = Array.isArray(r.data) ? r.data : [];
+                } catch (error) {
+                    console.warn('No se pudieron cargar observaciones del reclamo', reclamo.id, error);
+                    observacionesMap[reclamo.id] = [];
+                }
+            }));
+            this.observacionesPorReclamoOperario = observacionesMap;
+        },
+
+        abrirModalObservacionesEjecucionReclamo(reclamo) {
+            if (!this.puedeOperarRutaSeleccionada) {
+                this.mostrarMensaje('No tenés permisos sobre esta hoja de ruta.', 'warning');
+                return;
+            }
+            if (!this.paramsObservacionesEjecucionOperario()) {
+                this.mostrarMensaje('No se pudo determinar la hoja de ruta para consultar el registro.', 'warning');
+                return;
+            }
+            if (!this.puedeAbrirBitacoraEjecucion(reclamo)) {
+                this.mostrarMensaje('No hay registro en obra para este reclamo.', 'warning');
                 return;
             }
             this.reclamoSeleccionado = { ...reclamo };
             this.observacionEjecucionTexto = '';
+            this.archivoFotoBitacora = null;
+            this.previewFotoBitacora = null;
             this.historialObservacionesEjecucion = [];
             const modal = new bootstrap.Modal(document.getElementById('modalObservacionesEjecucionReclamo'));
             modal.show();
             this.cargarHistorialObservacionesEjecucion();
         },
 
+        esEntradaCambioEstadoBitacora(entrada) {
+            return entrada?.bitacora_tipo === 'cambio_estado';
+        },
+
+        esEntradaFotoBitacora(entrada) {
+            if (this.esEntradaCambioEstadoBitacora(entrada)) {
+                return false;
+            }
+            return !!(entrada && (entrada.tipo === 'foto' || entrada.archivo));
+        },
+
+        urlFotoBitacoraObra(entrada) {
+            if (!entrada) {
+                return '';
+            }
+            if (entrada.url_foto) {
+                return entrada.url_foto;
+            }
+            if (entrada.archivo) {
+                return BASE_URL + 'static/uploads/obra_reclamos/' + entrada.archivo;
+            }
+            return '';
+        },
+
+        abrirModalFotoBitacoraObra(url, caption = '') {
+            if (!url) {
+                return;
+            }
+            this.bitacoraFotoAmpliadaUrl = url;
+            this.bitacoraFotoAmpliadaCaption = (caption || '').trim();
+            this.bitacoraFotoAmpliadaActiva = true;
+            document.body.classList.add('bitacora-foto-obra-lightbox-open');
+            this._onEscapeFotoBitacora = (event) => {
+                if (event.key === 'Escape') {
+                    this.cerrarModalFotoBitacoraObra();
+                }
+            };
+            document.addEventListener('keydown', this._onEscapeFotoBitacora);
+        },
+
+        cerrarModalFotoBitacoraObra() {
+            this.bitacoraFotoAmpliadaActiva = false;
+            this.bitacoraFotoAmpliadaUrl = '';
+            this.bitacoraFotoAmpliadaCaption = '';
+            document.body.classList.remove('bitacora-foto-obra-lightbox-open');
+            if (this._onEscapeFotoBitacora) {
+                document.removeEventListener('keydown', this._onEscapeFotoBitacora);
+                this._onEscapeFotoBitacora = null;
+            }
+        },
+
+        onSeleccionFotoBitacoraEjecucion(event) {
+            const input = event?.target;
+            const archivo = input?.files?.[0];
+            if (!archivo) {
+                return;
+            }
+            const tipos = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!tipos.includes(archivo.type)) {
+                this.mostrarMensaje('Formato no permitido. Use JPG, PNG o WEBP.', 'warning');
+                input.value = '';
+                return;
+            }
+            if (archivo.size > 5 * 1024 * 1024) {
+                this.mostrarMensaje('La imagen no debe superar los 5 MB.', 'warning');
+                input.value = '';
+                return;
+            }
+            if (this.previewFotoBitacora) {
+                URL.revokeObjectURL(this.previewFotoBitacora);
+            }
+            this.archivoFotoBitacora = archivo;
+            this.previewFotoBitacora = URL.createObjectURL(archivo);
+        },
+
+        limpiarPreviewFotoBitacora() {
+            if (this.previewFotoBitacora) {
+                URL.revokeObjectURL(this.previewFotoBitacora);
+            }
+            this.archivoFotoBitacora = null;
+            this.previewFotoBitacora = null;
+            const input = document.getElementById('inputFotoBitacoraEjecucion');
+            if (input) {
+                input.value = '';
+            }
+        },
+
+        async guardarFotoBitacoraEjecucion() {
+            if (!this.archivoFotoBitacora || this.rutaEjecucionActivaId == null || !this.reclamoSeleccionado?.id) {
+                return;
+            }
+            if (!this.puedeRegistrarBitacoraEjecucion(this.reclamoSeleccionado)) {
+                this.mostrarMensaje('Solo podés subir fotos mientras el reclamo está en obra.', 'warning');
+                return;
+            }
+            this.guardandoFotoBitacora = true;
+            try {
+                const formData = new FormData();
+                formData.append('foto', this.archivoFotoBitacora);
+                formData.append('ruta_ejecucion_id', String(this.rutaEjecucionActivaId));
+                const caption = (this.observacionEjecucionTexto || '').trim();
+                if (caption) {
+                    formData.append('texto', caption);
+                }
+                await axios.post(
+                    `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones/foto`,
+                    formData,
+                    { headers: { 'Content-Type': 'multipart/form-data' } }
+                );
+                this.observacionEjecucionTexto = '';
+                this.limpiarPreviewFotoBitacora();
+                this.mostrarMensaje('Foto registrada.', 'success');
+                await this.cargarHistorialObservacionesEjecucion();
+            } catch (error) {
+                console.error('Error al subir foto de ejecución:', error);
+                const mensaje = error?.response?.data?.message
+                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                    || 'No se pudo subir la foto.';
+                this.mostrarMensaje(mensaje, 'error');
+            } finally {
+                this.guardandoFotoBitacora = false;
+            }
+        },
+
         async cargarHistorialObservacionesEjecucion() {
-            if (!this.reclamoSeleccionado?.id || this.rutaEjecucionActivaId == null) {
+            const params = this.paramsObservacionesEjecucionOperario();
+            if (!this.reclamoSeleccionado?.id || !params) {
                 return;
             }
             this.cargandoObservacionesEjecucion = true;
             try {
                 const r = await axios.get(
                     `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones`,
-                    { params: { ruta_ejecucion_id: this.rutaEjecucionActivaId } }
+                    { params }
                 );
                 this.historialObservacionesEjecucion = Array.isArray(r.data) ? r.data : [];
+                this.observacionesPorReclamoOperario = {
+                    ...this.observacionesPorReclamoOperario,
+                    [this.reclamoSeleccionado.id]: this.historialObservacionesEjecucion
+                };
+                this.refrescarBadgesObservacionesInfoWindowMapaDetalleOperario();
             } catch (error) {
                 console.error('Error al cargar observaciones de ejecución:', error);
                 const mensaje = error?.response?.data?.message
@@ -1100,6 +1690,10 @@ const app = Vue.createApp({
         async guardarObservacionEjecucion() {
             const texto = (this.observacionEjecucionTexto || '').trim();
             if (!texto || this.rutaEjecucionActivaId == null || !this.reclamoSeleccionado?.id) {
+                return;
+            }
+            if (!this.puedeRegistrarBitacoraEjecucion(this.reclamoSeleccionado)) {
+                this.mostrarMensaje('Solo podés registrar notas mientras el reclamo está en obra.', 'warning');
                 return;
             }
             this.guardandoObservacionEjecucion = true;
@@ -1169,23 +1763,88 @@ const app = Vue.createApp({
 
         textoCronometroReparacionReclamo(reclamo) {
             const s = this.sesionReparacionReclamo(reclamo);
-            if (!s) return '';
-            let ms = s.acumuladoMs;
-            if (s.activo) {
-                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            if (s) {
+                let ms = s.acumuladoMs;
+                if (s.activo) {
+                    ms += this.ahoraCronometro - s.inicioSegmentoMs;
+                }
+                const sec = Math.max(0, Math.floor(ms / 1000));
+                return this.formatearSegundosCronometro(sec);
             }
-            const sec = Math.max(0, Math.floor(ms / 1000));
-            return this.formatearSegundosCronometro(sec);
+            const sr = reclamo?.sesion_reparacion;
+            const msApi = Number(sr?.acumulado_ms) || 0;
+            if (msApi > 0) {
+                return this.formatearSegundosCronometro(Math.floor(msApi / 1000));
+            }
+            return '';
+        },
+
+        mostrarCronometroReparacionReclamo(reclamo) {
+            return !!this.textoCronometroReparacionReclamo(reclamo);
+        },
+
+        claseCronometroListaObraOperario(reclamo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            const srApi = reclamo?.sesion_reparacion;
+            if (!s && !srApi) {
+                return '';
+            }
+            const nivel = this.nivelDemoraObraReclamoOperario(reclamo);
+            const pausado = s ? !s.activo : true;
+            return ObraCronometroUtil.claseListaCronoObra(nivel, pausado);
         },
 
         cambiarModoVistaRuta(modo) {
             this.modoVistaRuta = modo;
             if (modo === 'mapa') {
-                this.$nextTick(() => this.inicializarMapaDetalleOperarioGoogle());
+                this.$nextTick(() => this.inicializarMapaDetalleOperario());
             }
         },
 
+        async alternarProveedorMapaDetalleOperario() {
+            const nuevoProveedor = this.proveedorMapaDetalleOperario === 'google' ? 'mapbox' : 'google';
+            if (nuevoProveedor === 'google') {
+                this.limpiarMapaDetalleOperarioMapbox();
+            } else {
+                this.limpiarMapaDetalleOperarioGoogle();
+            }
+            this.proveedorMapaDetalleOperario = nuevoProveedor;
+            await this.$nextTick();
+            await this.inicializarMapaDetalleOperario();
+        },
+
+        async inicializarMapaDetalleOperario() {
+            if (this.proveedorMapaDetalleOperario === 'mapbox') {
+                await this.inicializarMapaDetalleOperarioMapbox();
+            } else {
+                await this.inicializarMapaDetalleOperarioGoogle();
+            }
+        },
+
+        async redibujarMapaDetalleOperario() {
+            if (this.proveedorMapaDetalleOperario === 'mapbox') {
+                await this.dibujarRutaDetalleOperarioMapbox();
+            } else {
+                await this.dibujarRutaDetalleOperarioGoogle();
+            }
+        },
+
+        limpiarMapaDetalleOperario() {
+            this.limpiarMapaDetalleOperarioGoogle();
+            this.limpiarMapaDetalleOperarioMapbox();
+        },
+
         limpiarMapaDetalleOperarioGoogle() {
+            if (this.infoWindowAbiertoMapaDetalleOperario) {
+                this.infoWindowAbiertoMapaDetalleOperario.close();
+                this.infoWindowAbiertoMapaDetalleOperario = null;
+            }
+
+            (this._googleObraDetalleOperarioRefs || []).forEach((ref) => {
+                ObraCronometroUtil.quitarCompanionObraGoogle(ref);
+            });
+            this._googleObraDetalleOperarioRefs = [];
+
             this.marcadoresDetalleGoogle.forEach(marker => {
                 marker.setMap(null);
                 google.maps.event.clearInstanceListeners(marker);
@@ -1211,7 +1870,11 @@ const app = Vue.createApp({
             this.mapaDetalleGoogle = new google.maps.Map(contenedor, {
                 zoom: 13,
                 center: centro,
-                mapTypeId: 'roadmap',
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                clickableIcons: false,
                 styles: [
                     {
                         featureType: "poi",
@@ -1236,55 +1899,88 @@ const app = Vue.createApp({
                 google.maps.event.clearInstanceListeners(marker);
             });
             this.marcadoresDetalleGoogle = [];
+            (this._googleObraDetalleOperarioRefs || []).forEach((ref) => {
+                ObraCronometroUtil.quitarCompanionObraGoogle(ref);
+            });
+            this._googleObraDetalleOperarioRefs = [];
             if (this.directionsRendererDetalleGoogle) {
                 this.directionsRendererDetalleGoogle.setMap(null);
                 this.directionsRendererDetalleGoogle = null;
             }
 
-            const reclamosConCoords = (this.reclamosOrdenRuta || []).filter(r => r.coordenadas && r.coordenadas.lat && r.coordenadas.lng);
+            const reclamosConCoords = [];
+            const paradasRuta = this.paradasOrdenRuta || [];
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                if (!reclamoRef?.coordenadas?.lat || !reclamoRef?.coordenadas?.lng) continue;
+                const lat = parseFloat(reclamoRef.coordenadas.lat);
+                const lng = parseFloat(reclamoRef.coordenadas.lng);
+                if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
+                reclamosConCoords.push({ parada, reclamoRef, lat, lng });
+            }
+
             const bounds = new google.maps.LatLngBounds();
             const waypoints = [];
+            let contadorGruposDetalleOperario = 0;
 
-            reclamosConCoords.forEach((reclamo) => {
-                const lat = parseFloat(reclamo.coordenadas.lat);
-                const lng = parseFloat(reclamo.coordenadas.lng);
-                if (Number.isNaN(lat) || Number.isNaN(lng)) return;
-
+            reclamosConCoords.forEach(({ parada, reclamoRef, lat, lng }) => {
                 const position = { lat, lng };
-                const colorEstado = this.getColorEstado(reclamo.municipalidad_estado);
-                const colorPrioridad = this.getColorPrioridad(reclamo.prioridad || 'Baja');
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                const cantidadParada = parada.reclamos.length;
+                const esGrupo = cantidadParada > 1;
+                const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                const badgeCantidad = esGrupo ? cantidadParada : null;
+
                 const marker = new google.maps.Marker({
                     position,
                     map: this.mapaDetalleGoogle,
-                    title: `Posición ${reclamo.posicion}: Reclamo #${reclamo.municipalidad_id}`,
-                    icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
+                    title: esGrupo
+                        ? `Parada ${parada.paradaNumero}: ${cantidadParada} reclamos en el mismo domicilio`
+                        : `Posición ${parada.paradaNumero}: Reclamo #${reclamoRef.municipalidad_id}`,
+                    icon: this.crearIconoNumerado(
+                        parada.paradaNumero,
+                        colorEstado,
+                        prioridadAlta,
+                        null,
+                        motivoBadge,
+                        badgeCantidad
+                    ),
                     zIndex: 1000
                 });
 
-                const infowindow = new google.maps.InfoWindow();
+                const reclamosGrupo = parada.reclamos.map((r) => ({
+                    ...r,
+                    posicion: parada.paradaNumero
+                }));
+                marker._reclamo = reclamosGrupo[0];
+                marker._reclamosGrupo = reclamosGrupo;
+                marker._parada = parada;
+                marker._indicePopup = this.indiceReclamoEnParadaOperario(parada);
+                if (esGrupo) {
+                    marker._grupoId = `grupo-op-detalle-${++contadorGruposDetalleOperario}`;
+                }
 
                 marker.addListener('click', () => {
-                    const rActual = (this.reclamos || []).find((x) => Number(x.id) === Number(reclamo.id)) || reclamo;
-                    const contenido = this.construirInfoWindowContentMapaDetalleOperario(rActual);
-                    infowindow.setContent(contenido);
-                    infowindow.open(this.mapaDetalleGoogle, marker);
-                    this.$nextTick(() => this.refrescarCronometrosInfoWindowMapaDetalleOperario());
+                    this.abrirPopupMapaDetalleOperarioGoogle(marker);
                 });
 
-                marker._reclamoIdDetalle = reclamo.id;
-                if (this.reclamoMuestraCamionObraMapaDetalle(reclamo)) {
-                    const hms = this.textoCronometroReparacionReclamo(reclamo);
-                    const offsetLng = 0.00032;
-                    const companion = new google.maps.Marker({
-                        position: { lat, lng: lng + offsetLng },
-                        map: this.mapaDetalleGoogle,
-                        title: `En obra — ${hms}`,
-                        icon: this.crearIconoCamionHmsDataUrl(hms),
-                        zIndex: 1001,
-                        optimized: false
-                    });
-                    marker._companionObraMapa = companion;
-                    this.marcadoresDetalleGoogle.push(companion);
+                marker._reclamoIdDetalle = reclamoRef.id;
+                const reclamoObra = parada.reclamos.find((r) => this.reclamoMuestraCamionObraMapaDetalle(r));
+                if (reclamoObra) {
+                    const hms = this.textoCronometroReparacionReclamo(reclamoObra);
+                    const nivel = this.nivelDemoraObraReclamoOperario(reclamoObra);
+                    const latLng = new google.maps.LatLng(lat, lng + 0.00032);
+                    const companionRef = ObraCronometroUtil.crearCompanionObraGoogleOverlay(
+                        latLng,
+                        this.mapaDetalleGoogle,
+                        hms,
+                        nivel
+                    );
+                    companionRef._reclamoIdObra = reclamoObra.id;
+                    marker._companionObraMapa = companionRef;
+                    this._googleObraDetalleOperarioRefs.push(companionRef);
                 }
 
                 this.marcadoresDetalleGoogle.push(marker);
@@ -1328,22 +2024,252 @@ const app = Vue.createApp({
                 this.mapaDetalleGoogle.setZoom(13);
             }
         },
+
+        limpiarMapaDetalleOperarioMapbox() {
+            this._mapboxObraDetalleOperarioRefs = [];
+            if (this._marcadoresDetalleOperarioMapbox?.length) {
+                this._marcadoresDetalleOperarioMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresDetalleOperarioMapbox = [];
+
+            if (this.mapaDetalleOperarioMapbox) {
+                if (this.mapaDetalleOperarioMapbox.getLayer('route-op-detalle')) {
+                    this.mapaDetalleOperarioMapbox.removeLayer('route-op-detalle');
+                }
+                if (this.mapaDetalleOperarioMapbox.getSource('route-op-detalle')) {
+                    this.mapaDetalleOperarioMapbox.removeSource('route-op-detalle');
+                }
+                this.mapaDetalleOperarioMapbox.remove();
+                this.mapaDetalleOperarioMapbox = null;
+            }
+        },
+
+        async inicializarMapaDetalleOperarioMapbox() {
+            const contenedor = document.getElementById('mapaRutaDetalleOperarioMapbox');
+            if (!contenedor) return;
+
+            if (this.mapaDetalleOperarioMapbox) {
+                this.mapaDetalleOperarioMapbox.remove();
+                this.mapaDetalleOperarioMapbox = null;
+            }
+
+            mapboxgl.accessToken = this.mapboxToken;
+            this.mapaDetalleOperarioMapbox = new mapboxgl.Map({
+                container: 'mapaRutaDetalleOperarioMapbox',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [-62.110954, -31.426516],
+                zoom: 13
+            });
+
+            await new Promise((resolve) => this.mapaDetalleOperarioMapbox.on('load', resolve));
+            this.mapaDetalleOperarioMapbox.setLayoutProperty('poi-label', 'visibility', 'none');
+            this.mapaDetalleOperarioMapbox.setLayoutProperty('poi-scalerank', 'visibility', 'none');
+
+            await this.dibujarRutaDetalleOperarioMapbox();
+        },
+
+        async dibujarRutaDetalleOperarioMapbox() {
+            if (!this.mapaDetalleOperarioMapbox) return;
+
+            this._mapboxObraDetalleOperarioRefs = [];
+            if (this.mapaDetalleOperarioMapbox.getLayer('route-op-detalle')) {
+                this.mapaDetalleOperarioMapbox.removeLayer('route-op-detalle');
+            }
+            if (this.mapaDetalleOperarioMapbox.getSource('route-op-detalle')) {
+                this.mapaDetalleOperarioMapbox.removeSource('route-op-detalle');
+            }
+
+            document.querySelectorAll('#mapaRutaDetalleOperarioMapbox .mapboxgl-marker').forEach((m) => m.remove());
+            if (this._marcadoresDetalleOperarioMapbox?.length) {
+                this._marcadoresDetalleOperarioMapbox.forEach((marker) => marker.remove());
+            }
+            this._marcadoresDetalleOperarioMapbox = [];
+
+            const reclamosConCoords = [];
+            const paradasRuta = this.paradasOrdenRuta || [];
+
+            for (const parada of paradasRuta) {
+                const reclamoRef = parada.reclamos[0];
+                if (!reclamoRef?.coordenadas?.lat || !reclamoRef?.coordenadas?.lng) continue;
+                const lat = parseFloat(reclamoRef.coordenadas.lat);
+                const lng = parseFloat(reclamoRef.coordenadas.lng);
+                if (Number.isNaN(lat) || Number.isNaN(lng)) continue;
+                reclamosConCoords.push({ parada, reclamoRef, lat, lng });
+            }
+
+            const bounds = new mapboxgl.LngLatBounds();
+            let contadorGruposDetalleOperario = 0;
+
+            reclamosConCoords.forEach(({ parada, reclamoRef, lat, lng }) => {
+                const colorEstado = this.getColorEstado(reclamoRef.municipalidad_estado);
+                const prioridadAlta = this.marcadorGrupoTienePrioridadAlta(parada.reclamos);
+                const cantidadParada = parada.reclamos.length;
+                const esGrupo = cantidadParada > 1;
+                const motivoBadge = esGrupo ? null : reclamoRef.municipalidad_motivo;
+                const badgeCantidad = esGrupo ? cantidadParada : null;
+
+                const el = this.crearElementoMapboxNumeradoMotivo(
+                    parada.paradaNumero,
+                    colorEstado,
+                    motivoBadge,
+                    32,
+                    badgeCantidad,
+                    prioridadAlta
+                );
+
+                const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+                    .setLngLat([lng, lat])
+                    .addTo(this.mapaDetalleOperarioMapbox);
+
+                const reclamosGrupo = parada.reclamos.map((r) => ({
+                    ...r,
+                    posicion: parada.paradaNumero
+                }));
+
+                marker._reclamo = reclamosGrupo[0];
+                marker._reclamosGrupo = reclamosGrupo;
+                marker._parada = parada;
+                marker._indicePopup = this.indiceReclamoEnParadaOperario(parada);
+                marker._reclamoIdDetalle = reclamoRef.id;
+                marker._esMapboxDetalleOperario = true;
+                if (esGrupo) {
+                    marker._grupoId = `grupo-op-detalle-mb-${++contadorGruposDetalleOperario}`;
+                }
+
+                el.addEventListener('click', () => {
+                    this.abrirPopupMapaDetalleOperarioMapbox(marker);
+                });
+
+                this._marcadoresDetalleOperarioMapbox.push(marker);
+                bounds.extend([lng, lat]);
+
+                for (let i = 0; i < parada.reclamos.length; i++) {
+                    const reclamo = parada.reclamos[i];
+                    if (this.reclamoMuestraCamionObraMapaDetalle(reclamo)) {
+                        const hms = this.textoCronometroReparacionReclamo(reclamo);
+                        const nivel = this.nivelDemoraObraReclamoOperario(reclamo);
+                        const { wrap, span } = ObraCronometroUtil.crearElementoIndicadorObraMapbox(hms, nivel);
+                        const offsetLng = 0.00028 + (i * 0.00006);
+                        const companion = new mapboxgl.Marker({ element: wrap, anchor: 'left' })
+                            .setLngLat([lng + offsetLng, lat])
+                            .addTo(this.mapaDetalleOperarioMapbox);
+                        this._marcadoresDetalleOperarioMapbox.push(companion);
+                        if (span) {
+                            this._mapboxObraDetalleOperarioRefs.push({ reclamoId: reclamo.id, span, wrap });
+                        }
+                    }
+                }
+            });
+
+            const reclamosTrazado = paradasRuta.map((parada) => ({
+                ...parada.reclamos[0],
+                posicion: parada.paradaNumero
+            }));
+            const colorRuta = this.rutaSeleccionada?.color || this.rutaSeleccionada?.ruta_color || '#FF6B35';
+            if (reclamosTrazado.length > 1) {
+                await this.trazarRutaMapboxConId(reclamosTrazado, this.mapaDetalleOperarioMapbox, colorRuta, 'route-op-detalle');
+            }
+
+            if (!bounds.isEmpty()) {
+                this.mapaDetalleOperarioMapbox.fitBounds(bounds, { padding: 40, maxZoom: 16 });
+            } else {
+                this.mapaDetalleOperarioMapbox.setCenter([-62.110954, -31.426516]);
+                this.mapaDetalleOperarioMapbox.setZoom(13);
+            }
+        },
+
+        abrirPopupMapaDetalleOperarioMapbox(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            if (marker._parada?.clave) {
+                this.indiceReclamoListaParadaOperario = {
+                    ...this.indiceReclamoListaParadaOperario,
+                    [marker._parada.clave]: marker._indicePopup
+                };
+            }
+
+            const reclamoLista = (this.reclamos || []).find(
+                (r) => Number(r.id) === Number(reclamos[marker._indicePopup].id)
+            );
+            const reclamo = reclamoLista
+                ? { ...reclamos[marker._indicePopup], ...reclamoLista }
+                : reclamos[marker._indicePopup];
+
+            let popup = marker.getPopup();
+            if (!popup) {
+                popup = new mapboxgl.Popup({ offset: 25, maxWidth: '320px' });
+                marker.setPopup(popup);
+            }
+
+            popup.setHTML(this.crearContenidoPopupReclamoOperario(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: true
+            }));
+
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            }
+
+            setTimeout(() => this.vincularEventosPopupMapaDetalleOperarioMapbox(marker, reclamo), 0);
+        },
+
+        vincularEventosPopupMapaDetalleOperarioMapbox(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verDetalles(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapaDetalleOperario(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapaDetalleOperario(marker, 1);
+                    };
+                }
+            }
+
+            const popupRoot = document.querySelector('[data-map-popup-operario="1"]');
+            if (popupRoot) {
+                popupRoot.addEventListener('click', (e) => this.onMapaDetalleInfoWindowAccion(e));
+            }
+        },
         
         /**
          * Obtiene las rutas asignadas a la cuadrilla del operario (solo para operarios)
          */
         async obtenerRutasOperario() {
             try {
-                // Solo obtener rutas si es operario
                 if (this.esOperario) {
                     const response = await axios.get(BASE_URL + 'api/rutas/operario/mis-rutas');
-                    this.rutas = response.data;
+                    const rutas = response.data || [];
+                    this.rutas = rutas;
+                    this.rutasPanel = rutas;
                     console.log('Rutas de mi cuadrilla obtenidas:', this.rutas);
                 } else {
                     this.rutas = [];
                 }
             } catch (error) {
                 console.error('Error al obtener rutas:', error);
+                this.rutas = [];
+                this.rutasPanel = [];
                 this.mostrarMensaje('Error al cargar las rutas', 'error');
             }
         },
@@ -1397,40 +2323,33 @@ const app = Vue.createApp({
                     datosActualizacion.observacion = observacionLimpia;
                 }
 
-                // Actualizar prioridad según el nuevo estado
-                if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
-                    datosActualizacion.prioridad = 'Alta';
-                } else if (nuevoEstadoSeleccionado === 'Completado') {
-                    datosActualizacion.prioridad = null;
-                }
+                // La prioridad la resuelve el backend según las reglas vigentes.
+                const response = await axios.put(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id, datosActualizacion);
+                const reclamoActualizado = response.data || {};
 
-                await axios.put(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id, datosActualizacion);
-                
                 // Actualizar el reclamo en la lista local
                 const index = this.reclamos.findIndex(r => r.id === this.reclamoSeleccionado.id);
                 if (index !== -1) {
-                    this.reclamos[index].municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
-                    
+                    this.reclamos[index].municipalidad_fechaModificacion = reclamoActualizado.municipalidad_fechaModificacion
+                        || datosActualizacion.municipalidad_fechaModificacion;
+
                     if (nuevoEstadoSeleccionado) {
-                        this.reclamos[index].municipalidad_estado = nuevoEstadoSeleccionado;
-                    
-                        // También actualizar la prioridad en la lista local
-                        if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
-                            this.reclamos[index].prioridad = 'Alta';
-                        } else if (nuevoEstadoSeleccionado === 'Completado') {
-                            this.reclamos[index].prioridad = null;
-                        }
+                        this.reclamos[index].municipalidad_estado = reclamoActualizado.municipalidad_estado
+                            || nuevoEstadoSeleccionado;
+                    }
+                    if (Object.prototype.hasOwnProperty.call(reclamoActualizado, 'prioridad')) {
+                        this.reclamos[index].prioridad = reclamoActualizado.prioridad;
                     }
                 }
 
-                this.reclamoSeleccionado.municipalidad_fechaModificacion = datosActualizacion.municipalidad_fechaModificacion;
+                this.reclamoSeleccionado.municipalidad_fechaModificacion = reclamoActualizado.municipalidad_fechaModificacion
+                    || datosActualizacion.municipalidad_fechaModificacion;
                 if (nuevoEstadoSeleccionado) {
-                    this.reclamoSeleccionado.municipalidad_estado = nuevoEstadoSeleccionado;
-                    if (nuevoEstadoSeleccionado === 'En ejecución' || nuevoEstadoSeleccionado === 'Pendiente') {
-                        this.reclamoSeleccionado.prioridad = 'Alta';
-                    } else if (nuevoEstadoSeleccionado === 'Completado') {
-                        this.reclamoSeleccionado.prioridad = null;
-                    }
+                    this.reclamoSeleccionado.municipalidad_estado = reclamoActualizado.municipalidad_estado
+                        || nuevoEstadoSeleccionado;
+                }
+                if (Object.prototype.hasOwnProperty.call(reclamoActualizado, 'prioridad')) {
+                    this.reclamoSeleccionado.prioridad = reclamoActualizado.prioridad;
                 }
 
                 const mensajeExito = nuevoEstadoSeleccionado
@@ -1779,7 +2698,7 @@ const app = Vue.createApp({
                         position: position,
                         map: this.mapaRutas,
                         title: `Posición ${reclamo.posicion}: Reclamo #${reclamo.municipalidad_id}${colorPrioridad !== null ? ' - ⚠️ PRIORIDAD ALTA' : ''}`,
-                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, reclamo.municipalidad_motivo),
+                        icon: this.crearIconoNumerado(reclamo.posicion, colorEstado, colorPrioridad, null, reclamo.municipalidad_motivo),
                         zIndex: 1000
                     });
 
@@ -1981,6 +2900,14 @@ const app = Vue.createApp({
             return colores[estado] || '#808080';
         },
 
+        colorTextoSobreEstadoReclamo(estado) {
+            const e = (estado || '').trim();
+            if (e === 'En ejecución' || e === 'Asignado') {
+                return '#000';
+            }
+            return '#fff';
+        },
+
         /**
          * Obtiene el color del borde según la prioridad (igual que en rutas.js)
          * Solo resalta prioridad Alta con borde rojo, los demás sin borde especial
@@ -2003,6 +2930,7 @@ const app = Vue.createApp({
         iconoMotivoReclamo(motivo) {
             const motivoNormalizado = this.normalizarMotivoReclamo(motivo);
 
+            if (motivoNormalizado.includes('pedido de alumbrado')) return '🌃';
             if (motivoNormalizado.includes('semaforo')) return '🚦';
             if (motivoNormalizado.includes('rama')) return '🌳';
             if (motivoNormalizado.includes('cable')) return '🔌';
@@ -2033,68 +2961,179 @@ const app = Vue.createApp({
             `;
         },
 
+        crearSvgBadgeCantidad(cantidad, x, y, radio = 6, fontSize = 9) {
+            const texto = cantidad > 99 ? '99+' : String(cantidad);
+            return `
+                <circle cx="${x}" cy="${y}" r="${radio}" fill="#212529" stroke="#FFFFFF" stroke-width="1"/>
+                <text x="${x}" y="${y + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="700">${texto}</text>
+            `;
+        },
+
+        reclamoTienePrioridadAlta(reclamo) {
+            return String(reclamo?.prioridad || '').trim().toLowerCase() === 'alta';
+        },
+
+        marcadorGrupoTienePrioridadAlta(reclamos) {
+            return (Array.isArray(reclamos) ? reclamos : []).some((r) => this.reclamoTienePrioridadAlta(r));
+        },
+
+        crearSvgBadgePrioridadAlta(x = 26, y = 6, compacto = false) {
+            const radio = compacto ? 5.5 : 7;
+            const fontSize = compacto ? 8 : 10;
+            const salto = compacto ? 2 : 3;
+            const strokeWidth = compacto ? 1.25 : 1.5;
+            const textoY = compacto ? 2.8 : 3.5;
+
+            return `<g transform="translate(${x}, ${y})">
+                <g>
+                    <circle cx="0" cy="0" r="${radio}" fill="#DC3545" stroke="#FFFFFF" stroke-width="${strokeWidth}"/>
+                    <text x="0" y="${textoY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" fill="#FFFFFF">!</text>
+                    <animateTransform attributeName="transform" type="translate" values="0,0; 0,-${salto}; 0,0" dur="0.75s" repeatCount="indefinite"/>
+                </g>
+            </g>`;
+        },
+
         /**
          * Crea un icono numerado para los marcadores de la ruta (igual que en rutas.js)
-         * Si tiene prioridad Alta, muestra animación de pulso
          */
-        crearIconoNumerado(numero, colorEstado, colorPrioridad, motivo = null) {
-            const tienePrioridadAlta = colorPrioridad !== null;
-            
-            if (tienePrioridadAlta) {
-                // Con animación de pulso doble más grande y lenta con rojo oscuro para prioridad Alta
+        crearIconoNumerado(numero, colorEstado, colorPrioridad, tamanoPersonalizado = null, motivo = null, badgeCantidad = null) {
+            const tienePrioridadAlta = typeof colorPrioridad === 'boolean'
+                ? colorPrioridad
+                : (colorPrioridad !== null && colorPrioridad !== undefined);
+            const badgePrioridadSvg = tienePrioridadAlta && !tamanoPersonalizado
+                ? this.crearSvgBadgePrioridadAlta(7, 7)
+                : '';
+            const badgeSvg = badgeCantidad > 1
+                ? this.crearSvgBadgeCantidad(badgeCantidad, tamanoPersonalizado ? tamanoPersonalizado - 6 : 25, tamanoPersonalizado ? 6 : 7, tamanoPersonalizado ? Math.max(4.5, tamanoPersonalizado * 0.17) : 6, tamanoPersonalizado ? Math.max(7, tamanoPersonalizado * 0.26) : 9)
+                : this.crearSvgBadgeMotivo(motivo, tamanoPersonalizado ? tamanoPersonalizado - 6 : 25, tamanoPersonalizado ? 6 : 7, tamanoPersonalizado ? Math.max(4.5, tamanoPersonalizado * 0.17) : 6, tamanoPersonalizado ? Math.max(7, tamanoPersonalizado * 0.26) : 9);
+
+            if (tamanoPersonalizado) {
+                const size = tamanoPersonalizado;
+                const half = size / 2;
+                const r = Math.max(8, Math.floor(size * 0.42));
+                const fontSize = Math.max(8, Math.floor(size * 0.38));
+                const badgeMotivoOCantidad = badgeCantidad > 1
+                    ? badgeSvg
+                    : this.crearSvgBadgeMotivo(motivo, size - 6, 6, Math.max(4.5, size * 0.17), Math.max(7, size * 0.26));
+
+                if (tienePrioridadAlta) {
+                    const badgePrioridadX = Math.max(4, Math.round(size * 6 / 32));
+                    const badgePrioridadY = badgePrioridadX;
+                    const viewTop = -5;
+                    const viewHeight = size + Math.abs(viewTop);
+                    const displayH = viewHeight;
+                    const anchorY = Math.round(((half - viewTop) / viewHeight) * displayH);
+
+                    return {
+                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                            <svg width="${size}" height="${displayH}" viewBox="0 ${viewTop} ${size} ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                                <circle cx="${half}" cy="${half}" r="${r}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1.5"/>
+                                <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
+                                ${this.crearSvgBadgePrioridadAlta(badgePrioridadX, badgePrioridadY, true)}
+                                ${badgeMotivoOCantidad}
+                            </svg>
+                        `)}`,
+                        scaledSize: new google.maps.Size(size, displayH),
+                        anchor: new google.maps.Point(half, anchorY)
+                    };
+                }
+
                 return {
                     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Pulso exterior rojo oscuro grande y lento -->
-                            <circle cx="20" cy="20" r="0" fill="#B71C1C" opacity="0.7">
-                                <animate attributeName="r" values="0;24;0" dur="2.5s" repeatCount="indefinite"/>
-                                <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite"/>
-                            </circle>
-                            <!-- Pulso medio rojo intenso con retardo -->
-                            <circle cx="20" cy="20" r="0" fill="#C62828" opacity="0.9">
-                                <animate attributeName="r" values="0;19;0" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
-                                <animate attributeName="opacity" values="0.9;0.3;0.9" dur="2.5s" begin="0.4s" repeatCount="indefinite"/>
-                            </circle>
-                            <!-- Círculo principal del marcador -->
-                            <circle cx="20" cy="20" r="15" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
-                            <!-- Número -->
-                            <text x="20" y="25" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="bold">${numero}</text>
-                            ${this.crearSvgBadgeMotivo(motivo, 31, 9, 7, 10)}
+                        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="${half}" cy="${half}" r="${r}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1.5"/>
+                            <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
+                            ${badgeMotivoOCantidad}
                         </svg>
                     `)}`,
-                    scaledSize: new google.maps.Size(40, 40),
-                    anchor: new google.maps.Point(20, 20)
-                };
-            } else {
-                // Sin animación para prioridad Baja
-                return {
-                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
-                            <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
-                            ${this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
-                        </svg>
-                    `)}`,
-                    scaledSize: new google.maps.Size(32, 32),
-                    anchor: new google.maps.Point(16, 16)
+                    scaledSize: new google.maps.Size(size, size),
+                    anchor: new google.maps.Point(half, half)
                 };
             }
+
+            if (tienePrioridadAlta) {
+                const viewTop = -7;
+                const viewHeight = 39;
+                const displayH = 39;
+                const anchorY = Math.round(((16 - viewTop) / viewHeight) * displayH);
+
+                return {
+                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                        <svg width="32" height="${displayH}" viewBox="0 ${viewTop} 32 ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+                            <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                            <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
+                            ${badgePrioridadSvg}
+                            ${badgeCantidad > 1 ? this.crearSvgBadgeCantidad(badgeCantidad, 25, 7, 6, 9) : this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
+                        </svg>
+                    `)}`,
+                    scaledSize: new google.maps.Size(32, displayH),
+                    anchor: new google.maps.Point(16, anchorY)
+                };
+            }
+
+            return {
+                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                        <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
+                        ${badgeCantidad > 1 ? this.crearSvgBadgeCantidad(badgeCantidad, 25, 7, 6, 9) : this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
+                    </svg>
+                `)}`,
+                scaledSize: new google.maps.Size(32, 32),
+                anchor: new google.maps.Point(16, 16)
+            };
+        },
+
+        crearElementoMapboxNumeradoMotivo(numero, colorEstado, motivo, size = 32, badgeCantidad = null, prioridadAlta = false) {
+            const half = size / 2;
+            const radio = Math.max(11, Math.floor(size * 0.43));
+            const fontSize = Math.max(9, Math.floor(size * 0.36));
+            const badgeX = size - 7;
+            const badgeY = 7;
+            const badgeMarkup = badgeCantidad > 1
+                ? this.crearSvgBadgeCantidad(badgeCantidad, badgeX, badgeY, Math.max(5, Math.floor(size * 0.18)), Math.max(8, Math.floor(size * 0.28)))
+                : this.crearSvgBadgeMotivo(motivo, badgeX, badgeY, Math.max(5, Math.floor(size * 0.18)), Math.max(8, Math.floor(size * 0.28)));
+            const badgePrioridadSvg = prioridadAlta ? this.crearSvgBadgePrioridadAlta(7, 7) : '';
+            const elemento = document.createElement('div');
+            elemento.className = 'marker-mapbox-ruta';
+            elemento.style.width = `${size}px`;
+            elemento.style.height = `${size}px`;
+            elemento.style.lineHeight = '0';
+            elemento.style.cursor = 'pointer';
+            elemento.innerHTML = `
+                <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" overflow="visible" aria-hidden="true">
+                    <circle cx="${half}" cy="${half}" r="${radio}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                    <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
+                    ${badgePrioridadSvg}
+                    ${badgeMarkup}
+                </svg>
+            `;
+            return elemento;
         },
 
         /** Icono camión + cronómetro (misma idea que vista supervisor en rutas). */
-        crearIconoCamionHmsDataUrl(hms) {
-            const esc = String(hms).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const truck = String.fromCodePoint(0x1F69A);
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="92" height="38" viewBox="0 0 92 38">
-                <rect x="1" y="1" width="90" height="36" rx="8" fill="#212529" stroke="#ffc107" stroke-width="2"/>
-                <text x="10" y="26" font-size="15">${truck}</text>
-                <text x="34" y="25" font-size="11" font-family="monospace" fill="#ffc107">${esc}</text>
-            </svg>`;
-            return {
-                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-                scaledSize: new google.maps.Size(92, 38),
-                anchor: new google.maps.Point(4, 19)
-            };
+        async cargarPromediosTiempoMotivo() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/reclamos/tiempos-promedio');
+                this.promediosTiempoMotivoMap = ObraCronometroUtil.indexarPromediosMotivo(response.data);
+            } catch (error) {
+                console.warn('No se pudieron cargar promedios de tiempo por motivo:', error);
+            }
+        },
+
+        nivelDemoraObraReclamoOperario(reclamo) {
+            const motivo = reclamo?.municipalidad_motivo || '';
+            const promedio = ObraCronometroUtil.promedioMinutosMotivo(this.promediosTiempoMotivoMap, motivo);
+            return ObraCronometroUtil.nivelDemoraObra(this.tiempoMsSesionReparacionReclamo(reclamo), promedio);
+        },
+
+        actualizarIndicadorObraOperario(ref, reclamo) {
+            if (!ref || !reclamo) {
+                return;
+            }
+            const hms = this.textoCronometroReparacionReclamo(reclamo);
+            const nivel = this.nivelDemoraObraReclamoOperario(reclamo);
+            ObraCronometroUtil.actualizarIndicadorObraMapbox(ref.wrap, ref.span, hms, nivel);
         },
 
         reclamoMuestraCamionObraMapaDetalle(reclamo) {
@@ -2105,18 +3144,28 @@ const app = Vue.createApp({
         },
 
         refrescarCompanionsObraMapaDetalleOperario() {
-            if (!this.mapaDetalleGoogle || !this.marcadoresDetalleGoogle?.length) return;
-            this.marcadoresDetalleGoogle.forEach((m) => {
-                if (!m._companionObraMapa || m._reclamoIdDetalle == null) return;
-                const r = (this.reclamos || []).find((x) => Number(x.id) === Number(m._reclamoIdDetalle));
-                if (!r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
-                    m._companionObraMapa.setMap(null);
-                    m._companionObraMapa = null;
-                    return;
-                }
-                const hms = this.textoCronometroReparacionReclamo(r);
-                m._companionObraMapa.setIcon(this.crearIconoCamionHmsDataUrl(hms));
-            });
+            if (this._googleObraDetalleOperarioRefs?.length) {
+                this._googleObraDetalleOperarioRefs = this._googleObraDetalleOperarioRefs.filter((ref) => {
+                    const r = (this.reclamos || []).find((x) => Number(x.id) === Number(ref._reclamoIdObra));
+                    if (!r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
+                        ObraCronometroUtil.quitarCompanionObraGoogle(ref);
+                        return false;
+                    }
+                    this.actualizarIndicadorObraOperario(ref, r);
+                    return true;
+                });
+            }
+
+            if (this._mapboxObraDetalleOperarioRefs?.length) {
+                this._mapboxObraDetalleOperarioRefs.forEach((ref) => {
+                    const r = (this.reclamos || []).find((x) => Number(x.id) === Number(ref.reclamoId));
+                    if (!ref.span || !r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
+                        if (ref.span) ref.span.textContent = '—';
+                        return;
+                    }
+                    this.actualizarIndicadorObraOperario(ref, r);
+                });
+            }
         },
 
         /** Actualiza HH:MM:SS en el globo del mapa (el HTML del InfoWindow no es reactivo). */
@@ -2127,16 +3176,263 @@ const app = Vue.createApp({
                     return;
                 }
                 const r = (this.reclamos || []).find((x) => Number(x.id) === rid);
-                if (!r || !this.sesionReparacionReclamo(r)) {
-                    el.textContent = '—';
+                if (!r || !this.mostrarCronometroReparacionReclamo(r)) {
+                    ObraCronometroUtil.actualizarTextoCronometroBadge(el, '—', 'reclamo');
+                    ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, '');
                     return;
                 }
-                el.textContent = this.textoCronometroReparacionReclamo(r);
+                ObraCronometroUtil.actualizarTextoCronometroBadge(
+                    el,
+                    this.textoCronometroReparacionReclamo(r),
+                    'reclamo'
+                );
+                ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, this.claseCronometroListaObraOperario(r));
+            });
+            this.refrescarBadgesObservacionesInfoWindowMapaDetalleOperario();
+        },
+
+        refrescarBadgesObservacionesInfoWindowMapaDetalleOperario() {
+            document.querySelectorAll('[data-map-iw-obs-count-id]').forEach((el) => {
+                const rid = parseInt(el.getAttribute('data-map-iw-obs-count-id'), 10);
+                if (Number.isNaN(rid)) {
+                    return;
+                }
+                const r = (this.reclamos || []).find((x) => Number(x.id) === rid);
+                const count = r ? this.cantidadObservacionesEjecucionReclamoOperario(r) : 0;
+                const texto = this.textoObservacionesEjecucionBadge(count);
+                if (!texto) {
+                    el.remove();
+                    return;
+                }
+                el.textContent = texto;
             });
         },
 
+        paradaDeReclamoOperario(reclamo) {
+            if (!reclamo?.id) return null;
+            return (this.paradasOrdenRuta || []).find((parada) =>
+                parada.reclamos.some((r) => Number(r.id) === Number(reclamo.id))
+            ) || null;
+        },
+
+        crearEncabezadoPopupReclamoOperario(reclamo) {
+            const icono = this.iconoMotivoReclamo(reclamo.municipalidad_motivo);
+            const color = this.getColorEstado(reclamo.municipalidad_estado || 'Recibido');
+            return `
+                <div class="mapa-popup-header">
+                    <span class="mapa-popup-motivo-icon" style="background-color: ${color};" aria-hidden="true">${icono}</span>
+                    <h6>Reclamo #${reclamo.municipalidad_id}</h6>
+                </div>
+            `;
+        },
+
+        crearHtmlAccionesPopupMapaDetalleOperario(reclamo) {
+            if (!this.esOperario || !this.puedeOperarRutaSeleccionada) {
+                return '';
+            }
+
+            const rid = String(reclamo.id);
+            const puedeVerRegistros = this.puedeVerRegistrosObraReclamo(reclamo);
+            const enEjecucion = this.rutaSeleccionadaEnEjecucion;
+            if (!puedeVerRegistros && !enEjecucion) {
+                return '';
+            }
+
+            const parada = this.paradaDeReclamoOperario(reclamo);
+            const obraActivaParada = parada ? this.paradaTieneObraActiva(parada) : false;
+            const sesActivaReclamo = (() => {
+                const ses = this.sesionReparacionReclamo(reclamo);
+                return ses && ses.activo;
+            })();
+            const mostrarListoPendiente = enEjecucion && this.puedeEditarTareasRutaSeleccionada && (obraActivaParada || sesActivaReclamo);
+            const mostrarContinuar = enEjecucion && this.puedeEditarTareasRutaSeleccionada && (parada
+                ? this.puedeMostrarContinuarParada(parada)
+                : this.puedeMostrarContinuarReparacionReclamo(reclamo));
+            const tituloParada = parada && parada.reclamos.length > 1
+                ? ' (todos los reclamos en este domicilio con obra activa)'
+                : '';
+
+            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--obra d-flex flex-wrap align-items-center gap-1 border-top pt-2 mt-2">';
+
+            if (enEjecucion && this.puedeEditarTareasRutaSeleccionada && this.puedeMostrarIniciarReparacionReclamo(reclamo)) {
+                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="iniciar" data-reclamo-id="${rid}"><i class="bi bi-play-fill text-white"></i> Iniciar</button>`;
+            }
+
+            if (puedeVerRegistros) {
+                if (this.mostrarCronometroReparacionReclamo(reclamo)) {
+                    const claseCrono = this.claseCronometroListaObraOperario(reclamo);
+                    html += ObraCronometroUtil.htmlSpanCronometroBadge(
+                        `badge font-monospace map-detalle-iw-crono ruta-secuencia-crono-reparacion ${claseCrono}`,
+                        this.textoCronometroReparacionReclamo(reclamo),
+                        'reclamo',
+                        `data-map-iw-crono-reclamo-id="${rid}" title="Tiempo en obra"`
+                    );
+                }
+                html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="materiales" data-reclamo-id="${rid}" title="Materiales utilizados"><i class="bi bi-box-seam"></i></button>`;
+                const obsCount = this.cantidadObservacionesEjecucionReclamoOperario(reclamo);
+                const tituloObs = obsCount > 0
+                    ? `Registro en obra (${obsCount})`
+                    : 'Registro en obra';
+                html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
+            }
+
+            if (mostrarListoPendiente) {
+                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="completado" data-reclamo-id="${rid}" title="Marcar como completado${tituloParada}"><i class="bi bi-check-lg"></i></button>`;
+                html += `<button type="button" class="btn btn-sm btn-warning text-dark" data-map-accion="pendiente" data-reclamo-id="${rid}" title="Pendiente para otro día${tituloParada}"><i class="bi bi-pause-circle"></i></button>`;
+            } else if (mostrarContinuar) {
+                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="continuar" data-reclamo-id="${rid}" title="Continuar ejecución${tituloParada}"><i class="bi bi-play-fill text-white"></i></button>`;
+            }
+
+            html += '</div>';
+            return html;
+        },
+
+        crearContenidoPopupReclamoOperario(reclamo, opciones = {}) {
+            const { grupoId = null, indice = 0, total = 1, incluirTitulo = false } = opciones;
+            const causasPrioridadAlta = typeof MapaPrioridadUtil !== 'undefined'
+                ? MapaPrioridadUtil.obtenerCausasPrioridadAlta(reclamo)
+                : [];
+            const lineaPopup = (campo, etiqueta, valor) => (
+                typeof MapaPrioridadUtil !== 'undefined'
+                    ? MapaPrioridadUtil.crearLineaPopupCampo(etiqueta, valor, causasPrioridadAlta.includes(campo))
+                    : `<p><strong>${etiqueta}:</strong> ${valor}</p>`
+            );
+            const navegacionGrupo = total > 1 ? `
+                <div class="mapa-popup-grupo-nav">
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-prev" data-grupo-id="${grupoId}" aria-label="Reclamo anterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="mapa-popup-grupo-contador">${indice + 1} de ${total} en este domicilio</span>
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-next" data-grupo-id="${grupoId}" aria-label="Siguiente reclamo">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            ` : '';
+            const encabezado = incluirTitulo ? this.crearEncabezadoPopupReclamoOperario(reclamo) : '';
+
+            return `
+                <div class="mapa-popup-reclamo map-detalle-iw" data-map-popup-operario="1">
+                    ${encabezado}
+                    ${navegacionGrupo}
+                    ${lineaPopup('motivo', 'Motivo', reclamo.municipalidad_motivo || 'No especificado')}
+                    ${lineaPopup('estado', 'Estado', reclamo.municipalidad_estado || 'No especificado')}
+                    <p><strong>Prioridad:</strong> ${reclamo.prioridad || 'No especificado'}</p>
+                    <p><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
+                    ${lineaPopup('fecha', 'Fecha', this.formatearFecha(reclamo.municipalidad_fechaInicio))}
+                    <p><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
+                    ${lineaPopup('descripcion', 'Descripción', reclamo.municipalidad_descripcion || 'No especificado')}
+                    <div class="mapa-popup-acciones">
+                        <button type="button" class="mapa-popup-btn mapa-popup-detalle" data-reclamo-id="${reclamo.id}">
+                            <i class="bi bi-card-text"></i> Ver detalle
+                        </button>
+                    </div>
+                    ${this.crearHtmlAccionesPopupMapaDetalleOperario(reclamo)}
+                </div>
+            `;
+        },
+
+        abrirPopupMapaDetalleOperarioGoogle(marker, indice = null) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length || !this.mapaDetalleGoogle) {
+                return;
+            }
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined) {
+                marker._indicePopup = 0;
+            }
+
+            if (marker._parada?.clave) {
+                this.indiceReclamoListaParadaOperario = {
+                    ...this.indiceReclamoListaParadaOperario,
+                    [marker._parada.clave]: marker._indicePopup
+                };
+            }
+
+            const reclamoLista = (this.reclamos || []).find((r) => Number(r.id) === Number(reclamos[marker._indicePopup].id));
+            const reclamo = reclamoLista ? { ...reclamos[marker._indicePopup], ...reclamoLista } : reclamos[marker._indicePopup];
+
+            const infoWindow = marker._infoWindow || new google.maps.InfoWindow();
+            marker._infoWindow = infoWindow;
+
+            infoWindow.setContent(this.crearContenidoPopupReclamoOperario(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: reclamos.length,
+                incluirTitulo: false
+            }));
+
+            if (this.infoWindowAbiertoMapaDetalleOperario) {
+                this.infoWindowAbiertoMapaDetalleOperario.close();
+            }
+
+            infoWindow.open(this.mapaDetalleGoogle, marker);
+            this.infoWindowAbiertoMapaDetalleOperario = infoWindow;
+
+            google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+                setTimeout(() => this.vincularEventosPopupMapaDetalleOperario(marker, reclamo), 100);
+            });
+        },
+
+        vincularEventosPopupMapaDetalleOperario(marker, reclamo) {
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verDetalles(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapaDetalleOperario(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapaDetalleOperario(marker, 1);
+                    };
+                }
+            }
+
+            const headerElement = document.querySelector('.gm-style-iw-ch');
+            if (headerElement) {
+                headerElement.innerHTML = this.crearEncabezadoPopupReclamoOperario(reclamo);
+            }
+
+            const popupRoot = document.querySelector('[data-map-popup-operario="1"]');
+            if (popupRoot) {
+                popupRoot.addEventListener('click', (e) => this.onMapaDetalleInfoWindowAccion(e));
+            }
+        },
+
+        navegarPopupGrupoMapaDetalleOperario(marker, delta) {
+            const reclamos = marker._reclamosGrupo || (marker._reclamo ? [marker._reclamo] : []);
+            if (!reclamos.length) {
+                return;
+            }
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) {
+                nuevoIndice = reclamos.length - 1;
+            }
+            if (nuevoIndice >= reclamos.length) {
+                nuevoIndice = 0;
+            }
+
+            if (marker._esMapboxDetalleOperario) {
+                this.abrirPopupMapaDetalleOperarioMapbox(marker, nuevoIndice);
+            } else {
+                this.abrirPopupMapaDetalleOperarioGoogle(marker, nuevoIndice);
+            }
+        },
+
         /**
-         * Crea el contenido del info window para un reclamo (igual que en rutas.js)
+         * Crea el contenido del info window para un reclamo (vistas legacy)
          */
         crearContenidoInfoWindow(reclamo) {
             return `
@@ -2156,95 +3452,21 @@ const app = Vue.createApp({
         },
 
         /**
-         * InfoWindow del mapa de hoja (operario): datos + mismas acciones que en vista lista.
+         * @deprecated Usar crearContenidoPopupReclamoOperario en mapa detalle operario.
          */
         construirInfoWindowContentMapaDetalleOperario(reclamo) {
             const wrap = document.createElement('div');
-            wrap.className = 'map-detalle-iw';
-            wrap.innerHTML = this.crearContenidoInfoWindow(reclamo);
-
-            if (!this.esOperario || !this.puedeEditarTareasRutaSeleccionada) {
-                return wrap;
+            wrap.innerHTML = this.crearContenidoPopupReclamoOperario(reclamo, {
+                incluirTitulo: true,
+                indice: 0,
+                total: 1
+            });
+            wrap.querySelector('[data-map-popup-operario="1"]')
+                ?.addEventListener('click', (e) => this.onMapaDetalleInfoWindowAccion(e));
+            const btnDetalle = wrap.querySelector('.mapa-popup-detalle');
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verDetalles(reclamo);
             }
-
-            const acciones = document.createElement('div');
-            acciones.className = 'map-detalle-iw-acciones border-top pt-2 mt-2 d-flex flex-wrap align-items-center gap-1';
-
-            const rid = String(reclamo.id);
-
-            if (this.puedeMostrarIniciarReparacionReclamo(reclamo)) {
-                const b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'btn btn-sm btn-success';
-                b.innerHTML = '<i class="bi bi-play-fill text-white"></i> Iniciar';
-                b.setAttribute('data-map-accion', 'iniciar');
-                b.setAttribute('data-reclamo-id', rid);
-                acciones.appendChild(b);
-            }
-
-            const ses = this.sesionReparacionReclamo(reclamo);
-            if (ses) {
-                const crono = document.createElement('span');
-                crono.className = 'badge bg-dark font-monospace map-detalle-iw-crono';
-                crono.setAttribute('data-map-iw-crono-reclamo-id', rid);
-                crono.textContent = this.textoCronometroReparacionReclamo(reclamo);
-                crono.title = 'Tiempo en obra';
-                acciones.appendChild(crono);
-
-                const bMat = document.createElement('button');
-                bMat.type = 'button';
-                bMat.className = 'btn btn-sm btn-outline-secondary';
-                bMat.innerHTML = '<i class="bi bi-box-seam"></i>';
-                bMat.title = 'Materiales utilizados';
-                bMat.setAttribute('data-map-accion', 'materiales');
-                bMat.setAttribute('data-reclamo-id', rid);
-                acciones.appendChild(bMat);
-
-                const bObs = document.createElement('button');
-                bObs.type = 'button';
-                bObs.className = 'btn btn-sm btn-outline-secondary';
-                bObs.innerHTML = '<i class="bi bi-chat-left-text"></i>';
-                bObs.title = 'Observaciones en esta ejecución';
-                bObs.setAttribute('data-map-accion', 'observaciones');
-                bObs.setAttribute('data-reclamo-id', rid);
-                acciones.appendChild(bObs);
-
-                if (ses.activo) {
-                    const bOk = document.createElement('button');
-                    bOk.type = 'button';
-                    bOk.className = 'btn btn-sm btn-success';
-                    bOk.innerHTML = '<i class="bi bi-check-lg"></i>';
-                    bOk.title = 'Marcar como completado';
-                    bOk.setAttribute('data-map-accion', 'completado');
-                    bOk.setAttribute('data-reclamo-id', rid);
-                    acciones.appendChild(bOk);
-
-                    const bPen = document.createElement('button');
-                    bPen.type = 'button';
-                    bPen.className = 'btn btn-sm btn-warning text-dark';
-                    bPen.innerHTML = '<i class="bi bi-pause-circle"></i>';
-                    bPen.title = 'Pendiente para otro día';
-                    bPen.setAttribute('data-map-accion', 'pendiente');
-                    bPen.setAttribute('data-reclamo-id', rid);
-                    acciones.appendChild(bPen);
-                } else if (this.puedeMostrarContinuarReparacionReclamo(reclamo)) {
-                    const bCont = document.createElement('button');
-                    bCont.type = 'button';
-                    bCont.className = 'btn btn-sm btn-success';
-                    bCont.innerHTML = '<i class="bi bi-play-fill text-white"></i>';
-                    bCont.title = 'Continuar ejecución';
-                    bCont.setAttribute('data-map-accion', 'continuar');
-                    bCont.setAttribute('data-reclamo-id', rid);
-                    acciones.appendChild(bCont);
-                }
-            }
-
-            if (acciones.childNodes.length) {
-                wrap.appendChild(acciones);
-            }
-
-            wrap.addEventListener('click', (e) => this.onMapaDetalleInfoWindowAccion(e));
-
             return wrap;
         },
 
@@ -2262,7 +3484,12 @@ const app = Vue.createApp({
                 return;
             }
             if (accion === 'iniciar') {
-                void this.iniciarReparacionReclamo(r);
+                const parada = this.paradaDeReclamoOperario(r);
+                if (parada) {
+                    void this.iniciarReparacionParada(parada);
+                } else {
+                    void this.iniciarReparacionReclamo(r);
+                }
                 return;
             }
             if (accion === 'materiales') {
@@ -2274,15 +3501,30 @@ const app = Vue.createApp({
                 return;
             }
             if (accion === 'completado') {
-                void this.ejecutarCierreReclamoObra(r, 'completado');
+                const parada = this.paradaDeReclamoOperario(r);
+                if (parada) {
+                    void this.ejecutarCierreParadaObra(parada, 'completado');
+                } else {
+                    void this.ejecutarCierreReclamoObra(r, 'completado');
+                }
                 return;
             }
             if (accion === 'pendiente') {
-                void this.ejecutarCierreReclamoObra(r, 'pendiente');
+                const parada = this.paradaDeReclamoOperario(r);
+                if (parada) {
+                    void this.ejecutarCierreParadaObra(parada, 'pendiente');
+                } else {
+                    void this.ejecutarCierreReclamoObra(r, 'pendiente');
+                }
                 return;
             }
             if (accion === 'continuar') {
-                void this.continuarReparacionReclamo(r);
+                const parada = this.paradaDeReclamoOperario(r);
+                if (parada) {
+                    void this.continuarReparacionParada(parada);
+                } else {
+                    void this.continuarReparacionReclamo(r);
+                }
             }
         },
 
@@ -3014,8 +4256,11 @@ const app = Vue.createApp({
 
     async mounted() {
         if (this.esOperario) {
-            await this.obtenerRutasOperario();
-            await this.obtenerTodasLasRutas();
+            await Promise.all([
+                this.obtenerRutasOperario(),
+                this.obtenerCuadrillas(),
+                this.cargarPromediosTiempoMotivo()
+            ]);
             this.iniciarRelojEjecucionOperario();
             await this.$nextTick();
             this.inicializarMapasPreviewOperario();
@@ -3026,6 +4271,7 @@ const app = Vue.createApp({
     },
 
     beforeUnmount() {
+        this.cerrarModalFotoBitacoraObra();
         this.detenerRelojEjecucionOperario();
         this.limpiarMapasPreviewOperario();
     }

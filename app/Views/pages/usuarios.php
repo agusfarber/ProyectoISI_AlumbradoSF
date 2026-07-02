@@ -10,33 +10,42 @@
         <table id="tabla_usuarios" class="table table-bordered table-hover w-100">
             <thead>
                 <tr>
+                    <th>Foto</th>
                     <th>Nombre</th>
                     <th>Email / Legajo</th>
                     <th>Rol</th>
-                    <!--th>Acciones</th-->
+                    <th class="text-center">Acciones</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr v-for="user in usuarios" :key="user.id">
-                    <td>{{ user.nombre }}</td>
-                    <td>{{ user.email || user.legajo || 'No especificado' }}</td>
-                    <td>{{ getNombreRol(user.idRol) }}</td>
-                    <!--
-                    <td>
-                        <button class="btn btn-sm btn-info me-1" @click="verUsuario(user)" title="Ver detalles">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-warning me-1" @click="editarUsuario(user)" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" @click="eliminarUsuario(user)" title="Eliminar">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                    -->
-                </tr>
-            </tbody>
+            <tbody></tbody>
         </table>
+    </div>
+
+    <!-- Modal para subir/cambiar la foto de perfil -->
+    <div class="modal fade" id="modalFotoUsuario" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Foto de perfil — {{ fotoUsuario.nombre }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="foto-preview-wrap mb-3">
+                        <img v-if="fotoPreview" :src="fotoPreview" class="foto-preview" alt="Vista previa">
+                        <span v-else class="foto-preview foto-preview--initials">{{ iniciales(fotoUsuario.nombre) }}</span>
+                    </div>
+                    <input type="file" class="form-control" id="inputFotoUsuario" accept="image/jpeg,image/png,image/webp" @change="onFotoSeleccionada">
+                    <small class="text-muted d-block mt-2">Formatos: JPG, PNG o WEBP. Máximo 2 MB.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" @click="guardarFoto" :disabled="!archivoFoto || subiendoFoto">
+                        <span v-if="subiendoFoto" class="spinner-border spinner-border-sm me-1"></span>
+                        {{ subiendoFoto ? 'Subiendo...' : 'Guardar foto' }}
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Usuario -->

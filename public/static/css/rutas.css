@@ -1,32 +1,1163 @@
-/* Panel de hojas de ruta — vista supervisor (tarjetas) */
+/* ========================================
+   ESTILOS PARA RUTAS — página principal
+   Alineado al patrón de cuadrillas, reclamos y cierre
+   ======================================== */
+
+@import url('mapa.css');
+
+.rutas-page {
+    padding: 0;
+    width: 100%;
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.rutas-page-title {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    margin-bottom: 1rem;
+}
+
+/* ---------- Toolbar ---------- */
+.rutas-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.rutas-toolbar__left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.rutas-toolbar__right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+/* ---------- Pestañas ---------- */
+.rutas-tabs {
+    display: flex;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
+}
+
+.rutas-tabs .nav-item {
+    margin: 0;
+}
+
+.rutas-tabs .nav-link {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    background: var(--color-white);
+    color: var(--color-purple-dark);
+    font-weight: 600;
+    font-size: 0.82rem;
+    padding: 0.48rem 1.1rem;
+    line-height: 1.2;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.rutas-tabs .nav-link:hover:not(.active) {
+    background: #f7f7fb;
+    border-color: var(--color-purple-light);
+    color: var(--color-purple-dark);
+}
+
+.rutas-tabs .nav-link.active {
+    background: var(--gradient-primary);
+    border-color: transparent;
+    color: var(--color-white);
+    box-shadow: var(--shadow-light);
+}
+
+/* rutas-btn: estilos en global.css */
+
+/* ---------- Tabla principal ---------- */
+.rutas-table-section {
+    width: 100%;
+}
+
+.rutas-table thead th {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
+}
+
+.rutas-table thead th.dt-orderable-asc:hover,
+.rutas-table thead th.dt-orderable-desc:hover {
+    outline: 2px solid rgba(255, 255, 255, 0.15);
+    outline-offset: -2px;
+}
+
+.rutas-table thead th span.dt-column-order::before,
+.rutas-table thead th span.dt-column-order::after {
+    color: var(--color-white);
+    opacity: 0.35;
+}
+
+.rutas-table thead th.dt-ordering-asc span.dt-column-order::before,
+.rutas-table thead th.dt-ordering-desc span.dt-column-order::after {
+    opacity: 0.85;
+}
+
+.rutas-table tbody td {
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    vertical-align: middle;
+}
+
+.rutas-table tbody tr:hover {
+    background: rgba(110, 109, 153, 0.05);
+}
+
+.rutas-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Filas seleccionables en tabla de rutas */
+.rutas-page #tabla_rutas tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.rutas-page #tabla_rutas tbody tr.table-primary {
+    background: rgba(58, 57, 114, 0.12) !important;
+    color: var(--color-purple-dark);
+}
+
+.rutas-page #tabla_rutas tbody tr.table-primary:hover {
+    background: rgba(58, 57, 114, 0.18) !important;
+}
+
+/* DataTables: controles fuera del recuadro */
+.rutas-page #tabla_rutas_wrapper {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.rutas-page #tabla_rutas_wrapper > .dt-layout-row:first-child {
+    margin-bottom: 0.65rem;
+}
+
+.rutas-page #tabla_rutas_wrapper > .dt-layout-row:last-child {
+    margin-top: 0.65rem;
+}
+
+.rutas-page #tabla_rutas_wrapper .dt-layout-table {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+}
+
+.rutas-page #tabla_rutas_wrapper .dt-layout-table .dt-layout-cell {
+    padding: 0;
+}
+
+.rutas-page #tabla_rutas_wrapper .dt-length select,
+.rutas-page #tabla_rutas_wrapper .dt-search input {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    background: var(--color-white);
+}
+
+.rutas-page #tabla_rutas_wrapper .dt-search input:focus,
+.rutas-page #tabla_rutas_wrapper .dt-length select:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.rutas-page #tabla_rutas_wrapper .dt-paging .page-link,
+.rutas-page #tabla_rutas_wrapper .dt-paging button {
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-purple-medium);
+}
+
+/* Selector de asignación en tabla */
+.rutas-page .asignacion-selector-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.rutas-page .asignacion-btn-moderno {
+    position: relative;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.76rem;
+}
+
+.rutas-page .asignacion-btn-moderno::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    transition: left 0.5s;
+}
+
+.rutas-page .asignacion-btn-moderno:hover::before {
+    left: 100%;
+}
+
+/* ---------- Historial ---------- */
+.rutas-historial-hint {
+    font-size: 0.8rem;
+    color: var(--color-medium-gray);
+    margin-bottom: 0.65rem;
+}
+
+.historial-mapa-observaciones li {
+    line-height: 1.35;
+}
+
+.historial-mapa-estado-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2em 0.45em;
+}
+
+.historial-mapa-cambio-estado {
+    line-height: 1.4;
+}
+
+.historial-mapa-observacion {
+    line-height: 1.35;
+}
+
+.historial-mapa-tipo-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-white);
+}
+
+.historial-mapa-tipo-badge .bi {
+    color: var(--color-white);
+}
+
+.rutas-loading {
+    text-align: center;
+    padding: 2.5rem 0;
+}
+
+.rutas-loading .spinner-border {
+    color: var(--color-purple-medium);
+}
+
+.rutas-table-wrap {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+}
+
+/* ---------- Badges ---------- */
+.rutas-page .badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.3em 0.65em;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+}
+
+/* ========================================
+   MODALES (patrón unificado)
+   ======================================== */
+.rutas-modal {
+    border-radius: 14px;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-heavy);
+}
+
+.rutas-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.rutas-modal__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.rutas-modal__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rutas-modal__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.rutas-modal__title h5 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.rutas-modal__close {
+    background: transparent;
+    border: none;
+    color: var(--color-medium-gray);
+    font-size: 0.85rem;
+    line-height: 0;
+    padding: 0.35rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.rutas-modal__close:hover {
+    color: var(--color-purple-dark);
+    background-color: rgba(110, 109, 153, 0.12);
+}
+
+.rutas-modal .modal-body {
+    padding: 1rem 1.15rem;
+}
+
+.rutas-modal .modal-body label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal .form-control,
+.rutas-modal .form-select {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal .form-control:focus,
+.rutas-modal .form-select:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+}
+
+/* rutas-modal__footer: estilos en global.css */
+
+.rutas-modal__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+}
+
+.rutas-modal__body--flush {
+    padding: 0 !important;
+}
+
+.rutas-modal__body--scroll {
+    max-height: 68vh;
+    overflow-y: auto;
+}
+
+/* Alertas dentro de modales */
+.rutas-modal-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+    margin-bottom: 0.85rem;
+}
+
+.rutas-modal-alert i {
+    color: var(--color-purple-medium);
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+.rutas-modal-alert--info {
+    background: rgba(110, 109, 153, 0.1);
+    border: 1px solid rgba(110, 109, 153, 0.18);
+}
+
+.rutas-modal-alert--warning {
+    background: rgba(255, 193, 7, 0.12);
+    border: 1px solid rgba(255, 193, 7, 0.35);
+}
+
+.rutas-modal-alert--warning i {
+    color: #b8860b;
+}
+
+.rutas-modal-alert--edit {
+    background: rgba(58, 57, 114, 0.08);
+    border: 1px solid rgba(58, 57, 114, 0.15);
+}
+
+/* Modal asignar / cambiar cuadrilla */
+.asignar-ruta-modal-dialog {
+    max-width: 400px;
+}
+
+.asignar-ruta-modal__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding-top: 0.5rem;
+}
+
+.asignar-ruta-resumen {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.65rem 0.75rem;
+    border-left: 4px solid var(--asignar-ruta-color, #808080);
+    background: #f7f7fb;
+    border-radius: 0 10px 10px 0;
+}
+
+.asignar-ruta-resumen__nombre {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    line-height: 1.25;
+}
+
+.asignar-ruta-resumen__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.65rem;
+    font-size: 0.72rem;
+    color: var(--color-medium-gray);
+}
+
+.asignar-ruta-resumen__meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.asignar-ruta-actual {
+    font-size: 0.78rem;
+    color: var(--color-medium-gray);
+}
+
+.asignar-ruta-actual strong {
+    color: var(--color-purple-dark);
+}
+
+.asignar-ruta-cuadrillas {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-height: min(280px, 42vh);
+    overflow-y: auto;
+    padding-right: 0.15rem;
+}
+
+.asignar-ruta-cuadrillas__vacio {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--color-medium-gray);
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.asignar-ruta-cuadrilla-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    background: var(--color-white);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.asignar-ruta-cuadrilla-item:hover:not(:disabled) {
+    border-color: rgba(110, 109, 153, 0.35);
+    box-shadow: var(--shadow-light);
+}
+
+.asignar-ruta-cuadrilla-item--selected {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 2px rgba(110, 109, 153, 0.14);
+    background: #fbfbfd;
+}
+
+.asignar-ruta-cuadrilla-item--ocupada,
+.asignar-ruta-cuadrilla-item:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+    background: #fafafa;
+}
+
+.asignar-ruta-cuadrilla-item__check {
+    flex: 0 0 1.1rem;
+    color: var(--color-purple-medium);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.asignar-ruta-cuadrilla-item__main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.asignar-ruta-cuadrilla-item__nombre {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.asignar-ruta-cuadrilla-item__operarios,
+.asignar-ruta-cuadrilla-item__ocupada {
+    font-size: 0.68rem;
+    color: var(--color-medium-gray);
+}
+
+.asignar-ruta-cuadrilla-item__ocupada {
+    color: #b8860b;
+    font-weight: 600;
+}
+
+.asignar-ruta-cuadrilla-item__avatars {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+}
+
+.asignar-ruta-cuadrilla-item__avatars .crc-avatar {
+    width: 1.55rem;
+    height: 1.55rem;
+    font-size: 0.58rem;
+}
+
+/* Paneles internos */
+.rutas-modal-panel {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-light);
+}
+
+.rutas-modal-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    background: #f7f7fb;
+    border-bottom: 1px solid var(--color-light-gray);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal-panel__header h6 {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal-panel__body {
+    padding: 0.85rem;
+}
+
+/* Paso inicial: crear hoja de ruta automática */
+.crear-ruta-modal-dialog {
+    max-width: 460px;
+}
+
+.crear-ruta-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 0.35rem 0 0.5rem;
+    text-align: center;
+}
+
+.crear-ruta-form__field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.crear-ruta-form__field > label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    margin: 0;
+}
+
+.crear-ruta-form__input-cantidad {
+    width: 5.25rem;
+    max-width: 100%;
+    text-align: center;
+}
+
+.crear-ruta-color {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.55rem 0.85rem;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    background: #fbfbfd;
+}
+
+.crear-ruta-color__preview {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 7.75rem;
+    height: 3.1rem;
+    margin: 0;
+    padding: 0.35rem 0.45rem;
+    border-radius: 8px;
+    background:
+        linear-gradient(#e8e8ee 1px, transparent 1px),
+        linear-gradient(90deg, #e8e8ee 1px, transparent 1px),
+        #f3f3f7;
+    background-size: 14px 14px;
+    border: 1px solid rgba(6, 4, 75, 0.08);
+    box-shadow: inset 0 1px 2px rgba(6, 4, 75, 0.04);
+    cursor: pointer;
+    overflow: hidden;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.crear-ruta-color__preview:hover {
+    border-color: rgba(110, 109, 153, 0.28);
+    box-shadow: inset 0 1px 2px rgba(6, 4, 75, 0.04), 0 0 0 3px rgba(110, 109, 153, 0.1);
+}
+
+.crear-ruta-color__trazo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.crear-ruta-color__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: none;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.rutas-modal-panel__body--flush {
+    padding: 0;
+}
+
+.rutas-modal-meta {
+    font-size: 0.82rem;
+    color: var(--color-purple-dark);
+    margin-bottom: 0.85rem;
+}
+
+.rutas-modal-meta dt {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-medium-gray);
+}
+
+.rutas-modal-meta dd {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.rutas-modal-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-medium-gray);
+    margin-bottom: 0.55rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--color-light-gray);
+}
+
+/* Tablas internas de modales */
+.rutas-modal-table-wrap {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.rutas-modal-table thead th {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: none;
+    padding: 0.5rem 0.65rem;
+    white-space: nowrap;
+}
+
+.rutas-modal-table tbody td {
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    padding: 0.45rem 0.65rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    vertical-align: middle;
+}
+
+.rutas-modal-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Lista scrollable de reclamos */
+.rutas-modal-list {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.rutas-modal-list__item {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.rutas-modal-list__item:hover {
+    background: rgba(110, 109, 153, 0.05);
+}
+
+.rutas-modal-list__item:last-child {
+    border-bottom: none;
+}
+
+.rutas-modal-map-wrap {
+    position: relative;
+    isolation: isolate;
+}
+
+/* Mapas en capa inferior; controles flotantes encima y clickeables */
+.rutas-modal-map-wrap > .rutas-modal-map,
+.rutas-modal-map-wrap > .ver-ruta-modal-map {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.rutas-mapa-proveedor-wrap {
+    position: absolute;
+    top: 0.65rem;
+    left: 0.65rem;
+    z-index: 5;
+    pointer-events: auto;
+}
+
+.rutas-modal-map {
+    width: 100%;
+    height: 500px;
+}
+
+/* Mapas de rutas: ocultar branding Google/Mapbox y controles nativos */
+#mapaCrearRuta a[href*="maps.google.com/maps"],
+#mapaCrearRuta a[href*="google.com/maps"],
+#mapaVerRuta a[href*="maps.google.com/maps"],
+#mapaVerRuta a[href*="google.com/maps"],
+#mapaDetalleSupervisor a[href*="maps.google.com/maps"],
+#mapaDetalleSupervisor a[href*="google.com/maps"],
+#mapaVisualizarRutas a[href*="maps.google.com/maps"],
+#mapaVisualizarRutas a[href*="google.com/maps"] {
+    display: none !important;
+}
+
+#mapaCrearRutaMapbox .mapboxgl-ctrl-logo,
+#mapaVerRutaMapbox .mapboxgl-ctrl-logo,
+#mapaDetalleSupervisorMapbox .mapboxgl-ctrl-logo,
+#mapaVisualizarRutasMapbox .mapboxgl-ctrl-logo {
+    display: none !important;
+}
+
+.rutas-modal-loading {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--color-medium-gray);
+}
+
+.rutas-modal-loading .spinner-border {
+    color: var(--color-purple-medium);
+}
+
+.rutas-modal-empty {
+    text-align: center;
+    padding: 1.25rem;
+    color: var(--color-medium-gray);
+    font-size: 0.82rem;
+    background: #f7f7fb;
+    border: 1px dashed var(--color-light-gray);
+    border-radius: 10px;
+}
+
+/* Modal administrar asignaciones */
+.rutas-modal-admin .rutas-admin-resumen {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-light);
+}
+
+.rutas-modal-admin .rutas-admin-resumen__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding-bottom: 0.85rem;
+    margin-bottom: 0.85rem;
+    border-bottom: 1px solid var(--color-light-gray);
+}
+
+.rutas-modal-admin .rutas-admin-resumen__color {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-light);
+}
+
+.rutas-modal-admin .rutas-admin-resumen__color i {
+    color: var(--color-white);
+    font-size: 1.2rem;
+}
+
+.rutas-modal-admin .rutas-admin-resumen__nombre {
+    margin: 0 0 0.45rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    line-height: 1.25;
+}
+
+.rutas-modal-admin .rutas-admin-meta-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.rutas-modal-admin .rutas-admin-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 8px;
+    background: rgba(110, 109, 153, 0.1);
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal-admin .rutas-admin-meta-chip i {
+    color: var(--color-purple-medium);
+    font-size: 0.85rem;
+}
+
+.rutas-modal-admin .rutas-admin-status {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    font-size: 0.82rem;
+}
+
+.rutas-modal-admin .rutas-admin-status--ok {
+    background: rgba(45, 106, 106, 0.12);
+    border: 1px solid rgba(45, 106, 106, 0.25);
+    color: #1f4f4f;
+}
+
+.rutas-modal-admin .rutas-admin-status--pending {
+    background: rgba(110, 109, 153, 0.1);
+    border: 1px solid rgba(110, 109, 153, 0.2);
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal-admin .rutas-admin-status__icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.rutas-modal-admin .rutas-admin-status--ok .rutas-admin-status__icon i {
+    color: #2d6a6a;
+}
+
+.rutas-modal-admin .rutas-admin-status--pending .rutas-admin-status__icon i {
+    color: var(--color-purple-medium);
+}
+
+.rutas-modal-admin .rutas-admin-section-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-medium-gray);
+    margin-bottom: 0.65rem;
+}
+
+.rutas-modal-admin .rutas-admin-acciones {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.rutas-modal-admin .rutas-admin-action {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    width: 100%;
+    text-align: left;
+    border: none;
+    border-radius: 12px;
+    padding: 0.75rem 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: var(--shadow-light);
+}
+
+.rutas-modal-admin .rutas-admin-action:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-medium);
+}
+
+.rutas-modal-admin .rutas-admin-action__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.1rem;
+}
+
+.rutas-modal-admin .rutas-admin-action__text strong {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 0.1rem;
+}
+
+.rutas-modal-admin .rutas-admin-action__text small {
+    font-size: 0.76rem;
+    opacity: 0.9;
+}
+
+.rutas-modal-admin .rutas-admin-action__chevron {
+    margin-left: auto;
+    opacity: 0.7;
+    font-size: 1rem;
+}
+
+.rutas-modal-admin .rutas-admin-action--success {
+    background: linear-gradient(135deg, #2d6a6a 0%, #1f4f4f 100%);
+    color: var(--color-white);
+}
+
+.rutas-modal-admin .rutas-admin-action--warning {
+    background: linear-gradient(135deg, #e6a817 0%, #cc8f00 100%);
+    color: var(--color-white);
+}
+
+.rutas-modal-admin .rutas-admin-action--danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: var(--color-white);
+}
+
+.rutas-modal-admin .rutas-admin-empty {
+    text-align: center;
+    padding: 2rem 1.25rem;
+    border: 2px dashed var(--color-light-gray);
+    border-radius: 12px;
+    background: #f7f7fb;
+}
+
+.rutas-modal-admin .rutas-admin-empty__icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 0.85rem;
+    border-radius: 14px;
+    background: rgba(110, 109, 153, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rutas-modal-admin .rutas-admin-empty__icon i {
+    font-size: 1.75rem;
+    color: var(--color-purple-light);
+}
+
+.rutas-modal-admin .rutas-admin-empty h6 {
+    margin: 0 0 0.35rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.rutas-modal-admin .rutas-admin-empty p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--color-medium-gray);
+}
+
+/* Modales mapa: unificar sombra con rutas-modal */
+.supervisor-ruta-detalle-modal.rutas-modal,
+.supervisor-visualizar-todas-modal.rutas-modal {
+    border-radius: 14px;
+    box-shadow: var(--shadow-heavy);
+}
+
+/* Toolbar flotante en modales mapa */
+.rutas-modal .supervisor-ruta-detalle-vista-toolbar--flotante .rutas-btn,
+.rutas-modal .supervisor-ruta-detalle-vista-toolbar--lista .rutas-btn {
+    box-shadow: var(--shadow-medium);
+}
+
+/* ---------- Responsive página ---------- */
+@media (max-width: 768px) {
+    .rutas-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rutas-toolbar__left,
+    .rutas-toolbar__right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .rutas-toolbar__right {
+        margin-left: 0;
+    }
+
+    .rutas-toolbar__right .rutas-btn {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+/* ========================================
+   Panel de hojas de ruta — vista supervisor (tarjetas)
+   ======================================== */
 
 .supervisor-rutas-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 1rem;
     align-items: start;
 }
 
 .supervisor-ruta-card {
     cursor: pointer;
-    border: 1px solid #dee2e6;
-    border-radius: 0.5rem;
-    background: #fff;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    background: var(--color-white);
     overflow: hidden;
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+    box-shadow: var(--shadow-light);
 }
 
 .supervisor-ruta-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-    border-color: #adb5bd;
+    box-shadow: var(--shadow-medium);
+    border-color: var(--color-purple-light);
 }
 
 .supervisor-ruta-card--seleccionada {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.2);
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 2px rgba(58, 57, 114, 0.2);
 }
 
 .supervisor-ruta-card__nombre {
@@ -34,13 +1165,38 @@
     font-size: 0.9rem;
     font-weight: 600;
     line-height: 1.25;
-    overflow-wrap: anywhere;
-    word-break: break-word;
     min-height: 2.5rem;
     display: flex;
     align-items: center;
-    justify-content: center;
-    text-align: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    text-align: left;
+}
+
+.supervisor-ruta-card__nombre-texto {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.supervisor-ruta-card__reclamos {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    opacity: 0.95;
+    color: inherit;
+}
+
+.supervisor-ruta-card__nombre .supervisor-ruta-card__reclamos .bi {
+    font-size: 0.92rem;
+    line-height: 1;
+    color: inherit;
 }
 
 .supervisor-ruta-card__mapa {
@@ -55,6 +1211,47 @@
     height: 100% !important;
 }
 
+/* Mini mapas de tarjetas: sin logo Google ni textos de atribución */
+.supervisor-ruta-card__mapa a[href*="maps.google.com/maps"],
+.supervisor-ruta-card__mapa a[href*="google.com/maps"],
+.supervisor-ruta-card__mapa .gm-style-cc {
+    display: none !important;
+}
+
+/* Punto dorado guía del destello en recorrido de rutas */
+.recorrido-punto-brillo-dorado {
+    position: relative;
+    width: 26px;
+    height: 26px;
+    pointer-events: none;
+}
+
+.recorrido-punto-brillo-dorado__halo {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 248, 220, 0.95) 0%, rgba(255, 215, 0, 0.75) 45%, rgba(255, 140, 0, 0.2) 100%);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.85), 0 0 18px rgba(255, 165, 0, 0.45);
+    animation: recorrido-punto-brillo-pulso 0.9s ease-in-out infinite alternate;
+}
+
+.recorrido-punto-brillo-dorado__core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    background: #fffbe6;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.9);
+}
+
+@keyframes recorrido-punto-brillo-pulso {
+    from { transform: scale(0.92); opacity: 0.88; }
+    to { transform: scale(1.06); opacity: 1; }
+}
+
 .supervisor-ruta-card__mapa-placeholder {
     position: absolute;
     inset: 0;
@@ -67,13 +1264,94 @@
 }
 
 .supervisor-ruta-card__meta {
-    padding: 0.55rem 0.75rem 0.65rem;
+    padding: 0.5rem 0.65rem 0.6rem;
     border-top: 1px solid rgba(0, 0, 0, 0.06);
     background: #f8f9fa;
     font-size: 0.8rem;
     color: #495057;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
+.supervisor-ruta-card__estado-inline {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    max-width: 100%;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.supervisor-ruta-card__estado-inline .badge {
+    font-size: 0.65rem;
+    white-space: nowrap;
+}
+
+.supervisor-ruta-card__cuadrilla-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.supervisor-ruta-card__cuadrilla-izq {
+    display: flex;
+    align-items: center;
+    gap: 0.32rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.supervisor-ruta-card__cuadrilla-ico {
+    color: #6c757d;
+    font-size: 0.82rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.supervisor-ruta-card__cuadrilla-izq .bi.supervisor-ruta-card__cuadrilla-ico {
+    color: #6c757d;
+}
+
+.supervisor-ruta-card__cuadrilla-nombre {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #343a40;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.supervisor-ruta-card__cuadrilla-avatars {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+.supervisor-ruta-card__cuadrilla-avatars .crc-avatar {
+    width: 20px;
+    height: 20px;
+    font-size: 0.48rem;
+    border-width: 1.5px;
+}
+
+.supervisor-ruta-card__cuadrilla-avatars .crc-avatar + .crc-avatar {
+    margin-left: -6px;
+}
+
+.supervisor-ruta-card__cuadrilla-avatars .crc-avatar--jefe {
+    box-shadow: 0 0 0 1.5px #ffc107, 0 1px 3px rgba(6, 4, 75, 0.18);
+}
+
+/* Legacy — mantener por si hay referencias en otros modales */
 .supervisor-ruta-card__meta-row {
     display: flex;
     align-items: center;
@@ -181,17 +1459,55 @@
     flex: 0 0 min(220px, 26%);
     max-width: 220px;
     padding: 0.55rem 0.65rem;
-    background: #f8f9fa;
-    border-right: 1px solid #dee2e6;
+    background: #f7f7fb;
+    border-right: 1px solid var(--color-light-gray);
     font-size: 0.8rem;
+    position: relative;
+}
+
+.supervisor-ruta-detalle-panel-izq__bloque--overlay {
+    position: relative;
+    min-height: 100%;
+}
+
+.supervisor-cuadrilla-overlay {
+    border-radius: 10px;
+}
+
+.supervisor-cuadrilla-overlay .crear-ruta-cuadrilla-overlay__panel {
+    max-height: min(420px, calc(100% - 0.5rem));
+}
+
+.ruta-detalle-pill--clickable {
+    cursor: pointer;
+    border: 1px solid var(--color-light-gray);
+    background-color: var(--color-white);
+    font: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.ruta-detalle-pill--clickable:hover {
+    border-color: var(--color-purple-light);
+    background: #fbfbfd;
+    box-shadow: var(--shadow-light);
+}
+
+.ruta-detalle-pill--clickable.ruta-detalle-pill--activa {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+}
+
+.ruta-detalle-pill__chevron {
+    color: var(--color-purple-medium);
+    font-size: 0.72rem;
 }
 
 .supervisor-ruta-detalle-panel-izq__subtitulo {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #6c757d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-medium-gray);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
 }
 
 .supervisor-ruta-detalle-panel-izq .ruta-detalle-pill {
@@ -266,13 +1582,32 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+    isolation: isolate;
+}
+
+.supervisor-ruta-detalle-vista-mapa > .supervisor-ruta-detalle-modal__mapa,
+.supervisor-ruta-detalle-vista-mapa > .supervisor-visualizar-todas-modal__mapa {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+}
+
+.supervisor-ruta-detalle-vista-mapa > .crear-ruta-vista-controles {
+    z-index: 15;
 }
 
 .supervisor-ruta-detalle-vista-lista {
+    position: relative;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
-    padding: 0 0.75rem 1rem;
+    padding: 3.25rem 0.75rem 1rem;
+}
+
+.supervisor-ruta-detalle-vista-lista > .crear-ruta-vista-controles {
+    z-index: 5;
 }
 
 .supervisor-ruta-detalle-modal__mapa {
@@ -350,13 +1685,19 @@
 }
 
 .ruta-detalle-pill {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     padding: 0.35rem 0.85rem;
-    font-size: 0.875rem;
-    color: #495057;
-    background-color: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 2rem;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    background-color: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 999px;
+}
+
+.ruta-detalle-pill i {
+    color: var(--color-purple-medium);
 }
 
 .ruta-detalle-estado-grupo {
@@ -392,6 +1733,7 @@
 .supervisor-detalle-secuencia .ruta-secuencia-main {
     display: flex;
     flex-direction: row;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 0.45rem;
     min-width: 0;
@@ -403,17 +1745,32 @@
     flex: 0 0 auto;
     font-weight: 700;
     font-size: 0.88rem;
-    color: #0d6efd;
+    color: var(--color-purple-medium);
     font-variant-numeric: tabular-nums;
 }
 
-.ruta-secuencia-motivo-icon {
+.ruta-secuencia-icon-wrap {
+    position: relative;
     flex: 0 0 auto;
     width: 1.45rem;
     height: 1.45rem;
+}
+
+.ruta-secuencia-prioridad-badge {
+    top: 2px;
+    right: -7px;
+    width: 12px;
+    height: 12px;
+    font-size: 9px;
+    padding-bottom: 1px;
+}
+
+.ruta-secuencia-motivo-icon {
+    width: 1.45rem;
+    height: 1.45rem;
     border-radius: 999px;
-    background: #f1f3f5;
-    border: 1px solid rgba(0, 0, 0, 0.08);
+    border: 2px solid var(--color-white);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -421,8 +1778,47 @@
     line-height: 1;
 }
 
+.ruta-secuencia-grupo-badge {
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    border: 2px solid var(--color-white);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+    color: var(--color-white);
+    font-size: 0.68rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+}
+
+.ruta-secuencia-grupo-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex: 0 0 auto;
+}
+
+.ruta-secuencia-grupo-contador {
+    font-size: 0.68rem;
+    color: var(--color-medium-gray);
+    white-space: nowrap;
+}
+
+.supervisor-detalle-secuencia .ruta-secuencia-domicilio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    flex: 0 1 auto;
+    max-width: 100%;
+}
+
 .supervisor-detalle-secuencia .ruta-secuencia-calle {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
     font-size: 0.8rem;
     line-height: 1.25;
@@ -471,6 +1867,15 @@
     flex-shrink: 0;
 }
 
+.supervisor-detalle-secuencia .ruta-secuencia-estado-badge {
+    font-size: 0.68rem;
+    padding: 0.35em 0.55em;
+    font-weight: 600;
+    border: none;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 .supervisor-detalle-secuencia .ruta-secuencia-item {
     display: flex;
     flex-direction: column;
@@ -479,7 +1884,7 @@
 
 .supervisor-detalle-secuencia .ruta-secuencia-flecha {
     text-align: center;
-    color: #0d6efd;
+    color: var(--color-purple-medium);
     font-size: 0.75rem;
     line-height: 1;
     margin: 0.15rem 0 0.35rem;
@@ -547,6 +1952,297 @@
     }
 }
 
+/* Crear hoja de ruta — altura fija mapa / lista para que el modal no cambie de tamaño */
+.crear-ruta-preview-layout {
+    --crear-ruta-panel-cuerpo-altura: calc(500px - 2cm);
+    --crear-ruta-panel-header-altura: 2.5rem;
+}
+
+.crear-ruta-preview-layout .rutas-modal-map {
+    height: 100%;
+}
+
+.crear-ruta-preview-layout .col-md-9 > .rutas-modal-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.crear-ruta-preview-layout .col-md-9 .rutas-modal-map-wrap,
+.crear-ruta-preview-layout .col-md-9 .crear-ruta-lista-panel {
+    height: calc(var(--crear-ruta-panel-cuerpo-altura) + var(--crear-ruta-panel-header-altura));
+    min-height: calc(var(--crear-ruta-panel-cuerpo-altura) + var(--crear-ruta-panel-header-altura));
+    max-height: calc(var(--crear-ruta-panel-cuerpo-altura) + var(--crear-ruta-panel-header-altura));
+    box-sizing: border-box;
+}
+
+.ver-ruta-panel-mapa .rutas-modal-map-wrap {
+    min-height: 520px;
+    height: 520px;
+}
+
+.crear-ruta-lista-overlay__item--clickable {
+    cursor: pointer;
+}
+
+.crear-ruta-vista-controles {
+    position: absolute;
+    top: 0.65rem;
+    left: 0.65rem;
+    z-index: 15;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    pointer-events: none;
+}
+
+.crear-ruta-vista-controles .rutas-btn,
+.crear-ruta-vista-controles button {
+    pointer-events: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.crear-ruta-vista-controles--derecha {
+    left: auto;
+    right: 0.65rem;
+}
+
+.crear-ruta-panel-lista .crear-ruta-lista-panel {
+    position: relative;
+    padding-top: 2.75rem;
+}
+
+.crear-ruta-preview-layout .crear-ruta-panel-cuadrillas {
+    display: flex;
+    flex-direction: column;
+}
+
+.crear-ruta-preview-layout .crear-ruta-cuadrillas-body {
+    position: relative;
+    height: var(--crear-ruta-panel-cuerpo-altura);
+    min-height: var(--crear-ruta-panel-cuerpo-altura);
+    max-height: var(--crear-ruta-panel-cuerpo-altura);
+    flex: 1;
+    min-width: 0;
+}
+
+.crear-ruta-preview-layout .crear-ruta-cuadrillas-scroll {
+    height: 100%;
+}
+
+/* Crear hoja de ruta — encabezado panel cuadrillas */
+.crear-ruta-preview-layout .crear-ruta-panel-cuadrillas .rutas-modal-panel__header {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.65rem 0.75rem;
+}
+
+.crear-ruta-preview-layout .crear-ruta-cuadrillas-titulo {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-white);
+}
+
+.crear-ruta-preview-layout .crear-ruta-cuadrillas-titulo i {
+    color: var(--color-white);
+    opacity: 0.92;
+}
+
+/* Modo edición — lista flotante sobre el mapa */
+.crear-ruta-lista-overlay {
+    position: absolute;
+    top: 3.25rem;
+    right: 0.65rem;
+    z-index: 20;
+    width: min(360px, calc(100% - 1.25rem));
+    max-height: min(420px, calc(100% - 4.5rem));
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 14px;
+    overflow: hidden;
+    pointer-events: auto;
+    box-shadow: var(--shadow-heavy);
+}
+
+.crear-ruta-lista-overlay__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    background: #fbfbfd;
+}
+
+.crear-ruta-lista-overlay__badge {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+}
+
+.crear-ruta-lista-overlay__close {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--color-medium-gray);
+    padding: 0.15rem 0.25rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.crear-ruta-lista-overlay__close:hover {
+    background: rgba(110, 109, 153, 0.1);
+    color: var(--color-purple-dark);
+}
+
+.crear-ruta-lista-overlay__body {
+    max-height: 360px;
+    overflow-y: auto;
+    padding: 0.4rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(110, 109, 153, 0.35) transparent;
+}
+
+.crear-ruta-lista-overlay__item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.35rem;
+    border-radius: 10px;
+    transition: background-color 0.15s ease;
+}
+
+.crear-ruta-lista-overlay__item:hover {
+    background: rgba(110, 109, 153, 0.06);
+}
+
+.crear-ruta-lista-overlay__pos {
+    flex: 0 0 auto;
+    width: 1.35rem;
+    height: 1.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #212529;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+}
+
+.crear-ruta-lista-overlay__icon-wrap {
+    position: relative;
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+}
+
+.crear-ruta-lista-overlay__prioridad-badge {
+    top: -5px;
+    right: -7px;
+    width: 12px;
+    height: 12px;
+    font-size: 9px;
+    padding-bottom: 1px;
+}
+
+.crear-ruta-lista-overlay__icon {
+    flex: 0 0 auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.crear-ruta-lista-overlay__icon--grupo {
+    padding: 0;
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #fff;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.crear-ruta-lista-overlay__icon--grupo:hover {
+    filter: brightness(1.08);
+}
+
+.crear-ruta-lista-overlay__grupo-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.12rem;
+}
+
+.crear-ruta-lista-overlay__grupo-nav .mapa-popup-nav {
+    width: 1.35rem;
+    height: 1.35rem;
+    min-width: 1.35rem;
+    padding: 0;
+    font-size: 0.72rem;
+}
+
+.crear-ruta-lista-overlay__grupo-contador {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: var(--color-medium-gray);
+    line-height: 1.2;
+}
+
+.crear-ruta-lista-overlay__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+    line-height: 1.2;
+    color: var(--color-purple-dark);
+}
+
+.crear-ruta-lista-overlay__text strong {
+    font-size: 0.82rem;
+}
+
+.crear-ruta-lista-overlay__text small {
+    color: var(--color-medium-gray);
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crear-ruta-lista-overlay__actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 0.2rem;
+}
+
+.crear-ruta-lista-overlay__empty {
+    margin: 0;
+    padding: 1rem 0.5rem;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--color-medium-gray);
+}
+
 /* Crear hoja de ruta — panel cuadrillas y lista secuencia */
 
 .crear-ruta-panel-cuadrillas .card-header {
@@ -554,63 +2250,395 @@
 }
 
 .crear-ruta-cuadrillas-titulo {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .crear-ruta-cuadrillas-scroll {
-    max-height: 500px;
     overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.55rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: #f4f5f8;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(110, 109, 153, 0.35) transparent;
 }
 
-.crear-ruta-cuadrilla-item {
-    padding: 0.35rem 0.5rem;
-    font-size: 0.8125rem;
-    border-left: 3px solid transparent;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
+/* Tarjeta de cuadrilla en vista previa */
+.crear-ruta-cuadrilla-card {
+    border-radius: 12px;
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    box-shadow: 0 1px 3px rgba(6, 4, 75, 0.06);
+    overflow: hidden;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.crear-ruta-cuadrilla-nombre {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    line-height: 1.2;
+.crear-ruta-cuadrilla-card:hover:not(.crear-ruta-cuadrilla-card--ocupada) {
+    border-color: rgba(110, 109, 153, 0.35);
+    box-shadow: 0 4px 12px rgba(6, 4, 75, 0.08);
 }
 
-.crear-ruta-cuadrilla-item small {
-    font-size: 0.7rem;
-    line-height: 1.15;
-    margin-top: 0.1rem;
+.crear-ruta-cuadrilla-card--selected {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 2px rgba(110, 109, 153, 0.18), 0 4px 14px rgba(58, 57, 114, 0.12);
 }
 
-.crear-ruta-cuadrilla-ico {
-    font-size: 0.8rem;
-    opacity: 0.75;
+.crear-ruta-cuadrilla-card--ocupada {
+    opacity: 0.82;
+    background: #fafafa;
 }
 
-.crear-ruta-cuadrilla-item.active {
-    border-left-color: #0d6efd;
+.crear-ruta-cuadrilla-card__surface {
+    position: relative;
+    display: flex;
+    align-items: stretch;
 }
 
-.crear-ruta-cuadrilla-item.active .crear-ruta-cuadrilla-nombre {
+.crear-ruta-cuadrilla-card__select {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    padding: 0.65rem 2.1rem 0.65rem 0.7rem;
+    cursor: pointer;
+}
+
+.crear-ruta-cuadrilla-card__select:disabled {
+    cursor: not-allowed;
+}
+
+.crear-ruta-cuadrilla-card__head {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.45rem;
+    padding-right: 1.5rem;
+}
+
+.crear-ruta-cuadrilla-card__name {
+    margin: 0;
+    font-size: 0.84rem;
     font-weight: 700;
+    line-height: 1.25;
+    color: var(--color-purple-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
-.crear-ruta-cuadrilla-item--ocupada,
-.crear-ruta-cuadrilla-item:disabled {
-    opacity: 0.65;
-    cursor: not-allowed !important;
-    background-color: #f8f9fa !important;
+.crear-ruta-cuadrilla-card__check {
+    flex: 0 0 auto;
+    color: var(--color-purple-medium);
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
-.crear-ruta-cuadrilla-item--ocupada.active {
-    border-left-color: #dee2e6;
+.crear-ruta-cuadrilla-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    margin-bottom: 0.4rem;
+}
+
+.crear-ruta-cuadrilla-card__badge--ocupada {
+    background: #fde8ea;
+    color: #b02a37;
+}
+
+.crear-ruta-cuadrilla-card__team {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+}
+
+.crear-ruta-cuadrilla-card__avatars {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.crc-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    color: var(--color-white);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    font-weight: 700;
+    border: 2px solid var(--color-white);
+    box-shadow: 0 1px 4px rgba(6, 4, 75, 0.18);
+    flex-shrink: 0;
+}
+
+.crc-avatar + .crc-avatar {
+    margin-left: -8px;
+}
+
+.crc-avatar--img {
+    object-fit: cover;
+    background: var(--color-light-gray);
+}
+
+.crc-avatar--jefe {
+    box-shadow: 0 0 0 2px #ffc107, 0 1px 4px rgba(6, 4, 75, 0.2);
+}
+
+.crc-avatar--more {
+    background: #e9ecef;
+    color: var(--color-purple-dark);
+    font-size: 0.52rem;
+    font-weight: 800;
+}
+
+.crc-avatar--row {
+    width: 28px;
+    height: 28px;
+    font-size: 0.62rem;
+    margin-left: 0 !important;
+}
+
+.crear-ruta-cuadrilla-card__count {
+    flex: 0 0 auto;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-medium-gray);
+    white-space: nowrap;
+}
+
+.crear-ruta-cuadrilla-card__empty-team {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--color-medium-gray);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.crear-ruta-cuadrilla-card__toggle {
+    position: absolute;
+    top: 0.45rem;
+    right: 0.35rem;
+    width: 1.55rem;
+    height: 1.55rem;
+    border: 0;
+    border-radius: 8px;
+    background: rgba(110, 109, 153, 0.08);
+    color: var(--color-purple-medium);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.crear-ruta-cuadrilla-card__toggle:hover {
+    background: rgba(110, 109, 153, 0.16);
+    color: var(--color-purple-dark);
+}
+
+.crear-ruta-cuadrilla-card--detalle-abierto {
+    border-color: var(--color-purple-medium);
+}
+
+.crear-ruta-cuadrilla-card--detalle-abierto .crear-ruta-cuadrilla-card__toggle {
+    background: rgba(110, 109, 153, 0.14);
+    color: var(--color-purple-dark);
+}
+
+.crear-ruta-cuadrilla-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 0.45rem;
+    pointer-events: none;
+}
+
+.crear-ruta-cuadrilla-overlay__backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(33, 37, 41, 0.38);
+    backdrop-filter: blur(1px);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.crear-ruta-cuadrilla-overlay__panel {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-height: calc(100% - 0.25rem);
+    display: flex;
+    flex-direction: column;
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(6, 4, 75, 0.22);
+    overflow: hidden;
+    pointer-events: auto;
+    animation: crear-ruta-cuadrilla-overlay-in 0.18s ease-out;
+}
+
+@keyframes crear-ruta-cuadrilla-overlay-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.crear-ruta-cuadrilla-overlay__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: linear-gradient(180deg, #fbfbfd 0%, #f4f5f8 100%);
+}
+
+.crear-ruta-cuadrilla-overlay__title {
+    margin: 0;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crear-ruta-cuadrilla-overlay__close {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    color: var(--color-medium-gray);
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.crear-ruta-cuadrilla-overlay__close:hover {
+    background: rgba(110, 109, 153, 0.1);
+    color: var(--color-purple-dark);
+}
+
+.crear-ruta-cuadrilla-overlay__body {
+    padding: 0.6rem 0.7rem 0.7rem;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(110, 109, 153, 0.35) transparent;
+}
+
+.crear-ruta-cuadrilla-card__alert {
+    margin: 0 0 0.45rem;
+    padding: 0.35rem 0.5rem;
+    border-radius: 8px;
+    background: #fff3cd;
+    color: #856404;
+    font-size: 0.7rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.3;
+}
+
+.crear-ruta-cuadrilla-card__desc {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    line-height: 1.45;
+    color: #5c6370;
+}
+
+.crear-ruta-cuadrilla-card__members {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.crear-ruta-cuadrilla-card__member {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 10px;
+    background: var(--color-white);
+    border: 1px solid rgba(110, 109, 153, 0.1);
+}
+
+.crear-ruta-cuadrilla-card__member-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.crear-ruta-cuadrilla-card__member-role {
+    flex: 0 0 auto;
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9a6700;
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    padding: 0.1rem 0.35rem;
+    border-radius: 999px;
+}
+
+.crear-ruta-cuadrillas-vacio {
+    padding: 2rem 0.75rem;
+    text-align: center;
+    color: var(--color-medium-gray);
+}
+
+.crear-ruta-cuadrillas-vacio i {
+    font-size: 1.5rem;
+    opacity: 0.45;
+    display: block;
+    margin-bottom: 0.35rem;
+}
+
+.crear-ruta-cuadrillas-vacio p {
+    margin: 0;
+    font-size: 0.8rem;
 }
 
 .crear-ruta-lista-panel {
-    max-height: 520px;
     overflow-y: auto;
-    padding: 0.25rem 0.5rem 0.5rem;
+    overflow-x: hidden;
+    padding: 0.5rem;
 }
 
 .crear-ruta-secuencia.ruta-secuencia-container {
@@ -651,7 +2679,7 @@
     flex: 0 0 auto;
     font-weight: 700;
     font-size: 0.88rem;
-    color: #0d6efd;
+    color: var(--color-purple-medium);
     font-variant-numeric: tabular-nums;
 }
 
@@ -680,7 +2708,7 @@
 
 .crear-ruta-secuencia .ruta-secuencia-flecha {
     text-align: center;
-    color: #0d6efd;
+    color: var(--color-purple-medium);
     font-size: 0.75rem;
     line-height: 1;
     margin: 0.15rem 0 0.35rem;
@@ -711,22 +2739,7 @@
     border: none;
 }
 
-.supervisor-visualizar-todas-modal__header {
-    flex-shrink: 0;
-    background: linear-gradient(135deg, #3A3972 0%, #06044B 100%);
-    color: #fff;
-    border: none;
-    border-bottom: none;
-}
-
-.supervisor-visualizar-todas-modal__header .modal-title {
-    color: #fff;
-    font-weight: 600;
-}
-
-.supervisor-visualizar-todas-modal__header .modal-title .bi {
-    color: #fff;
-}
+/* Header de visualizar todas: usa rutas-modal__header */
 
 .supervisor-visualizar-todas-modal .modal-body {
     flex: 1 1 auto;
@@ -750,18 +2763,18 @@
     flex: 0 0 min(260px, 30%);
     max-width: 260px;
     padding: 0.45rem 0.5rem;
-    background: #f8f9fa;
-    border-right: 1px solid #dee2e6;
+    background: #f7f7fb;
+    border-right: 1px solid var(--color-light-gray);
     overflow-y: auto;
     font-size: 0.78rem;
 }
 
 .supervisor-visualizar-todas-panel-izq__subtitulo {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #6c757d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-medium-gray);
     text-transform: uppercase;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.04em;
 }
 
 .supervisor-visualizar-todas-lista {
@@ -785,8 +2798,8 @@
 }
 
 .supervisor-visualizar-todas-item--activa {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 2px rgba(58, 57, 114, 0.25);
 }
 
 .supervisor-visualizar-todas-item__inner {
@@ -848,15 +2861,29 @@
 
 .supervisor-visualizar-todas-item__reclamos {
     flex: 0 0 auto;
-    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    font-size: 0.72rem;
+    font-weight: 600;
     color: #6c757d;
     white-space: nowrap;
+}
+
+.supervisor-visualizar-todas-item__reclamos .bi {
+    font-size: 0.78rem;
+    line-height: 1;
+    color: #6c757d;
+}
+
+.supervisor-visualizar-todas-item__reclamos .bi.bi-clipboard-data {
+    color: #6c757d;
 }
 
 .supervisor-visualizar-todas-item__cuadrilla {
     display: flex;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0.28rem;
     width: 100%;
     min-width: 0;
     overflow: hidden;
@@ -864,8 +2891,13 @@
 
 .supervisor-visualizar-todas-item__cuadrilla-ico {
     flex-shrink: 0;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     line-height: 1;
+    color: #6c757d;
+}
+
+.supervisor-visualizar-todas-item__cuadrilla .bi.supervisor-visualizar-todas-item__cuadrilla-ico {
+    color: #6c757d;
 }
 
 .supervisor-visualizar-todas-item__cuadrilla-nombre {
@@ -901,4 +2933,17 @@
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
+}
+
+/* Marcadores Mapbox en rutas: anclaje estable (sin padding/margin extra) */
+.marker-mapbox-ruta,
+.marker-mapbox-reclamo {
+    display: block;
+    box-sizing: border-box;
+    line-height: 0;
+}
+
+.marker-mapbox-ruta svg,
+.marker-mapbox-reclamo svg {
+    display: block;
 }

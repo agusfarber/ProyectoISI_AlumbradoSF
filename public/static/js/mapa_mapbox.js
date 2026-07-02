@@ -124,7 +124,7 @@ window.app = Vue.createApp({
             direcciones: [], // Cache de direcciones personalizadas
             ubicacionPersonalizada: null, // Para almacenar la ubicación personalizada actual
             filtroEstado: '', // Filtro por estado del reclamo (deprecated)
-            estadosSeleccionados: ['Recibido', 'Asignado', 'Pendiente', 'En ejecución'], // Por defecto sin Completado
+            estadosSeleccionados: ['Recibido', 'Asignado', 'Pendiente', 'En ejecución', 'Completado'],
             prioridadesSeleccionadas: ['Alta', 'Baja'], // Por defecto ambas prioridades del filtro
             exportandoMapa: false,
             cacheCoordenadasReclamos: {}, // OPTIMIZACIÓN: Cache de coordenadas por reclamo ID
@@ -186,6 +186,7 @@ window.app = Vue.createApp({
         iconoMotivoReclamo(motivo) {
             const motivoNormalizado = this.normalizarMotivoReclamo(motivo);
 
+            if (motivoNormalizado.includes('pedido de alumbrado')) return '🌃';
             if (motivoNormalizado.includes('semaforo')) return '🚦';
             if (motivoNormalizado.includes('rama')) return '🌳';
             if (motivoNormalizado.includes('cable')) return '🔌';
@@ -206,19 +207,331 @@ window.app = Vue.createApp({
                 .replace(/"/g, '&quot;');
         },
 
-        crearElementoMarcadorMotivo(color, motivo) {
-            const iconoMotivo = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
-            const elemento = document.createElement('div');
-            elemento.className = 'mapa-motivo-marker';
-            elemento.title = motivo || 'Reclamo';
-            elemento.innerHTML = `
-                <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        claveDomicilioReclamo(reclamo, coordenadas) {
+            const domicilio = (reclamo.municipalidad_domicilio || '').trim().toLowerCase();
+            const numero = (reclamo.municipalidad_numeroDomicilio || '').trim().toLowerCase();
+            if (domicilio) {
+                return `dom:${domicilio}|${numero}`;
+            }
+            if (coordenadas) {
+                return `coord:${coordenadas.lat.toFixed(6)},${coordenadas.lng.toFixed(6)}`;
+            }
+            return `id:${reclamo.id}`;
+        },
+
+        agruparReclamosPorDomicilio(resultados) {
+            const mapa = new Map();
+
+            for (const { reclamo, coords } of resultados) {
+                if (!coords) continue;
+
+                const clave = this.claveDomicilioReclamo(reclamo, coords);
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, { reclamos: [], coordenadas: coords });
+                }
+                mapa.get(clave).reclamos.push(reclamo);
+            }
+
+            return Array.from(mapa.values()).map((grupo) => {
+                grupo.reclamos.sort((a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10));
+
+                const coordsActualizadas = resultados.find(
+                    (item) => item.coords && item.reclamo.id === grupo.reclamos[0].id
+                );
+                if (coordsActualizadas?.coords) {
+                    grupo.coordenadas = coordsActualizadas.coords;
+                }
+
+                return grupo;
+            });
+        },
+
+        obtenerReclamosVisiblesGrupo(reclamos) {
+            return reclamos.filter((reclamo) => this.debeMostrarMarcador(reclamo));
+        },
+
+        reclamoTienePrioridadAlta(reclamo) {
+            return String(reclamo?.prioridad || '').trim().toLowerCase() === 'alta';
+        },
+
+        marcadorMuestraPrioridadAlta(reclamos) {
+            const lista = Array.isArray(reclamos) ? reclamos : [reclamos];
+            const visibles = this.obtenerReclamosVisiblesGrupo(lista);
+            const fuente = visibles.length ? visibles : lista;
+            return fuente.some((r) => this.reclamoTienePrioridadAlta(r));
+        },
+
+        pintarContenidoMarcadorMapbox(wrap, pin, { color, contenido, esNumero, prioridadAlta }) {
+            pin.innerHTML = this.crearSvgMarcador(color, contenido, esNumero);
+            wrap.classList.toggle('mapa-motivo-marker-wrap--prioridad-alta', !!prioridadAlta);
+            wrap.querySelectorAll('.mapa-prioridad-alta-badge').forEach((el) => el.remove());
+            if (prioridadAlta) {
+                const badge = document.createElement('span');
+                badge.className = 'mapa-prioridad-alta-badge';
+                badge.setAttribute('aria-hidden', 'true');
+                badge.textContent = '!';
+                pin.appendChild(badge);
+            }
+        },
+
+        crearElementoMarcador(color, contenidoCentro, esNumero = false, titulo = 'Reclamo', prioridadAlta = false) {
+            const wrap = document.createElement('div');
+            wrap.className = 'mapa-motivo-marker-wrap';
+            const pin = document.createElement('div');
+            pin.className = 'mapa-motivo-marker';
+            wrap.appendChild(pin);
+            wrap.title = titulo;
+            this.pintarContenidoMarcadorMapbox(wrap, pin, {
+                color,
+                contenido: contenidoCentro,
+                esNumero,
+                prioridadAlta
+            });
+            return wrap;
+        },
+
+        crearSvgMarcador(color, contenidoCentro, esNumero = false) {
+            const fontFamily = esNumero
+                ? 'Open Sans, Segoe UI, sans-serif'
+                : 'Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+            const fontWeight = esNumero ? 'font-weight="700"' : '';
+
+            return `
+                <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" overflow="visible">
                     <path d="M16 2.5C10.75 2.5 6.5 6.75 6.5 12c0 7.1 9.5 17.5 9.5 17.5S25.5 19.1 25.5 12C25.5 6.75 21.25 2.5 16 2.5Z" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
                     <circle cx="16" cy="12" r="7.4" fill="#FFFFFF" opacity="0.94"/>
-                    <text x="16.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif" font-size="12">${iconoMotivo}</text>
+                    <text x="16.8" y="12.7" text-anchor="middle" dominant-baseline="middle" font-family="${fontFamily}" font-size="${esNumero ? 11 : 12}" ${fontWeight}>${contenidoCentro}</text>
                 </svg>
             `;
-            return elemento;
+        },
+
+        crearElementoMarcadorMotivo(color, motivo) {
+            const iconoMotivo = this.escaparTextoSvg(this.iconoMotivoReclamo(motivo));
+            return this.crearElementoMarcador(color, iconoMotivo, false, motivo || 'Reclamo');
+        },
+
+        crearContenidoCentroMarcador(reclamo, cantidadVisible) {
+            if (cantidadVisible > 1) {
+                return cantidadVisible > 99 ? '99+' : String(cantidadVisible);
+            }
+            return this.escaparTextoSvg(this.iconoMotivoReclamo(reclamo.municipalidad_motivo));
+        },
+
+        crearEncabezadoPopupReclamo(reclamo) {
+            const icono = this.iconoMotivoReclamo(reclamo.municipalidad_motivo);
+            const color = this.colorEstadoReclamo(reclamo.municipalidad_estado || 'Recibido');
+            return `
+                <div class="mapa-popup-header">
+                    <span class="mapa-popup-motivo-icon" style="background-color: ${color};" aria-hidden="true">${icono}</span>
+                    <h6>Reclamo #${reclamo.municipalidad_id}</h6>
+                </div>
+            `;
+        },
+
+        crearContenidoPopupReclamo(reclamo, opciones = {}) {
+            const { grupoId = null, indice = 0, total = 1, incluirTitulo = false } = opciones;
+            const causasPrioridadAlta = typeof MapaPrioridadUtil !== 'undefined'
+                ? MapaPrioridadUtil.obtenerCausasPrioridadAlta(reclamo)
+                : [];
+            const lineaPopup = (campo, etiqueta, valor) => (
+                typeof MapaPrioridadUtil !== 'undefined'
+                    ? MapaPrioridadUtil.crearLineaPopupCampo(etiqueta, valor, causasPrioridadAlta.includes(campo))
+                    : `<p><strong>${etiqueta}:</strong> ${valor}</p>`
+            );
+            const navegacionGrupo = total > 1 ? `
+                <div class="mapa-popup-grupo-nav">
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-prev" data-grupo-id="${grupoId}" aria-label="Reclamo anterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="mapa-popup-grupo-contador">${indice + 1} de ${total} en este domicilio</span>
+                    <button type="button" class="mapa-popup-nav mapa-popup-nav-next" data-grupo-id="${grupoId}" aria-label="Siguiente reclamo">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            ` : '';
+            const encabezado = incluirTitulo ? this.crearEncabezadoPopupReclamo(reclamo) : '';
+
+            return `
+                <div class="mapa-popup-reclamo">
+                    ${encabezado}
+                    ${navegacionGrupo}
+                    ${lineaPopup('motivo', 'Motivo', reclamo.municipalidad_motivo || 'No especificado')}
+                    ${lineaPopup('estado', 'Estado', reclamo.municipalidad_estado || 'No especificado')}
+                    <p><strong>Prioridad:</strong> ${reclamo.prioridad || 'No especificado'}</p>
+                    <p><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
+                    ${lineaPopup('fecha', 'Fecha', this.formatearFecha(reclamo.municipalidad_fechaInicio))}
+                    <p><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
+                    ${lineaPopup('descripcion', 'Descripción', reclamo.municipalidad_descripcion || 'No especificado')}
+                    <div class="mapa-popup-acciones">
+                        <button type="button" class="mapa-popup-btn mapa-popup-reubicar" data-reclamo-id="${reclamo.id}">
+                            <i class="bi bi-geo-alt"></i> Reubicar
+                        </button>
+                        <button type="button" class="mapa-popup-btn mapa-popup-detalle" data-reclamo-id="${reclamo.id}">
+                            <i class="bi bi-card-text"></i> Ver detalle
+                        </button>
+                    </div>
+                </div>
+            `;
+        },
+
+        vincularEventosPopupMapbox(marker, reclamo) {
+            const btnReubicar = document.querySelector(`.mapa-popup-reubicar[data-reclamo-id="${reclamo.id}"]`);
+            if (btnReubicar) {
+                btnReubicar.onclick = () => this.iniciarReubicacion(reclamo);
+            }
+
+            const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
+            if (btnDetalle) {
+                btnDetalle.onclick = () => this.verReclamo(reclamo);
+            }
+
+            if (marker._grupoId) {
+                const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
+                if (btnPrev) {
+                    btnPrev.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapbox(marker, -1);
+                    };
+                }
+
+                const btnNext = document.querySelector(`.mapa-popup-nav-next[data-grupo-id="${marker._grupoId}"]`);
+                if (btnNext) {
+                    btnNext.onclick = (event) => {
+                        event.preventDefault();
+                        this.navegarPopupGrupoMapbox(marker, 1);
+                    };
+                }
+            }
+        },
+
+        navegarPopupGrupoMapbox(marker, delta) {
+            const visibles = this.obtenerReclamosVisiblesGrupo(marker._reclamosGrupo);
+            if (!visibles.length) return;
+
+            let nuevoIndice = (marker._indicePopup || 0) + delta;
+            if (nuevoIndice < 0) nuevoIndice = visibles.length - 1;
+            if (nuevoIndice >= visibles.length) nuevoIndice = 0;
+
+            this.abrirPopupMarcadorMapbox(marker, nuevoIndice);
+        },
+
+        abrirPopupMarcadorMapbox(marker, indice = null) {
+            const visibles = marker._reclamosGrupo
+                ? this.obtenerReclamosVisiblesGrupo(marker._reclamosGrupo)
+                : [marker._reclamo];
+
+            if (!visibles.length) return;
+
+            if (indice !== null) {
+                marker._indicePopup = indice;
+            } else if (marker._indicePopup === undefined || marker._indicePopup >= visibles.length) {
+                marker._indicePopup = 0;
+            }
+
+            const reclamo = visibles[marker._indicePopup];
+            const popup = marker.getPopup();
+            popup.setHTML(this.crearContenidoPopupReclamo(reclamo, {
+                grupoId: marker._grupoId || null,
+                indice: marker._indicePopup,
+                total: visibles.length,
+                incluirTitulo: true
+            }));
+
+            if (!popup.isOpen()) {
+                marker.togglePopup();
+            }
+
+            setTimeout(() => this.vincularEventosPopupMapbox(marker, reclamo), 0);
+        },
+
+        actualizarIconoMarcadorMapbox(marker) {
+            const reclamos = marker._reclamosGrupo || [marker._reclamo];
+            const visibles = this.obtenerReclamosVisiblesGrupo(reclamos);
+            marker._reclamosVisibles = visibles;
+
+            if (!visibles.length) return;
+
+            const reclamoRef = visibles[0];
+            const color = this.colorEstadoReclamo(reclamoRef.municipalidad_estado || 'Recibido');
+            const esNumero = visibles.length > 1;
+            const contenido = this.crearContenidoCentroMarcador(reclamoRef, visibles.length);
+            const wrap = marker.getElement();
+            const pin = wrap.querySelector('.mapa-motivo-marker') || wrap;
+            const prioridadAlta = this.marcadorMuestraPrioridadAlta(reclamos);
+
+            wrap.title = marker._reclamosGrupo
+                ? `${visibles.length} reclamos en este domicilio`
+                : `Reclamo #${reclamoRef.municipalidad_id}`;
+            this.pintarContenidoMarcadorMapbox(wrap, pin, {
+                color,
+                contenido,
+                esNumero,
+                prioridadAlta
+            });
+            marker._reclamo = reclamoRef;
+
+            if (marker._indicePopup !== undefined && marker._indicePopup >= visibles.length) {
+                marker._indicePopup = 0;
+            }
+        },
+
+        crearMarcadorReclamoMapbox(reclamo, coordenadas, grupo = null) {
+            const esGrupo = grupo && grupo.reclamos.length > 1;
+            const visibles = esGrupo
+                ? this.obtenerReclamosVisiblesGrupo(grupo.reclamos)
+                : [reclamo];
+            const reclamoRef = visibles[0] || reclamo;
+            const cantidadVisible = visibles.length || grupo.reclamos.length;
+            const esNumero = esGrupo && cantidadVisible > 1;
+            const color = this.colorEstadoReclamo(reclamoRef.municipalidad_estado || 'Recibido');
+            const contenido = esGrupo
+                ? this.crearContenidoCentroMarcador(reclamoRef, cantidadVisible)
+                : this.escaparTextoSvg(this.iconoMotivoReclamo(reclamo.municipalidad_motivo));
+            const listaReclamos = esGrupo ? grupo.reclamos : [reclamo];
+            const prioridadAlta = this.marcadorMuestraPrioridadAlta(listaReclamos);
+
+            const popup = new mapboxgl.Popup({ closeOnClick: true });
+            const marker = new mapboxgl.Marker({
+                element: this.crearElementoMarcador(
+                    color,
+                    contenido,
+                    esNumero,
+                    esGrupo ? `${cantidadVisible} reclamos en este domicilio` : (reclamo.municipalidad_motivo || 'Reclamo'),
+                    prioridadAlta
+                ),
+                anchor: 'bottom'
+            })
+                .setLngLat([coordenadas.lng, coordenadas.lat])
+                .setPopup(popup)
+                .addTo(this.map);
+
+            marker._reclamo = reclamoRef;
+            marker._indicePopup = 0;
+
+            if (esGrupo) {
+                marker._reclamosGrupo = grupo.reclamos;
+                marker._reclamosVisibles = visibles;
+                marker._grupoId = grupo.grupoId;
+            }
+
+            popup.on('open', () => {
+                this.abrirPopupMarcadorMapbox(marker, marker._indicePopup || 0);
+            });
+
+            this.marcadores.push(marker);
+        },
+
+        invalidarCacheCoordenadasPorDomicilio(domicilio, numeroDomicilio) {
+            const domicilioNormalizado = (domicilio || '').trim().toLowerCase();
+            const numeroNormalizado = (numeroDomicilio || '').trim().toLowerCase();
+
+            this.reclamos.forEach((reclamo) => {
+                const dom = (reclamo.municipalidad_domicilio || '').trim().toLowerCase();
+                const num = (reclamo.municipalidad_numeroDomicilio || '').trim().toLowerCase();
+                if (dom === domicilioNormalizado && num === numeroNormalizado) {
+                    delete this.cacheCoordenadasReclamos[reclamo.id];
+                }
+            });
         },
 
         waitForMapbox() {
@@ -313,7 +626,7 @@ window.app = Vue.createApp({
                             const coordenadas = {
                                 lat: lat,
                                 lng: lng,
-                                esPersonalizada: true
+                                esPersonalizada: direccionPersonalizada.personalizada == 1
                             };
                             // Guardar en caché
                             this.cacheCoordenadasReclamos[reclamo.id] = coordenadas;
@@ -399,72 +712,26 @@ window.app = Vue.createApp({
             );
             
             const resultados = await Promise.all(promesasCoordenadas);
+            const grupos = this.agruparReclamosPorDomicilio(resultados);
+            let contadorGrupos = 0;
 
-            for (const { reclamo, coords: coordenadas } of resultados) {
-                if (coordenadas) {
-                    // Contar estados
+            for (const grupo of grupos) {
+                for (const reclamo of grupo.reclamos) {
                     const estado = reclamo.municipalidad_estado || 'Recibido';
                     if (contadorEstados.hasOwnProperty(estado)) {
                         contadorEstados[estado]++;
                     } else {
-                        contadorEstados['Recibido']++; // Estado por defecto
+                        contadorEstados['Recibido']++;
                     }
+                }
 
-                    // Crear el contenido del popup
-                    const popupContent = `
-                        <div class="mapa-popup-reclamo">
-                            <h6 style="margin-bottom: 8px;"><strong>Reclamo #${reclamo.municipalidad_id}</strong></h6>
-                            <p style="margin-bottom: 4px;"><strong>Motivo:</strong> ${reclamo.municipalidad_motivo || 'No especificado'}</p>
-                            <p style="margin-bottom: 4px;"><strong>Estado:</strong> ${reclamo.municipalidad_estado || 'No especificado'}</p>
-                            <p style="margin-bottom: 4px;"><strong>Prioridad:</strong> ${reclamo.prioridad || 'No especificado'}</p>
-                            <p style="margin-bottom: 4px;"><strong>Dirección:</strong> ${reclamo.municipalidad_domicilio || 'No especificado'} ${reclamo.municipalidad_numeroDomicilio || ''}</p>
-                            <p style="margin-bottom: 4px;"><strong>Fecha:</strong> ${this.formatearFecha(reclamo.municipalidad_fechaInicio)}</p>
-                            <p style="margin-bottom: 4px;"><strong>Ciudadano:</strong> ${reclamo.municipalidad_ciudadano || 'No especificado'}</p>
-                            <div class="mapa-popup-acciones d-flex gap-2 mt-2">
-                                <button type="button" class="btn btn-sm btn-warning mapa-popup-reubicar" data-reclamo-id="${reclamo.id}">
-                                    <i class="bi bi-geo-alt"></i> Reubicar
-                                </button>
-                                <button type="button" class="btn btn-sm btn-primary mapa-popup-detalle" data-reclamo-id="${reclamo.id}">
-                                    <i class="bi bi-card-text text-white"></i> Ver detalle
-                                </button>
-                            </div>
-                        </div>
-                    `;
-
-                    // Crear el marcador con color según estado del reclamo
-                    let color = '#808080'; // Gris por defecto
-                    if (reclamo.municipalidad_estado === 'Recibido') color = '#808080'; // Gris
-                    else if (reclamo.municipalidad_estado === 'Asignado') color = '#0DCAF0'; // Celeste
-                    else if (reclamo.municipalidad_estado === 'Pendiente') color = '#FF0000'; // Rojo
-                    else if (reclamo.municipalidad_estado === 'En ejecución') color = '#FFD700'; // Amarillo
-                    else if (reclamo.municipalidad_estado === 'Completado') color = '#198754'; // Verde Bootstrap success
-                    else if (reclamo.municipalidad_estado === 'En plan') color = '#808080'; // Gris
-                    else if (reclamo.municipalidad_estado === 'Error de datos') color = '#808080'; // Gris
-
-                    const popup = new mapboxgl.Popup().setHTML(popupContent);
-                    popup.on('open', () => {
-                        const btnReubicar = document.querySelector(`.mapa-popup-reubicar[data-reclamo-id="${reclamo.id}"]`);
-                        if (btnReubicar) {
-                            btnReubicar.onclick = () => this.iniciarReubicacion(reclamo);
-                        }
-
-                        const btnDetalle = document.querySelector(`.mapa-popup-detalle[data-reclamo-id="${reclamo.id}"]`);
-                        if (btnDetalle) {
-                            btnDetalle.onclick = () => this.verReclamo(reclamo);
-                        }
+                if (grupo.reclamos.length > 1) {
+                    this.crearMarcadorReclamoMapbox(grupo.reclamos[0], grupo.coordenadas, {
+                        reclamos: grupo.reclamos,
+                        grupoId: `grupo-mapbox-${++contadorGrupos}`
                     });
-
-                    const marker = new mapboxgl.Marker({
-                        element: this.crearElementoMarcadorMotivo(color, reclamo.municipalidad_motivo),
-                        anchor: 'bottom'
-                    })
-                        .setLngLat([coordenadas.lng, coordenadas.lat])
-                        .setPopup(popup)
-                        .addTo(this.map);
-
-                    // Guardar referencia al reclamo en el marcador
-                    marker._reclamo = reclamo;
-                    this.marcadores.push(marker);
+                } else {
+                    this.crearMarcadorReclamoMapbox(grupo.reclamos[0], grupo.coordenadas);
                 }
             }
 
@@ -479,7 +746,6 @@ window.app = Vue.createApp({
             
             this.aplicarFiltroMarcadores();
             this.actualizarTextoBoton();
-            this.actualizarTextoBotonPrioridad();
         },
 
         inicializarTabla() {
@@ -578,10 +844,13 @@ window.app = Vue.createApp({
                     return;
                 }
 
-                // Buscar el marcador correspondiente
-                const marcador = this.marcadores.find(marker => 
-                    marker._reclamo && marker._reclamo.id === reclamo.id
-                );
+                // Buscar el marcador correspondiente (individual o agrupado)
+                const marcador = this.marcadores.find((marker) => {
+                    if (marker._reclamosGrupo) {
+                        return marker._reclamosGrupo.some((item) => item.id === reclamo.id);
+                    }
+                    return marker._reclamo && marker._reclamo.id === reclamo.id;
+                });
 
                 if (marcador) {
                     // Centrar el mapa en el marcador, igual que en Google Maps.
@@ -682,7 +951,7 @@ window.app = Vue.createApp({
             }
 
             // Mostrar modal de confirmación
-            const mensajeConfirmacion = '¿Está seguro de que desea eliminar la ubicación personalizada? El punto volverá a usar las coordenadas automáticas de Mapbox.';
+            const mensajeConfirmacion = '¿Está seguro de que desea eliminar la ubicación personalizada? El punto volverá a la ubicación automática según la dirección del reclamo (Mapbox).';
             const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Ubicación Personalizada');
             
             if (!confirmacion) {
@@ -690,8 +959,17 @@ window.app = Vue.createApp({
             }
 
             try {
-                // Eliminar la dirección personalizada
-                await axios.delete(BASE_URL + 'api/direcciones/' + this.ubicacionPersonalizada.id);
+                const reclamoAfectado = { ...this.reclamoParaReubicar };
+                const idDireccion = this.ubicacionPersonalizada.id;
+                const coordsAutomaticas = await this.geocodificarDireccion(reclamoAfectado);
+
+                const datosActualizacion = { personalizada: 0 };
+                if (coordsAutomaticas) {
+                    datosActualizacion.latitud = coordsAutomaticas.lat;
+                    datosActualizacion.longitud = coordsAutomaticas.lng;
+                }
+
+                await axios.put(BASE_URL + 'api/direcciones/' + idDireccion, datosActualizacion);
                 
                 // Cerrar modal de estado
                 const modalEstado = bootstrap.Modal.getInstance(document.getElementById('modalEstadoUbicacion'));
@@ -699,22 +977,24 @@ window.app = Vue.createApp({
                     modalEstado.hide();
                 }
                 
-                // Limpiar estado y caché del reclamo afectado
-                const idReclamoAfectado = this.reclamoParaReubicar.id;
-                this.ubicacionPersonalizada = null;
-                this.reclamoParaReubicar = {};
-                
-                // Limpiar caché de coordenadas del reclamo para forzar recálculo
-                if (idReclamoAfectado) {
-                    delete this.cacheCoordenadasReclamos[idReclamoAfectado];
-                }
-                
+                // Guardar referencia antes de limpiar el modo reubicación
+                const domicilioAfectado = this.reclamoParaReubicar.municipalidad_domicilio;
+                const numeroAfectado = this.reclamoParaReubicar.municipalidad_numeroDomicilio;
+
+                // Limpiar estado
+                this.limpiarModoReubicacion();
+
                 // Recargar marcadores y tabla
                 await this.obtenerDirecciones();
+                this.invalidarCacheCoordenadasPorDomicilio(domicilioAfectado, numeroAfectado);
                 await this.agregarMarcadoresReclamos();
                 this.inicializarTabla();
                 
-                this.mostrarMensaje('Ubicación personalizada eliminada correctamente', 'success');
+                if (coordsAutomaticas) {
+                    this.mostrarMensaje('Ubicación personalizada eliminada. El punto volvió a la ubicación automática.', 'success');
+                } else {
+                    this.mostrarMensaje('Ubicación personalizada eliminada, pero no se pudo recalcular la posición automática.', 'warning');
+                }
                 
             } catch (error) {
                 console.error('Error al eliminar ubicación personalizada:', error);
@@ -749,11 +1029,16 @@ window.app = Vue.createApp({
             // Crear contenido del modal dinámicamente
             const modalContent = `
                 <div class="modal fade" id="modalConfirmarReubicacion" tabindex="-1">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title">Confirmar Reubicación</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content mapa-modal">
+                            <div class="mapa-modal__header">
+                                <div class="mapa-modal__title">
+                                    <span class="mapa-modal__icon"><i class="bi bi-geo-alt-fill"></i></span>
+                                    <h5>Confirmar reubicación</h5>
+                                </div>
+                                <button type="button" class="mapa-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
                             <div class="modal-body">
                                 <div class="mb-3">
@@ -769,17 +1054,15 @@ window.app = Vue.createApp({
                                     <p>Latitud: ${this.nuevaUbicacion.lat.toFixed(6)}</p>
                                     <p>Longitud: ${this.nuevaUbicacion.lng.toFixed(6)}</p>
                                 </div>
-                                <div class="alert alert-info">
+                                <div class="mapa-modal-alert mapa-modal-alert--info">
                                     <i class="bi bi-info-circle"></i>
-                                    <strong>¿Confirma que desea reubicar el punto del reclamo en esta nueva ubicación?</strong>
+                                    <div><strong>¿Confirma que desea reubicar el punto del reclamo en esta nueva ubicación?</strong></div>
                                 </div>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-success" id="btnConfirmarReubicacion">
-                                    <i class="bi bi-geo-alt text-white"></i> Confirmar Reubicación
-                                </button>
-                                <button type="button" class="btn btn-secondary" id="btnCancelarReubicacion">
-                                    Cancelar
+                            <div class="mapa-modal__footer mapa-modal__footer--end">
+                                <button type="button" class="reclamos-btn reclamos-btn--outline" id="btnCancelarReubicacion">Cancelar</button>
+                                <button type="button" class="reclamos-btn" id="btnConfirmarReubicacion">
+                                    <i class="bi bi-geo-alt"></i> Confirmar reubicación
                                 </button>
                             </div>
                         </div>
@@ -834,17 +1117,16 @@ window.app = Vue.createApp({
                     modalConfirmacion.hide();
                 }
                 
-                // Limpiar caché de coordenadas del reclamo para forzar recálculo
-                const idReclamoAfectado = this.reclamoParaReubicar.id;
-                if (idReclamoAfectado) {
-                    delete this.cacheCoordenadasReclamos[idReclamoAfectado];
-                }
-                
+                // Guardar referencia antes de limpiar el modo reubicación
+                const domicilioAfectado = this.reclamoParaReubicar.municipalidad_domicilio;
+                const numeroAfectado = this.reclamoParaReubicar.municipalidad_numeroDomicilio;
+
                 // Limpiar estado
                 this.limpiarModoReubicacion();
-                
+
                 // Recargar marcadores y tabla
                 await this.obtenerDirecciones();
+                this.invalidarCacheCoordenadasPorDomicilio(domicilioAfectado, numeroAfectado);
                 await this.agregarMarcadoresReclamos();
                 this.inicializarTabla();
                 
@@ -961,18 +1243,6 @@ window.app = Vue.createApp({
             }
 
             this.aplicarFiltroMarcadores();
-            this.actualizarTextoBotonPrioridad();
-        },
-
-        toggleTodasPrioridades(event) {
-            if (event.target.checked) {
-                this.prioridadesSeleccionadas = [];
-            } else {
-                this.prioridadesSeleccionadas = ['Alta', 'Baja'];
-            }
-
-            this.aplicarFiltroMarcadores();
-            this.actualizarTextoBotonPrioridad();
         },
 
         debeMostrarMarcador(reclamo) {
@@ -983,26 +1253,6 @@ window.app = Vue.createApp({
             const cumplePrioridad = this.prioridadesSeleccionadas.length === 0 || this.prioridadesSeleccionadas.includes(prioridadReclamo);
 
             return cumpleEstado && cumplePrioridad;
-        },
-
-        actualizarTextoBotonPrioridad() {
-            const dropdownButton = document.querySelector('.mapa-filtro-prioridad-toggle');
-            if (!dropdownButton) {
-                return;
-            }
-
-            if (this.prioridadesSeleccionadas.length === 0) {
-                dropdownButton.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Filtrar por Prioridad';
-            } else if (this.prioridadesSeleccionadas.length === 2) {
-                dropdownButton.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Todas las Prioridades';
-            } else {
-                const iconos = {
-                    'Alta': '🔺',
-                    'Baja': '🔻'
-                };
-                const iconosSeleccionados = this.prioridadesSeleccionadas.map(prioridad => iconos[prioridad]).join(' ');
-                dropdownButton.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${iconosSeleccionados}`;
-            }
         },
 
         actualizarTextoBoton() {
@@ -1029,7 +1279,16 @@ window.app = Vue.createApp({
         },
 
         aplicarFiltroMarcadores() {
-            this.marcadores.forEach(marker => {
+            this.marcadores.forEach((marker) => {
+                if (marker._reclamosGrupo) {
+                    const visibles = this.obtenerReclamosVisiblesGrupo(marker._reclamosGrupo);
+                    marker.getElement().style.display = visibles.length > 0 ? 'block' : 'none';
+                    if (visibles.length > 0) {
+                        this.actualizarIconoMarcadorMapbox(marker);
+                    }
+                    return;
+                }
+
                 const reclamo = marker._reclamo;
                 if (reclamo) {
                     if (this.debeMostrarMarcador(reclamo)) {
@@ -1056,18 +1315,21 @@ window.app = Vue.createApp({
                 'Error de datos': 0
             };
 
-            this.marcadores.forEach(marker => {
+            this.marcadores.forEach((marker) => {
                 const elemento = marker.getElement();
-                if (elemento && elemento.style.display !== 'none') {
-                    const reclamo = marker._reclamo;
-                    if (reclamo) {
-                        contadorVisible++;
-                        const estado = reclamo.municipalidad_estado || 'Recibido';
-                        if (contadorEstados.hasOwnProperty(estado)) {
-                            contadorEstados[estado]++;
-                        }
+                if (!elemento || elemento.style.display === 'none') return;
+
+                const reclamos = marker._reclamosGrupo
+                    ? this.obtenerReclamosVisiblesGrupo(marker._reclamosGrupo)
+                    : (marker._reclamo ? [marker._reclamo] : []);
+
+                reclamos.forEach((reclamo) => {
+                    contadorVisible++;
+                    const estado = reclamo.municipalidad_estado || 'Recibido';
+                    if (contadorEstados.hasOwnProperty(estado)) {
+                        contadorEstados[estado]++;
                     }
-                }
+                });
             });
 
             if (this.estadosSeleccionados.length === 0) {
@@ -1160,10 +1422,6 @@ window.app = Vue.createApp({
                 preserveDrawingBuffer: true // Necesario para exportar el mapa como imagen
             });
 
-            // Agregar controles de navegación
-            this.map.addControl(new mapboxgl.NavigationControl());
-
-
             // Evento cuando el mapa esté completamente cargado
             this.map.on('load', async () => {
                 console.log('Mapa de San Francisco cargado correctamente');
@@ -1181,25 +1439,25 @@ window.app = Vue.createApp({
             const modalHtml = `
                 <div class="modal fade" id="modalInstruccionReubicacion" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header bg-info text-white">
-                                <h5 class="modal-title">
-                                    <i class="bi bi-geo-alt me-2"></i>Modo de Reubicación Activado
-                                </h5>
-                                <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <div class="modal-content mapa-modal mapa-confirm-modal">
+                            <div class="mapa-modal__header">
+                                <div class="mapa-modal__title">
+                                    <span class="mapa-modal__icon"><i class="bi bi-geo-alt-fill"></i></span>
+                                    <h5>Modo de reubicación activado</h5>
+                                </div>
+                                <button type="button" class="mapa-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
                             </div>
                             <div class="modal-body">
-                                <div class="text-center">
-                                    <i class="bi bi-cursor-fill text-info" style="font-size: 3rem;"></i>
-                                    <p class="mt-3 mb-0">
-                                        <strong>Instrucciones:</strong><br>
-                                        Haga clic en cualquier lugar del mapa para seleccionar la nueva ubicación del reclamo.
-                                    </p>
-                                </div>
+                                <p class="mapa-confirm-modal__message">
+                                    <strong>Instrucciones:</strong><br>
+                                    Haga clic en cualquier lugar del mapa para seleccionar la nueva ubicación del reclamo.
+                                </p>
                             </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-info" data-bs-dismiss="modal" id="btnEntendido">
-                                    <i class="bi bi-check-circle me-1"></i>Entendido
+                            <div class="mapa-modal__footer mapa-modal__footer--end">
+                                <button type="button" class="reclamos-btn" data-bs-dismiss="modal" id="btnEntendido">
+                                    <i class="bi bi-check-lg"></i> Entendido
                                 </button>
                             </div>
                         </div>
@@ -1228,67 +1486,57 @@ window.app = Vue.createApp({
          */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
-                // Crear el modal de confirmación
+                let resuelto = false;
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content">
-                                <div class="modal-header bg-warning text-dark">
-                                    <h5 class="modal-title">
-                                        <i class="bi bi-question-circle me-2"></i>${titulo}
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            <div class="modal-content mapa-modal mapa-confirm-modal">
+                                <div class="mapa-modal__header">
+                                    <div class="mapa-modal__title">
+                                        <span class="mapa-modal__icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="mapa-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
                                 </div>
                                 <div class="modal-body">
-                                    <div class="text-center">
-                                        <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-                                        <p class="mt-3 mb-0">${mensaje}</p>
-                                    </div>
+                                    <p class="mapa-confirm-modal__message">${mensaje}</p>
                                 </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="btnCancelar">
-                                        <i class="bi bi-x-circle me-1 text-white"></i>Cancelar
-                                    </button>
-                                    <button type="button" class="btn btn-warning" id="btnConfirmar">
-                                        <i class="bi bi-check-circle me-1"></i>Confirmar
-                                    </button>
+                                <div class="mapa-modal__footer mapa-modal__footer--end">
+                                    <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal" id="btnCancelar">Cancelar</button>
+                                    <button type="button" class="reclamos-btn" id="btnConfirmar"><i class="bi bi-check-lg"></i> Confirmar</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 `;
 
-                // Remover modal anterior si existe
                 $('#modalConfirmacion').remove();
-                
-                // Agregar el modal al body
                 $('body').append(modalHtml);
-                
-                // Mostrar el modal
+
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
                 modal.show();
 
-                // Manejar botones
-                $('#btnConfirmar').on('click', () => {
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
                     modal.hide();
                     setTimeout(() => {
                         $('#modalConfirmacion').remove();
                     }, 300);
-                    resolve(true);
-                });
+                    resolve(resultado);
+                };
 
-                $('#btnCancelar').on('click', () => {
-                    modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
-                    resolve(false);
-                });
+                $('#btnConfirmar').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelar').on('click', () => cerrarConfirmacion(false));
 
-                // Manejar cierre del modal (X o ESC)
                 $('#modalConfirmacion').on('hidden.bs.modal', () => {
                     $('#modalConfirmacion').remove();
-                    resolve(false);
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
                 });
             });
         },
