@@ -23,55 +23,32 @@ class ReclamosSincronizacion103Test extends CIUnitTestCase
     protected $seed = ''; // No usar seeder, estos tests no lo necesitan
 
     /**
-     * Prueba 21: Configuración de Credenciales de Basic Auth
-     * 
-     * Objetivo: Verificar que se pueden guardar y recuperar credenciales
-     * de autenticación Basic Auth para la API externa del sistema 103.
-     * 
-     * Nota: Este test usa credenciales de prueba. El sistema ha sido probado
-     * y funciona correctamente con las credenciales oficiales proporcionadas
-     * por la Municipalidad de San Francisco.
+     * Prueba 21: Configuración de Token de API del 103
+     *
+     * Objetivo: Verificar que se pueden guardar y recuperar el api_token
+     * usado en Authorization: Token {valor}.
      */
     public function testConfiguracionCredenciales()
     {
-        // Arrange: Preparar credenciales de prueba (NO son las credenciales reales)
-        $username = 'test@example.com';
-        $password = 'TestPassword123!';
-        
-        // Act: Insertar credenciales en la base de datos
+        $apiToken = '6f560d0559e9d32733781c050d5fd5d851e535c5';
+
         $tokenModel = new Token103Model();
         $tokenId = $tokenModel->insert([
-            'username' => $username,
-            'password' => $password
+            'api_token' => $apiToken,
         ]);
-        
-        // Assert 1: Verificar que se insertó correctamente
+
         $this->assertIsInt($tokenId);
         $this->assertGreaterThan(0, $tokenId);
-        
-        // Act: Recuperar las credenciales
-        $credenciales = $tokenModel->find($tokenId);
-        
-        // Assert 2: Verificar que se recuperaron correctamente
-        $this->assertNotNull($credenciales);
-        $this->assertEquals($username, $credenciales['username']);
-        $this->assertEquals($password, $credenciales['password']);
-        
-        // Act: Generar token Base64 (simulando lo que hace el controlador)
-        $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
-        $tokenBase64 = base64_encode($credencialesString);
-        
-        // Assert 3: Verificar que el formato del token es correcto
-        $this->assertNotEmpty($tokenBase64);
-        $this->assertIsString($tokenBase64);
-        
-        // Assert 4: Verificar que el token se puede decodificar correctamente
-        $decodedCredentials = base64_decode($tokenBase64);
-        $this->assertEquals($credencialesString, $decodedCredentials);
-        
-        // Assert 5: Verificar que tiene los campos de timestamp
-        $this->assertArrayHasKey('created_at', $credenciales);
-        $this->assertArrayHasKey('updated_at', $credenciales);
+
+        $config = $tokenModel->find($tokenId);
+
+        $this->assertNotNull($config);
+        $this->assertEquals($apiToken, $config['api_token']);
+        $this->assertEquals($apiToken, $tokenModel->obtenerApiToken());
+        $this->assertEquals('Token ' . $apiToken, $tokenModel->obtenerHeaderAuthorization());
+
+        $this->assertArrayHasKey('created_at', $config);
+        $this->assertArrayHasKey('updated_at', $config);
     }
 
     /**
@@ -144,14 +121,71 @@ class ReclamosSincronizacion103Test extends CIUnitTestCase
         // Assert 8: Verificar campos que deben ser null
         $this->assertNull($reclamoMapeado['municipalidad_recepcion']);
         $this->assertNull($reclamoMapeado['municipalidad_ciudadano']);
+
+        // Assert 9: Sin Completado no se marca cierre formal
+        $this->assertArrayNotHasKey('cerrado', $reclamoMapeado);
+        $this->assertArrayNotHasKey('fecha_cierre', $reclamoMapeado);
     }
 
     /**
-     * Prueba 23: Conversión de Fechas ISO 8601
-     * 
-     * Objetivo: Verificar que las fechas en formato ISO 8601 de la API
-     * externa se convierten correctamente al formato MySQL datetime.
+     * Completado en el 103 → cerrado=1 y fecha_cierre desde fecha_modificacion.
      */
+    public function testMapeoReclamoCompletadoMarcaCerrado()
+    {
+        $reclamoApiExterna = [
+            'id' => 54321,
+            'motivo' => [
+                'tipo' => 'ALUMBRADO PÚBLICO',
+                'nombre' => 'Luminarias quemadas o rotas',
+            ],
+            'fecha_inicio' => '2025-11-10T10:00:00.000000-03:00',
+            'fecha_modificacion' => '2025-11-12T18:30:00.000000-03:00',
+            'estado_nombre' => 'Completado',
+            'calle' => ['nombre' => 'San Martin'],
+            'calle_altura' => 500,
+        ];
+
+        $controller = new ReclamosSincronizacion();
+        $reflection = new ReflectionClass($controller);
+        $metodoMapear = $reflection->getMethod('mapearReclamo');
+        $metodoMapear->setAccessible(true);
+
+        $reclamoMapeado = $metodoMapear->invoke($controller, $reclamoApiExterna);
+
+        $this->assertEquals('Completado', $reclamoMapeado['municipalidad_estado']);
+        $this->assertEquals(1, $reclamoMapeado['cerrado']);
+        $this->assertEquals('2025-11-12 18:30:00', $reclamoMapeado['fecha_cierre']);
+    }
+
+    /**
+     * Si falta fecha_modificacion, fecha_cierre usa fecha_inicio.
+     */
+    public function testMapeoReclamoCompletadoFechaCierreFallbackInicio()
+    {
+        $reclamoApiExterna = [
+            'id' => 54322,
+            'motivo' => [
+                'tipo' => 'ALUMBRADO PÚBLICO',
+                'nombre' => 'Luminarias quemadas o rotas',
+            ],
+            'fecha_inicio' => '2025-11-10T10:00:00.000000-03:00',
+            'fecha_modificacion' => null,
+            'estado_nombre' => 'Completado',
+            'calle' => ['nombre' => 'Belgrano'],
+            'calle_altura' => 100,
+        ];
+
+        $controller = new ReclamosSincronizacion();
+        $reflection = new ReflectionClass($controller);
+        $metodoMapear = $reflection->getMethod('mapearReclamo');
+        $metodoMapear->setAccessible(true);
+
+        $reclamoMapeado = $metodoMapear->invoke($controller, $reclamoApiExterna);
+
+        $this->assertEquals(1, $reclamoMapeado['cerrado']);
+        $this->assertEquals('2025-11-10 10:00:00', $reclamoMapeado['fecha_cierre']);
+    }
+
     public function testFiltrarReclamosOmiteEstadoInvalido()
     {
         $controller = new ReclamosSincronizacion();

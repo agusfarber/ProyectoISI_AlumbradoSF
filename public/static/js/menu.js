@@ -1,10 +1,9 @@
-// Funcionalidad del sidebar móvil
+// Funcionalidad del sidebar móvil / topbar de cuenta
 document.addEventListener('DOMContentLoaded', function() {
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
-    
-    // Asegurar que el sidebar esté siempre visible desde el inicio (sin animaciones)
+
     if (sidebar) {
         sidebar.style.animation = 'none';
         sidebar.style.opacity = '1';
@@ -12,47 +11,39 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebar.style.transform = window.innerWidth <= 768 ? 'translateY(0)' : 'translateX(0)';
     }
 
-    // Función para abrir/cerrar el sidebar
     function toggleSidebar() {
+        if (!sidebar || !sidebarOverlay) return;
         sidebar.classList.toggle('show');
         sidebarOverlay.classList.toggle('show');
     }
 
-    // Event listener para el botón toggle
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', toggleSidebar);
     }
 
-    // Event listener para cerrar con el overlay
     if (sidebarOverlay) {
         sidebarOverlay.addEventListener('click', toggleSidebar);
     }
 
-    // En móvil el menú está siempre visible arriba, no se cierra al hacer clic
-    // Solo cerrar sidebar en desktop si está abierto (aunque no debería pasar)
     const sidebarLinks = document.querySelectorAll('.sidebar .nav-link');
     sidebarLinks.forEach(link => {
         link.addEventListener('click', function() {
-            // No hacer nada en móvil, el menú está siempre visible
-            // Solo en desktop si por alguna razón el sidebar está abierto
-            if (window.innerWidth > 768 && sidebar.classList.contains('show')) {
+            if (sidebar && window.innerWidth > 768 && sidebar.classList.contains('show')) {
                 toggleSidebar();
             }
         });
     });
 
-    // Cerrar sidebar al hacer clic en dropdown items (solo desktop)
     const dropdownItems = document.querySelectorAll('.sidebar .dropdown-item');
     dropdownItems.forEach(item => {
         item.addEventListener('click', function() {
-            if (window.innerWidth > 768 && sidebar.classList.contains('show')) {
+            if (sidebar && window.innerWidth > 768 && sidebar.classList.contains('show')) {
                 toggleSidebar();
             }
         });
     });
 
-    // Menús desplegables de la cuenta del usuario (Perfil / Cerrar sesión)
-    // Soporta múltiples instancias (escritorio y móvil)
+    // Menús de cuenta (sidebar escritorio/móvil y topbar admin/operario)
     const userMenus = document.querySelectorAll('.user-menu');
     if (userMenus.length) {
         const cerrarTodos = () => {
@@ -87,58 +78,46 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Marcar enlace activo basado en la URL actual
     const currentPath = window.location.pathname;
     const navLinks = document.querySelectorAll('.sidebar .nav-link');
-    
+
     navLinks.forEach(link => {
         const href = link.getAttribute('href');
-        if (href) {
-            // Obtener la última parte de la URL actual y del href
-            const currentPage = currentPath.split('/').filter(p => p).pop();
-            const linkPage = href.split('/').filter(p => p).pop();
-            
-            // Comparación exacta (no parcial)
-            if (currentPage === linkPage) {
-                link.classList.add('active');
-            }
+        if (!href) return;
+        const currentPage = currentPath.split('/').filter(p => p).pop();
+        const linkPage = href.split('/').filter(p => p).pop();
+        if (currentPage === linkPage) {
+            link.classList.add('active');
         }
     });
 
-    // Marcar dropdown activo si contiene enlaces activos
     const dropdownToggles = document.querySelectorAll('.sidebar .dropdown-toggle');
     dropdownToggles.forEach(toggle => {
         const dropdown = toggle.nextElementSibling;
+        if (!dropdown) return;
         const dropdownLinks = dropdown.querySelectorAll('.dropdown-item');
-        
+
         dropdownLinks.forEach(link => {
             const href = link.getAttribute('href');
-            if (href) {
-                // Obtener la última parte de la URL actual y del href
-                const currentPage = currentPath.split('/').filter(p => p).pop();
-                const linkPage = href.split('/').filter(p => p).pop();
-                
-                // Comparación exacta (no parcial)
-                if (currentPage === linkPage) {
-                    toggle.classList.add('active');
-                }
+            if (!href) return;
+            const currentPage = currentPath.split('/').filter(p => p).pop();
+            const linkPage = href.split('/').filter(p => p).pop();
+            if (currentPage === linkPage) {
+                toggle.classList.add('active');
             }
         });
     });
 });
 
-// Función para manejar cambios de tamaño de ventana
 window.addEventListener('resize', function() {
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
-    
-    // En desktop, asegurar que el sidebar esté visible normalmente
+    if (!sidebar) return;
+
     if (window.innerWidth > 768) {
         sidebar.classList.remove('show');
         if (sidebarOverlay) {
             sidebarOverlay.classList.remove('show');
         }
     }
-    // En móvil, el sidebar siempre está visible arriba, no necesita toggle
 });
-

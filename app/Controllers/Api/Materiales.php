@@ -29,7 +29,7 @@ class Materiales extends ResourceController
     {
         $data = $this->request->getJSON(true);
 
-        // Solo el nombre es obligatorio, cantidad y tipo son opcionales
+        // Solo el nombre es obligatorio; el tipo es opcional
         if (empty($data['nombre'])) {
             return $this->failValidationErrors('El nombre del material es obligatorio.');
         }
@@ -48,16 +48,6 @@ class Materiales extends ResourceController
             }
         }
 
-        // Manejar cantidad (opcional)
-        if (isset($data['cantidad'])) {
-            $data['cantidad'] = (int) $data['cantidad'];
-            if ($data['cantidad'] < 0) {
-                return $this->failValidationErrors('La cantidad no puede ser negativa.');
-            }
-        } else {
-            $data['cantidad'] = 0; // Valor por defecto si no se proporciona
-        }
-
         // Manejar tipo (opcional)
         if (isset($data['idTipo']) && $data['idTipo'] !== '' && $data['idTipo'] !== null) {
             $data['idTipo'] = (int) $data['idTipo'];
@@ -71,6 +61,8 @@ class Materiales extends ResourceController
         } else {
             $data['idTipo'] = null; // Tipo opcional
         }
+
+        unset($data['foto'], $data['cantidad']); // foto por endpoint dedicado; cantidad ya no existe
 
         $id = $this->model->insert($data);
         if ($id === false) {
@@ -104,13 +96,6 @@ class Materiales extends ResourceController
             }
         }
 
-        if (isset($data['cantidad'])) {
-            $data['cantidad'] = (int) $data['cantidad'];
-            if ($data['cantidad'] < 0) {
-                return $this->failValidationErrors('La cantidad no puede ser negativa.');
-            }
-        }
-        
         if (isset($data['idTipo'])) {
             $data['idTipo'] = (int) $data['idTipo'];
             // Permite un valor de 0 (o nulo) para idTipo
@@ -124,6 +109,17 @@ class Materiales extends ResourceController
             $data['idTipo'] = null;
         }
 
+        unset($data['cantidad']); // Columna eliminada del catálogo
+
+        if (array_key_exists('foto', $data) && ($data['foto'] === null || $data['foto'] === '')) {
+            $actual = $this->model->find($id);
+            $this->eliminarArchivoFoto($actual['foto'] ?? null);
+            $data['foto'] = null;
+        } else {
+            // Evitar sobrescribir foto por payload JSON accidental
+            unset($data['foto']);
+        }
+
         $ok = $this->model->update($id, $data);
         if ($ok === false) {
             return $this->failServerError('Error al actualizar el material.');
@@ -135,11 +131,72 @@ class Materiales extends ResourceController
 
     public function delete($id = null)
     {
-        if (!$id || !$this->model->find($id)) {
+        $material = $id ? $this->model->find($id) : null;
+        if (!$id || !$material) {
             return $this->failNotFound('Material no encontrado.');
         }
+
+        $this->eliminarArchivoFoto($material['foto'] ?? null);
         $this->model->delete($id);
         return $this->respondDeleted(['mensaje' => 'Material eliminado con éxito.']);
+    }
+
+    /**
+     * Sube/actualiza la foto de un material.
+     * Recibe el archivo en el campo 'foto' (multipart/form-data).
+     */
+    public function subirFoto($id = null)
+    {
+        $material = $id ? $this->model->find($id) : null;
+        if (!$material) {
+            return $this->failNotFound('Material no encontrado.');
+        }
+
+        $archivo = $this->request->getFile('foto');
+        if (!$archivo || !$archivo->isValid()) {
+            return $this->failValidationErrors('No se recibió un archivo válido.');
+        }
+
+        $tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!in_array($archivo->getMimeType(), $tiposPermitidos, true)) {
+            return $this->failValidationErrors('Formato no permitido. Use JPG, PNG o WEBP.');
+        }
+
+        if ($archivo->getSize() > 2 * 1024 * 1024) {
+            return $this->failValidationErrors('La imagen no debe superar los 2 MB.');
+        }
+
+        $directorio = FCPATH . 'static/uploads/materiales';
+        if (!is_dir($directorio)) {
+            mkdir($directorio, 0775, true);
+        }
+
+        $extension = $archivo->getExtension() ?: 'jpg';
+        $nombreArchivo = 'mat' . $id . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+
+        if (!$archivo->move($directorio, $nombreArchivo)) {
+            return $this->failServerError('No se pudo guardar la imagen.');
+        }
+
+        $this->eliminarArchivoFoto($material['foto'] ?? null);
+        $this->model->update($id, ['foto' => $nombreArchivo]);
+
+        return $this->respond([
+            'mensaje' => 'Foto actualizada correctamente.',
+            'foto' => $nombreArchivo,
+            'url' => base_url('static/uploads/materiales/' . $nombreArchivo),
+        ]);
+    }
+
+    private function eliminarArchivoFoto(?string $nombreArchivo): void
+    {
+        if (empty($nombreArchivo)) {
+            return;
+        }
+        $ruta = FCPATH . 'static/uploads/materiales' . DIRECTORY_SEPARATOR . $nombreArchivo;
+        if (is_file($ruta)) {
+            @unlink($ruta);
+        }
     }
 
     /**
@@ -205,7 +262,6 @@ class Materiales extends ResourceController
                 log_message('debug', "Procesando item {$index}: " . json_encode($item));
                 
                 $nombre = isset($item['nombre']) ? trim((string) $item['nombre']) : '';
-                $cantidad = isset($item['cantidad']) ? (int) $item['cantidad'] : null;
                 $tipoNombre = isset($item['tipo']) ? trim((string) $item['tipo']) : '';
                 
                 // Si el tipo está vacío, asignar null. Si no, buscar en el mapa de tipos
@@ -215,16 +271,11 @@ class Materiales extends ResourceController
                     $idTipo = $tiposMap[strtolower($tipoNombre)] ?? 0;
                 }
                 
-                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Cantidad: {$cantidad}, Tipo: '{$tipoNombre}', IDTipo: " . ($idTipo === null ? 'null' : $idTipo));
+                log_message('debug', "Item {$index} procesado - Nombre: '{$nombre}', Tipo: '{$tipoNombre}', IDTipo: " . ($idTipo === null ? 'null' : $idTipo));
                 
                 // Validaciones más detalladas
                 if ($nombre === '') {
                     $errores[] = "Fila " . ($index + 1) . ": El nombre no puede estar vacío.";
-                    continue;
-                }
-                
-                if ($cantidad === null || $cantidad < 0) {
-                    $errores[] = "Fila " . ($index + 1) . ": La cantidad debe ser un número >= 0.";
                     continue;
                 }
                 
@@ -234,9 +285,9 @@ class Materiales extends ResourceController
                     continue;
                 }
 
+                // Catálogo: solo nombre y categoría
                 $validados[] = [
                     'nombre' => $nombre,
-                    'cantidad' => $cantidad,
                     'idTipo' => $idTipo,
                 ];
             }
@@ -269,20 +320,16 @@ class Materiales extends ResourceController
                 
                 // Verificar si el material ya existe
                 if (isset($materialesMap[$nombreLower])) {
-                    // Material existe: actualizar cantidad y tipo
+                    // Material existe: actualizar tipo/categoría
                     $materialExistente = $materialesMap[$nombreLower];
                     $idMaterial = $materialExistente['id'];
                     
                     $datosActualizar = [
-                        'cantidad' => $item['cantidad'],
                         'idTipo' => $item['idTipo']
                     ];
                     
                     // Solo actualizar si hay cambios
                     $hayCambios = false;
-                    if ($materialExistente['cantidad'] != $item['cantidad']) {
-                        $hayCambios = true;
-                    }
                     if ($materialExistente['idTipo'] != $item['idTipo']) {
                         $hayCambios = true;
                     }
@@ -344,18 +391,115 @@ class Materiales extends ResourceController
             return $this->failValidationErrors('El nombre del tipo de material es obligatorio.');
         }
 
-        $data['nombre'] = trim((string) $data['nombre']);
-        if ($data['nombre'] === '') {
+        $nombre = trim((string) $data['nombre']);
+        if ($nombre === '') {
             return $this->failValidationErrors('El nombre del tipo de material no puede estar vacío.');
         }
 
-        $id = $this->tipoMaterialModel->insert($data);
+        $payload = ['nombre' => $nombre];
+
+        if (array_key_exists('icono', $data) && $data['icono'] !== null && $data['icono'] !== '') {
+            $icono = $this->validarIconoTipo($data['icono']);
+            if ($icono === false) {
+                return $this->failValidationErrors('El icono seleccionado no es válido.');
+            }
+            $payload['icono'] = $icono;
+        }
+
+        if (array_key_exists('color', $data) && $data['color'] !== null && $data['color'] !== '') {
+            $color = $this->validarColorTipo($data['color']);
+            if ($color === false) {
+                return $this->failValidationErrors('El color seleccionado no es válido.');
+            }
+            $payload['color'] = $color;
+        }
+
+        $id = $this->tipoMaterialModel->insert($payload);
         if ($id === false) {
             return $this->failServerError('Error al guardar tipo de material.');
         }
 
         $created = $this->tipoMaterialModel->find($id);
         return $this->respondCreated($created);
+    }
+
+    public function updateTipo($id = null)
+    {
+        if (!$id || !$this->tipoMaterialModel->find($id)) {
+            return $this->failNotFound('Tipo de material no encontrado.');
+        }
+
+        $data = $this->request->getJSON(true) ?? [];
+        $payload = [];
+
+        if (array_key_exists('nombre', $data)) {
+            $nombre = trim((string) $data['nombre']);
+            if ($nombre === '') {
+                return $this->failValidationErrors('El nombre del tipo de material no puede estar vacío.');
+            }
+            $payload['nombre'] = $nombre;
+        }
+
+        if (array_key_exists('icono', $data)) {
+            if ($data['icono'] === null || $data['icono'] === '') {
+                $payload['icono'] = null;
+            } else {
+                $icono = $this->validarIconoTipo($data['icono']);
+                if ($icono === false) {
+                    return $this->failValidationErrors('El icono seleccionado no es válido.');
+                }
+                $payload['icono'] = $icono;
+            }
+        }
+
+        if (array_key_exists('color', $data)) {
+            if ($data['color'] === null || $data['color'] === '') {
+                $payload['color'] = null;
+            } else {
+                $color = $this->validarColorTipo($data['color']);
+                if ($color === false) {
+                    return $this->failValidationErrors('El color seleccionado no es válido.');
+                }
+                $payload['color'] = $color;
+            }
+        }
+
+        if ($payload === []) {
+            return $this->failValidationErrors('No hay datos para actualizar.');
+        }
+
+        if ($this->tipoMaterialModel->update($id, $payload) === false) {
+            return $this->failServerError('Error al actualizar tipo de material.');
+        }
+
+        return $this->respond($this->tipoMaterialModel->find($id));
+    }
+
+    /**
+     * Valida clase Bootstrap Icons. Devuelve el string limpio o false.
+     */
+    private function validarIconoTipo($icono)
+    {
+        $icono = trim((string) $icono);
+        if (!preg_match('/^bi bi-[a-z0-9-]+$/', $icono)) {
+            return false;
+        }
+        return $icono;
+    }
+
+    /**
+     * Valida color hex (#RGB o #RRGGBB). Devuelve normalizado a #RRGGBB o false.
+     */
+    private function validarColorTipo($color)
+    {
+        $color = trim((string) $color);
+        if (!preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $color)) {
+            return false;
+        }
+        if (strlen($color) === 4) {
+            $color = '#' . $color[1] . $color[1] . $color[2] . $color[2] . $color[3] . $color[3];
+        }
+        return strtolower($color);
     }
 
 

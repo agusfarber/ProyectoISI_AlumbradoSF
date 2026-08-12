@@ -36,6 +36,7 @@ class CierreReclamos extends ResourceController
             // Obtener reclamos completados que no han sido cerrados
             // Ordenados de menor a mayor por municipalidad_id (ID)
             $reclamos = $reclamoModel
+                ->soloActivos()
                 ->where('municipalidad_estado', 'Completado')
                 ->where('cerrado', 0)
                 ->orderBy('CAST(municipalidad_id AS UNSIGNED)', 'ASC')
@@ -70,6 +71,7 @@ class CierreReclamos extends ResourceController
             // Obtener reclamos cerrados
             // Ordenados de menor a mayor por municipalidad_id (ID)
             $reclamos = $reclamoModel
+                ->soloActivos()
                 ->where('cerrado', 1)
                 ->orderBy('CAST(municipalidad_id AS UNSIGNED)', 'ASC')
                 ->findAll();
@@ -138,6 +140,32 @@ class CierreReclamos extends ResourceController
                     if ($reclamo['cerrado'] == 1) {
                         $reclamosNoCerrados[] = "Reclamo {$reclamo['municipalidad_id']}: Ya está cerrado";
                         $errores++;
+                        continue;
+                    }
+
+                    // Reclamos locales: cierre solo en plataforma (no existen en el 103)
+                    $esLocal = ($reclamo['origen'] ?? '') === ReclamoModel::ORIGEN_LOCAL;
+
+                    if ($esLocal) {
+                        $actualizado = $reclamoModel->update($reclamoId, [
+                            'cerrado' => 1,
+                            'fecha_cierre' => $fechaCierre,
+                            'prioridad' => null,
+                        ]);
+
+                        if ($actualizado) {
+                            $this->registrarCierreEnHistorial(
+                                $reclamo['municipalidad_id'],
+                                $usuarioId,
+                                $fechaCierre
+                            );
+                            $reclamosEnviadosExternos[] = $reclamo['municipalidad_id'] . ' (local)';
+                            $cerrados++;
+                            log_message('info', "Reclamo local {$reclamo['municipalidad_id']} cerrado solo en plataforma");
+                        } else {
+                            $reclamosNoCerrados[] = "Reclamo {$reclamo['municipalidad_id']}: Error al actualizar en BD local";
+                            $errores++;
+                        }
                         continue;
                     }
 
@@ -268,20 +296,15 @@ class CierreReclamos extends ResourceController
     private function enviarCierreASistema103($municipalidadId)
     {
         try {
-            // Obtener credenciales Basic Auth
             $tokenModel = new Token103Model();
-            $credenciales = $tokenModel->orderBy('id', 'DESC')->first();
+            $apiToken = $tokenModel->obtenerApiToken();
 
-            if (!$credenciales || empty($credenciales['username']) || empty($credenciales['password'])) {
+            if ($apiToken === null) {
                 return [
                     'success' => false,
-                    'error' => 'No hay credenciales configuradas para el sistema 103'
+                    'error' => 'No hay token configurado para el sistema 103'
                 ];
             }
-
-            // Generar token Basic Auth
-            $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
-            $tokenBase64 = base64_encode($credencialesString);
 
             // Construir URL del endpoint (reemplazar :id con el ID del reclamo)
             $url = $this->apiExternaUrl . $municipalidadId . '/';
@@ -300,7 +323,7 @@ class CierreReclamos extends ResourceController
             curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
             curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Basic ' . $tokenBase64,
+                'Authorization: Token ' . $apiToken,
                 'Accept: application/json',
                 'Content-Type: application/json'
             ]);

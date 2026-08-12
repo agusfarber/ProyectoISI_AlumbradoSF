@@ -115,18 +115,62 @@ class Rutas extends ResourceController
         $reclamoModel     = new ReclamoModel();
         $reclamosRuta     = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
         $actualizados     = 0;
+        $ahora            = date('Y-m-d H:i:s');
 
         foreach ($reclamosRuta as $rutaReclamo) {
             $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
             if ($reclamo && ($reclamo['municipalidad_estado'] ?? '') === 'Asignado') {
                 $reclamoModel->update($rutaReclamo['reclamo_id'], [
-                    'municipalidad_estado' => 'Recibido',
+                    'municipalidad_estado'            => 'Recibido',
+                    'municipalidad_fechaModificacion' => $ahora,
                 ]);
                 $actualizados++;
             }
         }
 
         return $actualizados;
+    }
+
+    /**
+     * Reclamos de la hoja en estado Recibido pasan a Asignado (al vincular la hoja a una cuadrilla).
+     */
+    private function marcarReclamosRecibidosDeRutaComoAsignados(int $rutaId): int
+    {
+        $rutaReclamoModel = new Ruta_reclamoModel();
+        $reclamoModel     = new ReclamoModel();
+        $reclamosRuta     = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
+        $actualizados     = 0;
+        $ahora            = date('Y-m-d H:i:s');
+
+        foreach ($reclamosRuta as $rutaReclamo) {
+            $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
+            if ($reclamo && ($reclamo['municipalidad_estado'] ?? '') === 'Recibido') {
+                $reclamoModel->update($rutaReclamo['reclamo_id'], [
+                    'municipalidad_estado'           => 'Asignado',
+                    'municipalidad_fechaModificacion' => $ahora,
+                ]);
+                $actualizados++;
+            }
+        }
+
+        return $actualizados;
+    }
+
+    /**
+     * Si el reclamo ya está en alguna hoja activa (no finalizada), devuelve esa membresía.
+     */
+    private function membresiaReclamoEnRutaActiva(int $reclamoId): ?array
+    {
+        $db  = \Config\Database::connect();
+        $row = $db->table('ruta_reclamo rr')
+            ->select('rr.ruta_id, r.nombre')
+            ->join('ruta r', 'r.id = rr.ruta_id')
+            ->where('rr.reclamo_id', $reclamoId)
+            ->where("COALESCE(r.estado_ejecucion, '') != 'finalizada'", null, false)
+            ->get()
+            ->getRowArray();
+
+        return $row ?: null;
     }
 
     /**
@@ -152,22 +196,24 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Genera el siguiente nombre incremental: "Hoja de Ruta 1", "Hoja de Ruta 2", etc.
+     * Genera el siguiente nombre incremental: R1, R2, R3, etc.
+     * También contempla hojas viejas "Hoja de Ruta N" para no reiniciar la secuencia.
      */
     private function generarNombreIncrementalHojaRuta(): string
     {
-        $prefijo = 'Hoja de Ruta ';
-        $maxNum  = 0;
-        $filas   = $this->model->select('nombre')->findAll();
+        $maxNum = 0;
+        $filas  = $this->model->select('nombre')->findAll();
 
         foreach ($filas as $fila) {
             $nombre = trim((string) ($fila['nombre'] ?? ''));
-            if (preg_match('/^Hoja de Ruta (\d+)$/iu', $nombre, $coincidencias)) {
+            if (preg_match('/^R(\d+)$/i', $nombre, $coincidencias)
+                || preg_match('/^Hoja de Ruta (\d+)$/iu', $nombre, $coincidencias)
+            ) {
                 $maxNum = max($maxNum, (int) $coincidencias[1]);
             }
         }
 
-        return $prefijo . ($maxNum + 1);
+        return 'R' . ($maxNum + 1);
     }
 
     private function errorSiCuadrillaConOtraHoja(int $cuadrillaId, ?int $excluirRutaId = null)
@@ -276,7 +322,15 @@ class Rutas extends ResourceController
             return $err;
         }
 
-        // Eliminar también los reclamos asociados
+        if ($this->tieneEstadoEjecucion && $this->normalizarEstadoEjecucion($rutaExistente) === 'en ejecución') {
+            return $this->failForbidden(
+                'No se puede eliminar la hoja de ruta mientras está en ejecución.'
+            );
+        }
+
+        // Liberar reclamos Asignado → Recibido antes de quitar el vínculo
+        $this->revertirReclamosAsignadosDeRutaARecibido((int) $id);
+
         $rutaReclamoModel = new Ruta_reclamoModel();
         $rutaReclamoModel->where('ruta_id', $id)->delete();
 
@@ -309,7 +363,7 @@ class Rutas extends ResourceController
             $reclamoModel = new ReclamoModel();
             $direccionModel = new DireccionModel();
             
-            $reclamos = $reclamoModel->findAll();
+            $reclamos = $reclamoModel->findAllActivos();
             
             $rutaOptimizada = [];
             
@@ -370,6 +424,10 @@ class Rutas extends ResourceController
                 if ($errCuadrilla !== null) {
                     return $errCuadrilla;
                 }
+                $errOperativa = $this->errorSiCuadrillaNoOperativa($cuadrillaId);
+                if ($errOperativa !== null) {
+                    return $errOperativa;
+                }
             }
 
             // Crear la ruta en la base de datos
@@ -403,6 +461,12 @@ class Rutas extends ResourceController
                     'reclamo_id' => $reclamo['id'],
                     'posicion' => $posicion + 1
                 ]);
+            }
+
+            // Si ya se asigna a cuadrilla al crear, pasar reclamos Recibido → Asignado
+            // (evita el doble POST generar+asignar y estados inconsistentes)
+            if ($cuadrillaId) {
+                $this->marcarReclamosRecibidosDeRutaComoAsignados((int) $rutaId);
             }
 
             // Obtener la ruta creada con información adicional
@@ -489,13 +553,11 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Filtra reclamos que no están en ninguna ruta (asignada o no asignada) Y que no están completados
+     * IDs de reclamos vinculados a hojas de ruta no finalizadas.
      */
-    private function filtrarReclamosDisponibles($reclamos)
+    private function idsReclamosEnRutasActivas(): array
     {
-        $rutaReclamoModel = new Ruta_reclamoModel();
-        $db                = \Config\Database::connect();
-
+        $db   = \Config\Database::connect();
         $rows = $db->table('ruta_reclamo rr')
             ->select('rr.reclamo_id')
             ->join('ruta r', 'r.id = rr.ruta_id')
@@ -503,15 +565,48 @@ class Rutas extends ResourceController
             ->get()
             ->getResultArray();
 
-        $reclamosEnRutasIds = array_column($rows, 'reclamo_id');
+        return array_map('intval', array_column($rows, 'reclamo_id'));
+    }
+
+    /**
+     * Filtra reclamos que no están en ninguna ruta (asignada o no asignada) Y que no están completados
+     */
+    private function filtrarReclamosDisponibles($reclamos)
+    {
+        $reclamosEnRutasIds = $this->idsReclamosEnRutasActivas();
 
         // Filtrar reclamos disponibles: NO en ninguna ruta activa Y NO completados
         return array_filter($reclamos, function ($reclamo) use ($reclamosEnRutasIds) {
-            $estaEnRuta     = in_array($reclamo['id'], $reclamosEnRutasIds);
+            $estaEnRuta     = in_array((int) $reclamo['id'], $reclamosEnRutasIds, true);
             $estaCompletado = ($reclamo['municipalidad_estado'] ?? '') === 'Completado';
 
             return ! $estaEnRuta && ! $estaCompletado;
         });
+    }
+
+    /**
+     * La cuadrilla debe tener operarios y al menos uno con permisos de gestión.
+     */
+    private function errorSiCuadrillaNoOperativa(int $cuadrillaId)
+    {
+        $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+        $asignaciones            = $cuadrillaOperariosModel->where('cuadrilla_id', $cuadrillaId)->findAll();
+
+        if (empty($asignaciones)) {
+            return $this->failValidationErrors(
+                'La cuadrilla no tiene operarios asignados. Asigná operarios antes de darle una hoja de ruta.'
+            );
+        }
+
+        foreach ($asignaciones as $asig) {
+            if ((int) ($asig['es_jefe'] ?? 0) === 1) {
+                return null;
+            }
+        }
+
+        return $this->failValidationErrors(
+            'La cuadrilla debe tener al menos un operario con permisos de gestión.'
+        );
     }
 
     /**
@@ -1728,7 +1823,7 @@ class Rutas extends ResourceController
         try {
             $reclamoModel = new ReclamoModel();
             $direccionModel = new DireccionModel();
-            $reclamos = $reclamoModel->findAll();
+            $reclamos = $reclamoModel->findAllActivos();
             $reclamosDisponibles = $this->filtrarReclamosDisponibles($reclamos);
             $reclamosConCoordenadas = $this->obtenerCoordenadasReclamos($reclamosDisponibles, $direccionModel);
             $reclamosSeleccionados = $this->seleccionarReclamosParaRuta(
@@ -1741,12 +1836,34 @@ class Rutas extends ResourceController
 
             return $this->respond([
                 'rutaOptimizada' => $rutaOptimizada,
-                'cantidadReclamos' => $this->contarUnidadesDomicilio($rutaOptimizada)
+                'cantidadReclamos' => $this->contarUnidadesDomicilio($rutaOptimizada),
+                'domiciliosDisponibles' => $this->contarUnidadesDomicilio($reclamosConCoordenadas),
             ]);
 
         } catch (\Exception $e) {
             log_message('error', 'Error al generar vista previa: ' . $e->getMessage());
             return $this->failServerError('Error interno al generar la vista previa: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cantidad de domicilios disponibles para armar hojas (mismo criterio que generar/vista previa).
+     */
+    public function getDomiciliosDisponibles()
+    {
+        try {
+            $reclamoModel = new ReclamoModel();
+            $reclamos     = $reclamoModel->findAllActivos();
+            $disponibles  = array_values($this->filtrarReclamosDisponibles($reclamos));
+
+            return $this->respond([
+                'domiciliosDisponibles' => $this->contarUnidadesDomicilio($disponibles),
+                'reclamosDisponibles'   => count($disponibles),
+                'idsReclamosEnRutasActivas' => $this->idsReclamosEnRutasActivas(),
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al obtener domicilios disponibles: ' . $e->getMessage());
+            return $this->failServerError('Error interno al obtener domicilios disponibles.');
         }
     }
 
@@ -1839,6 +1956,11 @@ class Rutas extends ResourceController
                 return $errCuadrilla;
             }
 
+            $errOperativa = $this->errorSiCuadrillaNoOperativa((int) $cuadrillaId);
+            if ($errOperativa !== null) {
+                return $errOperativa;
+            }
+
             // Actualizar la ruta para asignarla a la cuadrilla
             $datosActualizacionRuta = [
                 'asignada' => 1,
@@ -1858,25 +1980,7 @@ class Rutas extends ResourceController
             }
 
             // Actualizar el estado de los reclamos de "Recibido" a "Asignado"
-            $rutaReclamoModel = new Ruta_reclamoModel();
-            $reclamoModel = new ReclamoModel();
-            
-            // Obtener todos los reclamos de esta ruta
-            $reclamosRuta = $rutaReclamoModel->where('ruta_id', $rutaId)->findAll();
-            $reclamosActualizados = 0;
-            
-            foreach ($reclamosRuta as $rutaReclamo) {
-                // Obtener el reclamo
-                $reclamo = $reclamoModel->find($rutaReclamo['reclamo_id']);
-                
-                // Si el estado es "Recibido", cambiarlo a "Asignado"
-                if ($reclamo && $reclamo['municipalidad_estado'] === 'Recibido') {
-                    $reclamoModel->update($rutaReclamo['reclamo_id'], [
-                        'municipalidad_estado' => 'Asignado'
-                    ]);
-                    $reclamosActualizados++;
-                }
-            }
+            $reclamosActualizados = $this->marcarReclamosRecibidosDeRutaComoAsignados((int) $rutaId);
 
             // Obtener la ruta actualizada con información de la cuadrilla
             $rutaActualizada = $this->model->select('ruta.*, cuadrilla.nombre as cuadrilla_nombre')
@@ -1912,6 +2016,11 @@ class Rutas extends ResourceController
             }
 
             $err = $this->errorSiRutaFinalizada($ruta);
+            if ($err !== null) {
+                return $err;
+            }
+
+            $err = $this->errorSiRutaEnEjecucion($ruta);
             if ($err !== null) {
                 return $err;
             }
@@ -2005,7 +2114,7 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Inicia la ejecución de una hoja de ruta para operario jefe.
+     * Inicia la ejecución de una hoja de ruta (operario con permisos de gestión).
      */
     public function iniciarEjecucionOperario()
     {
@@ -2045,7 +2154,7 @@ class Rutas extends ResourceController
             }
 
             if ((int)($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
-                return $this->failForbidden('Solo el jefe de cuadrilla puede iniciar la ejecución de la hoja de ruta.');
+                return $this->failForbidden('Solo un operario con permisos de gestión puede iniciar la ejecución de la hoja de ruta.');
             }
 
             if (!$this->tieneEstadoEjecucion) {
@@ -2148,7 +2257,7 @@ class Rutas extends ResourceController
             }
 
             if ((int) ($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
-                return $this->failForbidden('Solo el jefe de cuadrilla puede finalizar la ejecución de la hoja de ruta.');
+                return $this->failForbidden('Solo un operario con permisos de gestión puede finalizar la ejecución de la hoja de ruta.');
             }
 
             if (! $this->tieneEstadoEjecucion) {
@@ -2284,7 +2393,8 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Registra inicio o fin de trabajo sobre un reclamo durante una ejecución (solo jefe de cuadrilla, ruta en ejecución).
+     * Registra inicio o fin de trabajo sobre un reclamo durante una ejecución
+     * (operario con permisos de gestión, ruta en ejecución).
      */
     public function registrarEventoEjecucionOperario()
     {
@@ -2332,7 +2442,7 @@ class Rutas extends ResourceController
         }
 
         if ((int) ($esJefePorCuadrilla[$ruta['cuadrilla_id']] ?? 0) !== 1) {
-            return $this->failForbidden('Solo el jefe de cuadrilla puede registrar estos eventos.');
+            return $this->failForbidden('Solo un operario con permisos de gestión puede registrar estos eventos.');
         }
 
         if ($this->normalizarEstadoEjecucion($ruta) !== 'en ejecución') {
@@ -2598,8 +2708,12 @@ class Rutas extends ResourceController
             $reclamoModel = new ReclamoModel();
             $direccionModel = new DireccionModel();
             
-            // Obtener todos los reclamos con estado "Recibido"
-            $reclamosRecibidos = $reclamoModel->where('municipalidad_estado', 'Recibido')->findAll();
+            // Recibidos activos y que no estén ya en una hoja no finalizada
+            $reclamosRecibidos = $reclamoModel
+                ->soloActivos()
+                ->where('municipalidad_estado', 'Recibido')
+                ->findAll();
+            $reclamosRecibidos = array_values($this->filtrarReclamosDisponibles($reclamosRecibidos));
             
             // Obtener coordenadas para cada reclamo
             $reclamosConCoordenadas = [];
@@ -2618,46 +2732,74 @@ class Rutas extends ResourceController
     }
 
     /**
-     * Añade un reclamo específico a una ruta asignada al operario
+     * Recalcula cantidad (domicilios) y tiempo estimado de una hoja.
+     *
+     * @return array{cantidadReclamos: int, tiempoEstimado: string}
+     */
+    private function recalcularMetricasRuta(int $rutaId): array
+    {
+        $rutaReclamoModel = new Ruta_reclamoModel();
+        $reclamoModel     = new ReclamoModel();
+        $direccionModel   = new DireccionModel();
+
+        $links    = $rutaReclamoModel->where('ruta_id', $rutaId)->orderBy('posicion', 'ASC')->findAll();
+        $reclamos = [];
+        foreach ($links as $link) {
+            $reclamo = $reclamoModel->find($link['reclamo_id']);
+            if (! $reclamo) {
+                continue;
+            }
+            $reclamo['coordenadas'] = $this->obtenerCoordenadasReclamo($reclamo, $direccionModel);
+            $reclamos[]             = $reclamo;
+        }
+
+        $cantidad = $this->contarUnidadesDomicilio($reclamos);
+        $tiempo   = $this->calcularTiempoEstimado($reclamos);
+
+        $this->model->update($rutaId, [
+            'cantidadReclamos' => $cantidad,
+            'tiempoEstimado'   => $tiempo,
+        ]);
+
+        return [
+            'cantidadReclamos' => $cantidad,
+            'tiempoEstimado'   => $tiempo,
+        ];
+    }
+
+    /**
+     * Añade un reclamo (y todos los del mismo domicilio elegibles) a la hoja del operario.
+     * Solo rol 3 con permisos de gestión; pensado para autoasignación en campo.
      */
     public function añadirReclamoARuta()
     {
         $session = \Config\Services::session();
-        $userId = $session->get('user_id');
+        $userId  = (int) $session->get('user_id');
+        $role    = (string) ($session->get('role') ?? '');
 
-        if (!$userId) {
+        if (! $userId) {
             return $this->failUnauthorized('Usuario no autenticado.');
         }
 
+        if ($role !== '3') {
+            return $this->failForbidden(
+                'Solo un operario con permisos de gestión puede añadir reclamos a la hoja en campo.'
+            );
+        }
+
         $data = $this->request->getJSON(true);
-        
-        // Validar datos obligatorios
+
         if (empty($data['reclamo_id']) || empty($data['ruta_id'])) {
             return $this->failValidationErrors('Faltan datos obligatorios (reclamo_id, ruta_id).');
         }
 
-        $reclamoId = $data['reclamo_id'];
-        $rutaId = $data['ruta_id'];
+        $reclamoId = (int) $data['reclamo_id'];
+        $rutaId    = (int) $data['ruta_id'];
 
         try {
-            // Verificar que el operario tiene acceso a esta ruta
-            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
-            $asignaciones = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
-
-            if (empty($asignaciones)) {
-                return $this->failForbidden('Operario no tiene cuadrillas asignadas.');
-            }
-
-            $cuadrillaIds = array_column($asignaciones, 'cuadrilla_id');
-
-            // Verificar que la ruta pertenece a una de las cuadrillas del operario
-            $ruta = $this->model->whereIn('cuadrilla_id', $cuadrillaIds)
-                               ->where('id', $rutaId)
-                               ->where('asignada', 1)
-                               ->first();
-
+            $ruta = $this->model->find($rutaId);
             if (! $ruta) {
-                return $this->failForbidden('No tiene permisos para modificar esta ruta.');
+                return $this->failNotFound('Hoja de ruta no encontrada.');
             }
 
             $err = $this->errorSiRutaFinalizada($ruta);
@@ -2665,70 +2807,147 @@ class Rutas extends ResourceController
                 return $err;
             }
 
-            // Verificar que el reclamo existe y tiene estado "Recibido"
+            $cuadrillaOperariosModel = new \App\Models\CuadrillaOperariosModel();
+            $asignaciones            = $cuadrillaOperariosModel->where('usuario_id', $userId)->findAll();
+
+            if (empty($asignaciones)) {
+                return $this->failForbidden('Operario no tiene cuadrillas asignadas.');
+            }
+
+            $esJefePorCuadrilla = [];
+            foreach ($asignaciones as $asig) {
+                $esJefePorCuadrilla[(int) $asig['cuadrilla_id']] = (int) ($asig['es_jefe'] ?? 0);
+            }
+
+            $cuadrillaRuta = (int) ($ruta['cuadrilla_id'] ?? 0);
+            if ((int) ($ruta['asignada'] ?? 0) !== 1 || $cuadrillaRuta <= 0) {
+                return $this->failForbidden('La hoja de ruta debe estar asignada a tu cuadrilla.');
+            }
+
+            if (! isset($esJefePorCuadrilla[$cuadrillaRuta])) {
+                return $this->failForbidden('No tiene permisos para modificar esta hoja de ruta.');
+            }
+
+            if ((int) ($esJefePorCuadrilla[$cuadrillaRuta] ?? 0) !== 1) {
+                return $this->failForbidden(
+                    'Solo un operario con permisos de gestión puede añadir reclamos a la hoja de ruta.'
+                );
+            }
+
+            $estadoEjec = $this->tieneEstadoEjecucion
+                ? $this->normalizarEstadoEjecucion($ruta)
+                : 'asignada';
+            if ($estadoEjec !== 'en ejecución') {
+                return $this->failValidationErrors(
+                    'Solo se pueden añadir reclamos cuando la hoja de ruta está en ejecución.'
+                );
+            }
+
             $reclamoModel = new ReclamoModel();
-            $reclamo = $reclamoModel->find($reclamoId);
-            
-            if (!$reclamo) {
+            $reclamo      = $reclamoModel->find($reclamoId);
+
+            if (! $reclamo) {
                 return $this->failNotFound('Reclamo no encontrado.');
             }
 
-            if ($reclamo['municipalidad_estado'] !== 'Recibido') {
+            if (($reclamo['municipalidad_estado'] ?? '') !== 'Recibido') {
                 return $this->failValidationErrors('El reclamo debe tener estado "Recibido" para ser añadido a la ruta.');
             }
 
-            // Verificar que el reclamo no esté ya en esta ruta
-            $rutaReclamoModel = new Ruta_reclamoModel();
-            $reclamoEnRuta = $rutaReclamoModel->where('ruta_id', $rutaId)
-                                            ->where('reclamo_id', $reclamoId)
-                                            ->first();
+            $membresiaActiva = $this->membresiaReclamoEnRutaActiva($reclamoId);
+            if ($membresiaActiva) {
+                $nombreHoja = $membresiaActiva['nombre'] ?? ('#' . $membresiaActiva['ruta_id']);
 
-            if ($reclamoEnRuta) {
-                return $this->failValidationErrors('El reclamo ya está en esta ruta.');
+                return $this->failValidationErrors(
+                    'El reclamo ya está en la hoja de ruta activa "' . $nombreHoja . '".'
+                );
             }
 
-            // Obtener la siguiente posición en la ruta
-            $ultimaPosicion = $rutaReclamoModel->where('ruta_id', $rutaId)
-                                             ->orderBy('posicion', 'DESC')
-                                             ->first();
+            // Misma lógica que al crear: toda la parada (mismo domicilio) de una
+            $claveRef       = $this->claveDomicilioReclamo($reclamo);
+            $idsEnRutaActiva = $this->idsReclamosEnRutasActivas();
+            $candidatos     = $reclamoModel
+                ->soloActivos()
+                ->where('municipalidad_estado', 'Recibido')
+                ->findAll();
 
-            $nuevaPosicion = $ultimaPosicion ? $ultimaPosicion['posicion'] + 1 : 1;
+            $grupo = [];
+            foreach ($candidatos as $candidato) {
+                if ($this->claveDomicilioReclamo($candidato) !== $claveRef) {
+                    continue;
+                }
+                if (in_array((int) $candidato['id'], $idsEnRutaActiva, true)) {
+                    continue;
+                }
+                $grupo[] = $candidato;
+            }
 
-            // Añadir el reclamo a la ruta
-            $rutaReclamoModel->insert([
-                'ruta_id' => $rutaId,
-                'reclamo_id' => $reclamoId,
-                'posicion' => $nuevaPosicion
-            ]);
+            if ($grupo === []) {
+                return $this->failValidationErrors('No hay reclamos disponibles en ese domicilio para añadir.');
+            }
 
-            // Cambiar el estado del reclamo de "Recibido" a "Asignado"
-            $reclamoModel->update($reclamoId, [
-                'municipalidad_estado' => 'Asignado',
-                'municipalidad_fechaModificacion' => date('Y-m-d H:i:s')
-            ]);
+            // Priorizar el reclamo elegido primero en el orden de posiciones
+            usort($grupo, static function ($a, $b) use ($reclamoId) {
+                if ((int) $a['id'] === $reclamoId) {
+                    return -1;
+                }
+                if ((int) $b['id'] === $reclamoId) {
+                    return 1;
+                }
 
-            // Actualizar la cantidad de domicilios distintos en la ruta
-            $this->model->update($rutaId, [
-                'cantidadReclamos' => $this->cantidadReclamosPorDomicilioRuta((int) $rutaId)
-            ]);
+                return ((int) $a['id']) <=> ((int) $b['id']);
+            });
 
-            // Obtener el reclamo actualizado con información de la ruta
-            $reclamoActualizado = $reclamoModel->find($reclamoId);
-            $direccionModel = new DireccionModel();
-            $coordenadas = $this->obtenerCoordenadasReclamo($reclamoActualizado, $direccionModel);
-            $reclamoActualizado['coordenadas'] = $coordenadas;
-            $reclamoActualizado['posicion'] = $nuevaPosicion;
-            $reclamoActualizado['ruta_id'] = $rutaId;
-            $reclamoActualizado['ruta_nombre'] = $ruta['nombre'];
-            $reclamoActualizado['ruta_color'] = $ruta['color'];
+            $rutaReclamoModel = new Ruta_reclamoModel();
+            $ultimaPosicion   = $rutaReclamoModel->where('ruta_id', $rutaId)
+                ->orderBy('posicion', 'DESC')
+                ->first();
+            $posicion = $ultimaPosicion ? ((int) $ultimaPosicion['posicion'] + 1) : 1;
+
+            $direccionModel   = new DireccionModel();
+            $ahora            = date('Y-m-d H:i:s');
+            $reclamosAñadidos = [];
+
+            foreach ($grupo as $item) {
+                $rutaReclamoModel->insert([
+                    'ruta_id'    => $rutaId,
+                    'reclamo_id' => (int) $item['id'],
+                    'posicion'   => $posicion,
+                ]);
+
+                $reclamoModel->update((int) $item['id'], [
+                    'municipalidad_estado'           => 'Asignado',
+                    'municipalidad_fechaModificacion' => $ahora,
+                ]);
+
+                $actualizado = $reclamoModel->find((int) $item['id']);
+                $actualizado['coordenadas'] = $this->obtenerCoordenadasReclamo($actualizado, $direccionModel);
+                $actualizado['posicion']    = $posicion;
+                $actualizado['ruta_id']     = $rutaId;
+                $actualizado['ruta_nombre'] = $ruta['nombre'];
+                $actualizado['ruta_color']  = $ruta['color'];
+                $reclamosAñadidos[]         = $actualizado;
+                $posicion++;
+            }
+
+            $metricas = $this->recalcularMetricasRuta($rutaId);
+            $primero  = $reclamosAñadidos[0];
+
+            $mensaje = count($reclamosAñadidos) === 1
+                ? 'Reclamo añadido exitosamente a la hoja de ruta.'
+                : (count($reclamosAñadidos) . ' reclamos del mismo domicilio añadidos a la hoja de ruta.');
 
             return $this->respondCreated([
-                'mensaje' => 'Reclamo añadido exitosamente a la hoja de ruta.',
-                'reclamo' => $reclamoActualizado
+                'mensaje'          => $mensaje,
+                'reclamo'          => $primero,
+                'reclamos'         => $reclamosAñadidos,
+                'cantidadReclamos' => $metricas['cantidadReclamos'],
+                'tiempoEstimado'   => $metricas['tiempoEstimado'],
+                'posicion'         => $primero['posicion'] ?? null,
             ]);
-
         } catch (\Exception $e) {
             log_message('error', 'Error al añadir reclamo a ruta: ' . $e->getMessage());
+
             return $this->failServerError('Error interno al añadir el reclamo a la ruta: ' . $e->getMessage());
         }
     }

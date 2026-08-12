@@ -30,7 +30,7 @@
 <script src="<?php echo base_url("/static/js/menu.js"); ?>"></script>
 <script src="<?php echo base_url("/static/js/funcionesMaps.js"); ?>"></script>
 <script
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg&loading=async&libraries=maps&v=beta" defer>
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAOCwr8_hWX4aBE2JTHxREP7gUrYLadCgg&loading=async&libraries=maps,places&v=beta" defer>
 </script>
 
 <!-- Mapbox -->

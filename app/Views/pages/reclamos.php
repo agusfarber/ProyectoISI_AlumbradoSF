@@ -1,10 +1,16 @@
 <div id="app" class="reclamos-page">
 
-    <div class="reclamos-page-title">Reclamos</div>
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-exclamation-triangle"></i></span>
+        <h1 class="app-page-title__text">Reclamos</h1>
+    </div>
 
     <!-- Acciones rápidas -->
     <div class="reclamos-toolbar">
         <div class="reclamos-toolbar__left">
+            <button type="button" class="reclamos-btn" @click="abrirFormulario">
+                <i class="bi bi-plus-lg"></i> Nuevo reclamo
+            </button>
             <button class="reclamos-btn reclamos-btn--outline" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
                 <i class="bi bi-funnel"></i> Filtros
             </button>
@@ -45,12 +51,20 @@
 
     <!-- Progreso de sincronización -->
     <div v-if="sincronizando" class="reclamos-sync">
-        <div class="reclamos-sync__info">
-            <div class="reclamos-sync__spinner" role="status">
-                <span class="visually-hidden">Procesando...</span>
+        <div class="reclamos-sync__main">
+            <div class="reclamos-sync__info">
+                <div class="reclamos-sync__spinner" role="status">
+                    <span class="visually-hidden">{{ syncEtiqueta }}...</span>
+                </div>
+                <div class="reclamos-sync__texts">
+                    <strong>{{ syncEtiqueta }}</strong>
+                    <span class="reclamos-sync__count">{{ syncContadorTexto }} · {{ syncPorcentaje }}%</span>
+                    <small v-if="syncDetalle" class="reclamos-sync__detalle">{{ syncDetalle }}</small>
+                </div>
             </div>
-            <strong>Procesando</strong>
-            <span class="reclamos-sync__count">{{ progresoActual }} / {{ progresoTotal }}</span>
+            <div class="reclamos-sync__bar" aria-hidden="true">
+                <div class="reclamos-sync__bar-fill" :style="{ width: syncPorcentaje + '%' }"></div>
+            </div>
         </div>
         <button class="reclamos-btn reclamos-btn--danger" @click="detenerSincronizacionEnCurso" :disabled="detenerSincronizacion">
             <i class="bi bi-stop-circle"></i>
@@ -168,7 +182,7 @@
                     <th>Estado</th>
                     <th>Domicilio</th>
                     <th>Número</th>
-                    <!--th>Acciones</th-->
+                    <th style="width: 70px;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -177,33 +191,57 @@
         </table>
     </div>
 
-    <!-- Modal Reclamo -->
+    <!-- Modal Editar ficha de reclamo -->
     <div class="modal fade" id="modalReclamo" tabindex="-1">
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content reclamo-modal">
                 <form @submit.prevent="guardarReclamo">
                     <div class="reclamo-modal__header">
                         <div class="reclamo-modal__title">
-                            <span class="reclamo-modal__icon"><i class="bi bi-exclamation-triangle"></i></span>
-                            <h5>{{ reclamo.id ? 'Editar reclamo' : 'Nuevo reclamo' }}</h5>
+                            <span class="reclamo-modal__icon">
+                                <i class="bi" :class="modoCreacion ? 'bi-plus-lg' : 'bi-pencil-square'"></i>
+                            </span>
+                            <h5>{{ modoCreacion ? 'Nuevo reclamo' : 'Editar ficha del reclamo' }}</h5>
+                            <span v-if="!modoCreacion" class="reclamos-info-tip" tabindex="0" aria-label="Explicación de la edición de ficha">
+                                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                <span class="reclamos-info-tip__popup" role="tooltip">
+                                    <strong>¿Qué se puede editar?</strong>
+                                    <p>Corrección de datos de ficha. El estado y el cierre se gestionan en Tareas / Cierre. La prioridad se recalcula automáticamente.</p>
+                                    <p>Si el reclamo ya fue corregido, un sync por número del 103 no pisará estos campos.</p>
+                                </span>
+                            </span>
                         </div>
                         <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
                             <i class="bi bi-x-lg"></i>
                         </button>
                     </div>
                     <div class="modal-body">
+                        <div class="row mb-2">
+                            <div class="col-md-4">
+                                <label class="form-label text-muted mb-0">ID</label>
+                                <p class="fw-bold mb-2" v-if="modoCreacion">
+                                    <span class="reclamo-origen reclamo-origen--local">Local</span>
+                                </p>
+                                <p class="fw-bold mb-2" v-else>
+                                    <span v-if="esOrigenLocal(reclamo)" class="reclamo-origen reclamo-origen--local me-1">Local</span>
+                                    <span v-else class="reclamo-origen reclamo-origen--103 me-1">103</span>
+                                    #{{ reclamo.municipalidad_id }}
+                                </p>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted mb-0">Estado</label>
+                                <p class="mb-2">{{ modoCreacion ? 'Recibido' : (reclamo.municipalidad_estado || '—') }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label text-muted mb-0">Prioridad</label>
+                                <p class="mb-2">{{ modoCreacion ? 'Automática' : (reclamo.prioridad || '—') }}</p>
+                            </div>
+                        </div>
+
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-2">
-                                    <label>ID Municipalidad</label>
-                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_id" required>
-                                </div>
-                                <div class="mb-2">
-                                    <label>Tipo</label>
-                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_tipo" readonly>
-                                </div>
-                                <div class="mb-2">
-                                    <label>Motivo</label>
+                                    <label>Motivo <span class="campo-obligatorio">*</span></label>
                                     <select class="form-control" v-model="reclamo.municipalidad_motivo" required>
                                         <option value="" disabled>Seleccionar motivo</option>
                                         <option value="Luminaria agotada (Prende y Apaga)">Luminaria agotada (Prende y Apaga)</option>
@@ -216,44 +254,12 @@
                                     </select>
                                 </div>
                                 <div class="mb-2">
-                                    <label>Fecha de Inicio</label>
-                                    <input type="datetime-local" class="form-control" v-model="reclamo.municipalidad_fechaInicio" required>
-                                </div>
-                                <div class="mb-2">
-                                    <label>Fecha de Modificación</label>
-                                    <input type="datetime-local" class="form-control" v-model="reclamo.municipalidad_fechaModificacion" required>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="mb-2">
                                     <label>Recepción</label>
-                                    <select class="form-control" v-model="reclamo.municipalidad_recepcion" required>
-                                        <option value="" disabled>Seleccionar recepción</option>
+                                    <select class="form-control" v-model="reclamo.municipalidad_recepcion">
+                                        <option value="">Sin especificar</option>
                                         <option value="llamada">Llamada</option>
                                         <option value="web">Web</option>
                                         <option value="whatsApp">WhatsApp</option>
-                                    </select>
-                                </div>
-                                <div class="mb-2">
-                                    <label>Estado</label>
-                                    <select class="form-control" v-model="reclamo.municipalidad_estado" required>
-                                        <option value="" disabled>Seleccionar estado</option>
-                                        <option value="Recibido">Recibido</option>
-                                        <option value="Asignado">Asignado</option>
-                                        <option value="Pendiente">Pendiente</option>
-                                        <option value="En ejecución">En ejecución</option>
-                                        <option value="Completado">Completado</option>
-                                        <option value="En plan">En plan</option>
-                                        <option value="Error de datos">Error de datos</option>
-                                    </select>
-                                </div>
-                                <!-- Nuevo campo para la prioridad, ahora 'prioridad' -->
-                                <div class="mb-2">
-                                    <label>Prioridad</label>
-                                    <select class="form-control" v-model="reclamo.prioridad" required>
-                                        <option value="" disabled>Seleccionar prioridad</option>
-                                        <option value="Baja">Baja</option>
-                                        <option value="Alta">Alta</option>
                                     </select>
                                 </div>
                                 <div class="mb-2">
@@ -261,41 +267,53 @@
                                     <input type="text" class="form-control" v-model="reclamo.municipalidad_telefono">
                                 </div>
                                 <div class="mb-2">
-                                    <label>Domicilio</label>
-                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_domicilio">
+                                    <label>Ciudadano</label>
+                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_ciudadano">
                                 </div>
                             </div>
-                        </div>
-                        <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-2">
-                                    <label>Número Domicilio</label>
-                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_numeroDomicilio">
+                                    <label>Domicilio <span class="campo-obligatorio">*</span></label>
+                                    <input type="text"
+                                           id="inputDomicilioReclamo"
+                                           class="form-control"
+                                           v-model="reclamo.municipalidad_domicilio"
+                                           autocomplete="off"
+                                           required
+                                           placeholder="Empezá a escribir la calle…">
+                                </div>
+                                <div class="mb-2">
+                                    <label>Número <span class="campo-obligatorio">*</span></label>
+                                    <input type="text"
+                                           id="inputNumeroReclamo"
+                                           class="form-control"
+                                           v-model="reclamo.municipalidad_numeroDomicilio"
+                                           autocomplete="off"
+                                           required
+                                           placeholder="Altura">
                                 </div>
                                 <div class="mb-2">
                                     <label>Entre Calle Uno</label>
                                     <input type="text" class="form-control" v-model="reclamo.municipalidad_entreCalleUno">
                                 </div>
-                            </div>
-                            <div class="col-md-6">
                                 <div class="mb-2">
                                     <label>Entre Calle Dos</label>
                                     <input type="text" class="form-control" v-model="reclamo.municipalidad_entreCalleDos">
                                 </div>
-                                <div class="mb-2">
-                                    <label>Ciudadano</label>
-                                    <input type="text" class="form-control" v-model="reclamo.municipalidad_ciudadano">
-                                </div>
                             </div>
                         </div>
-                        <div class="mb-2">
+                        <div class="mb-0">
                             <label>Descripción</label>
                             <textarea class="form-control" v-model="reclamo.municipalidad_descripcion" rows="3"></textarea>
                         </div>
                     </div>
-                    <div class="reclamo-modal__footer">
+                    <div class="reclamo-modal__footer reclamo-modal__footer--end">
                         <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="reclamos-btn"><i class="bi bi-check-lg"></i> Guardar</button>
+                        <button type="submit" class="reclamos-btn" :disabled="guardandoFicha">
+                            <span v-if="guardandoFicha" class="spinner-border spinner-border-sm"></span>
+                            <i v-else class="bi bi-check-lg"></i>
+                            {{ guardandoFicha ? 'Guardando…' : (modoCreacion ? 'Crear reclamo' : 'Guardar') }}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -309,7 +327,7 @@
                 <div class="reclamo-modal__header">
                     <div class="reclamo-modal__title">
                         <span class="reclamo-modal__icon"><i class="bi bi-key"></i></span>
-                        <h5>Credenciales Sistema 103</h5>
+                        <h5>Token Sistema 103</h5>
                     </div>
                     <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
                         <i class="bi bi-x-lg"></i>
@@ -317,51 +335,23 @@
                 </div>
                 <form @submit.prevent="guardarCredencialesToken">
                     <div class="modal-body">
-                        <div v-if="credencialesGuardadas && tokenBase64" class="reclamos-token-status reclamos-token-status--ok">
+                        <div v-if="credencialesGuardadas" class="reclamos-token-status reclamos-token-status--ok">
                             <i class="bi bi-check-circle"></i>
-                            <span>Credenciales configuradas. Token Basic Auth generado automáticamente.</span>
+                            <span>Token configurado. Listo para sincronizar con el 103.</span>
                         </div>
                         <div v-else class="reclamos-token-status reclamos-token-status--warn">
                             <i class="bi bi-exclamation-triangle"></i>
-                            <span>Configure el username y password para sincronizar reclamos.</span>
+                            <span>Configurá el token para sincronizar reclamos.</span>
                         </div>
-                        <div class="mb-3">
-                            <label for="tokenUsername" class="form-label">Username</label>
+                        <div class="mb-0">
+                            <label for="tokenApi103" class="form-label">API Token</label>
                             <input type="text"
-                                   id="tokenUsername"
+                                   id="tokenApi103"
                                    class="form-control"
-                                   v-model="credenciales.username"
-                                   @input="generarTokenBase64"
-                                   placeholder="Ingrese el username"
+                                   v-model.trim="credenciales.api_token"
+                                   placeholder="Pegá el token del 103"
                                    required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="tokenPassword" class="form-label">Password</label>
-                            <input type="password"
-                                   id="tokenPassword"
-                                   class="form-control"
-                                   v-model="credenciales.password"
-                                   @input="generarTokenBase64"
-                                   placeholder="Ingrese el password"
-                                   required>
-                        </div>
-                        <div v-if="tokenBase64" class="mb-0">
-                            <label for="tokenInputReclamos" class="form-label">Token Basic Auth (Base64)</label>
-                            <div class="reclamos-token-copy">
-                                <input type="text"
-                                       class="form-control"
-                                       :value="tokenBase64"
-                                       readonly
-                                       id="tokenInputReclamos">
-                                <button type="button"
-                                        class="reclamos-btn reclamos-btn--outline reclamos-btn--sm"
-                                        @click="copiarToken"
-                                        title="Copiar token">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                            </div>
-                            <small class="reclamos-token-hint">Use como: Authorization: Basic {token}</small>
-                            <span v-if="mensajeCopiadoVisible" class="reclamos-token-copiado">Copiado</span>
+                            <small class="reclamos-token-hint">Authorization: Token {valor}</small>
                         </div>
                     </div>
                     <div class="reclamo-modal__footer reclamo-modal__footer--end">
@@ -392,8 +382,12 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="fw-bold">ID Municipalidad:</label>
-                                <p>{{ reclamoSeleccionado.municipalidad_id }}</p>
+                                <label class="fw-bold">ID:</label>
+                                <p>
+                                    <span v-if="esOrigenLocal(reclamoSeleccionado)" class="reclamo-origen reclamo-origen--local me-1">Local</span>
+                                    <span v-else class="reclamo-origen reclamo-origen--103 me-1">103</span>
+                                    #{{ reclamoSeleccionado.municipalidad_id }}
+                                </p>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold">Tipo:</label>
@@ -465,6 +459,45 @@
                 </div>
                 <div class="reclamo-modal__footer reclamo-modal__footer--end">
                     <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="reclamos-btn reclamos-btn--outline reclamos-btn--danger" @click="eliminarDesdeDetalle">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
+                    <button type="button" class="reclamos-btn" @click="editarDesdeDetalle">
+                        <i class="bi bi-pencil"></i> Editar ficha
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal confirmar exclusión de reclamo -->
+    <div class="modal fade" id="modalEliminarReclamo" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content reclamo-modal">
+                <div class="reclamo-modal__header">
+                    <div class="reclamo-modal__title">
+                        <span class="reclamo-modal__icon"><i class="bi bi-trash"></i></span>
+                        <h5>Eliminar reclamo</h5>
+                    </div>
+                    <button type="button" class="reclamo-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2" v-if="reclamoAEliminar">
+                        ¿Excluir el reclamo <strong>#{{ reclamoAEliminar.municipalidad_id }}</strong> de la plataforma?
+                    </p>
+                    <label class="form-label">Motivo <span class="text-muted">(opcional)</span></label>
+                    <textarea class="form-control" v-model="observacionEliminacion" rows="2"
+                              placeholder="Ej: Duplicado / datos inválidos / no corresponde a alumbrado"></textarea>
+                </div>
+                <div class="reclamo-modal__footer reclamo-modal__footer--end">
+                    <button type="button" class="reclamos-btn reclamos-btn--outline" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="reclamos-btn reclamos-btn--danger" :disabled="eliminandoReclamo" @click="confirmarEliminarReclamo">
+                        <span v-if="eliminandoReclamo" class="spinner-border spinner-border-sm"></span>
+                        <i v-else class="bi bi-trash"></i>
+                        {{ eliminandoReclamo ? 'Eliminando…' : 'Eliminar' }}
+                    </button>
                 </div>
             </div>
         </div>

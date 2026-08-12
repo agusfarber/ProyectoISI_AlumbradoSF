@@ -37,15 +37,14 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         // Paso 1: Crear credenciales del sistema 103 en la BD
         $tokenModel = new Token103Model();
         $tokenId = $tokenModel->insert([
-            'username' => 'agusfarber@gmail.com',
-            'password' => 'Alumbrado2025#!'
+            'api_token' => 'token_test_103_valid'
         ]);
 
-        // Validación 1: Verificar que las credenciales se crearon
-        $this->assertGreaterThan(0, $tokenId, 'Las credenciales deben crearse correctamente');
+        // Validación 1: Verificar que el token se creó
+        $this->assertGreaterThan(0, $tokenId, 'El token debe crearse correctamente');
         
         $credenciales = $tokenModel->find($tokenId);
-        $this->assertEquals('agusfarber@gmail.com', $credenciales['username'], 'El username debe coincidir');
+        $this->assertEquals('token_test_103_valid', $credenciales['api_token'], 'El api_token debe coincidir');
 
         // Paso 2: Crear un reclamo en estado "Completado" pero sin cerrar
         $reclamoData = [
@@ -302,136 +301,21 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         $this->assertNull($historialCierre, 'NO debe existir un registro en el historial de cierre cuando falla el envío');
     }
 
-    /**
-     * HU-033 - Prueba 3: Validación de Basic Auth en el envío
-     * 
-     * Objetivo: Verificar que el sistema obtiene correctamente las credenciales del Token103Model,
-     * genera correctamente el token Basic Auth (base64) según el estándar RFC 7617, y que los headers
-     * HTTP incluyen Authorization correctamente con el formato "Basic {tokenBase64}".
-     * 
-     * Tipo de Prueba: API - Unit - Autenticación
+        /**
+     * HU-033 - Prueba 3: Validación de Authorization Token en el envío
      */
     public function testValidacionBasicAuthEnElEnvio()
     {
-        $db = \Config\Database::connect();
-
-        // Paso 1: Crear credenciales de prueba en Token103Model
-        $username = 'testuser@example.com';
-        $password = 'TestPassword123#!';
-        
+        $apiToken = 'token_test_103_auth';
         $tokenModel = new Token103Model();
         $tokenId = $tokenModel->insert([
-            'username' => $username,
-            'password' => $password
+            'api_token' => $apiToken
         ]);
 
-        // Validación 1: Verificar que las credenciales se crearon correctamente
-        $this->assertGreaterThan(0, $tokenId, 'Las credenciales deben crearse correctamente');
-        
-        // Paso 2: Verificar que Token103Model obtiene las credenciales correctamente
-        // El método enviarCierreASistema103() usa: $tokenModel->orderBy('id', 'DESC')->first()
-        $credencialesObtenidas = $tokenModel->orderBy('id', 'DESC')->first();
-        
-        // Validación 2: Verificar que se obtienen las credenciales del Token103Model
-        $this->assertNotNull($credencialesObtenidas, 'Debe existir credenciales en Token103Model');
-        $this->assertArrayHasKey('username', $credencialesObtenidas, 'Las credenciales deben incluir username');
-        $this->assertArrayHasKey('password', $credencialesObtenidas, 'Las credenciales deben incluir password');
-        $this->assertEquals($username, $credencialesObtenidas['username'], 'El username obtenido debe coincidir con el creado');
-        $this->assertEquals($password, $credencialesObtenidas['password'], 'El password obtenido debe coincidir con el creado');
-        $this->assertNotEmpty($credencialesObtenidas['username'], 'El username no debe estar vacío');
-        $this->assertNotEmpty($credencialesObtenidas['password'], 'El password no debe estar vacío');
-
-        // Paso 3: Verificar que se genera correctamente el token Basic Auth (base64)
-        // El estándar Basic Auth (RFC 7617) requiere: base64_encode(username:password)
-        $credencialesString = $credencialesObtenidas['username'] . ':' . $credencialesObtenidas['password'];
-        $tokenBase64Generado = base64_encode($credencialesString);
-        
-        // Validación 3: Verificar que el token Base64 se genera correctamente
-        $this->assertNotEmpty($tokenBase64Generado, 'El token Base64 no debe estar vacío');
-        $this->assertIsString($tokenBase64Generado, 'El token Base64 debe ser un string');
-        
-        // Validar que el token Base64 es válido (solo caracteres Base64)
-        $this->assertMatchesRegularExpression('/^[A-Za-z0-9+\/=]+$/', $tokenBase64Generado, 'El token Base64 debe contener solo caracteres válidos de Base64');
-        
-        // Validar que podemos decodificar el token y obtener las credenciales originales
-        $credencialesDecodificadas = base64_decode($tokenBase64Generado, true);
-        $this->assertNotFalse($credencialesDecodificadas, 'El token Base64 debe ser decodificable');
-        $this->assertEquals($credencialesString, $credencialesDecodificadas, 'Al decodificar el token Base64 debe obtenerse la cadena original "username:password"');
-        
-        // Verificar que las credenciales decodificadas son correctas
-        $credencialesArray = explode(':', $credencialesDecodificadas, 2);
-        $this->assertCount(2, $credencialesArray, 'Al decodificar debe haber exactamente 2 partes (username:password)');
-        $this->assertEquals($username, $credencialesArray[0], 'El username decodificado debe coincidir');
-        $this->assertEquals($password, $credencialesArray[1], 'El password decodificado debe coincidir');
-
-        // Paso 4: Verificar que el header Authorization se construye correctamente
-        // El formato debe ser: "Authorization: Basic {tokenBase64}"
-        $headerAuthorization = 'Authorization: Basic ' . $tokenBase64Generado;
-        
-        // Validación 4: Verificar que los headers incluyen Authorization correctamente
-        $this->assertStringStartsWith('Authorization: Basic ', $headerAuthorization, 'El header debe empezar con "Authorization: Basic "');
-        $this->assertStringEndsWith($tokenBase64Generado, $headerAuthorization, 'El header debe terminar con el token Base64');
-        
-        // Validar el formato completo del header
-        $this->assertEquals('Authorization: Basic ' . $tokenBase64Generado, $headerAuthorization, 'El header debe tener el formato correcto "Authorization: Basic {tokenBase64}"');
-        
-        // Verificar que el token Base64 está presente en el header
-        $this->assertStringContainsString($tokenBase64Generado, $headerAuthorization, 'El header debe contener el token Base64');
-        
-        // Paso 5: Verificar que el método enviarCierreASistema103() genera el token correctamente
-        // Para esto, podemos verificar que el método interno usa la misma lógica
-        // Usando Reflection para acceder al método privado y verificar que funciona correctamente
-        
-        // Crear un reclamo de prueba para poder llamar al método
-        $reclamoData = [
-            'municipalidad_id' => '50003',
-            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
-            'municipalidad_motivo' => 'Luminaria apagada - Test Basic Auth',
-            'municipalidad_fechaInicio' => '2025-01-15 10:00:00',
-            'municipalidad_fechaModificacion' => '2025-01-15 10:00:00',
-            'municipalidad_recepcion' => 'Web',
-            'municipalidad_estado' => 'Completado',
-            'prioridad' => 'Baja',
-            'cerrado' => 0,
-            'fecha_cierre' => null
-        ];
-        
-        $db->table('reclamo')->insert($reclamoData);
-        $municipalidadId = $reclamoData['municipalidad_id'];
-        
-        // Usar Reflection para verificar que el método obtiene las credenciales correctamente
-        $controller = new CierreReclamos();
-        $reflection = new ReflectionClass($controller);
-        
-        // Verificar que el método existe
-        $this->assertTrue($reflection->hasMethod('enviarCierreASistema103'), 'El método enviarCierreASistema103() debe existir');
-        
-        // Verificar que el método usa Token103Model para obtener credenciales
-        // (esto lo verifica implícitamente cuando probamos que obtiene las credenciales)
-        
-        // Validación 5: Verificar que el flujo completo funciona (obtener credenciales → generar token → usar en header)
-        // Para esto, verificamos que la lógica del método coincide con lo que esperamos
-        
-        // El método debería:
-        // 1. Obtener credenciales: $tokenModel->orderBy('id', 'DESC')->first()
-        // 2. Generar token: base64_encode($credenciales['username'] . ':' . $credenciales['password'])
-        // 3. Usar en header: 'Authorization: Basic ' . $tokenBase64
-        
-        // Ya verificamos los pasos 1 y 2, ahora verificamos que el paso 3 produce el formato correcto
-        $headersEsperados = [
-            'Authorization: Basic ' . $tokenBase64Generado,
-            'Accept: application/json',
-            'Content-Type: application/json'
-        ];
-        
-        // Verificar que el header Authorization está en el formato correcto
-        $headerAuthEsperado = $headersEsperados[0];
-        $this->assertEquals('Authorization: Basic ' . $tokenBase64Generado, $headerAuthEsperado, 'El header Authorization debe tener el formato "Authorization: Basic {tokenBase64}"');
-        
-        // Verificar que el token Base64 generado es consistente
-        // (que siempre produce el mismo resultado para las mismas credenciales)
-        $tokenBase64Repetido = base64_encode($username . ':' . $password);
-        $this->assertEquals($tokenBase64Generado, $tokenBase64Repetido, 'El token Base64 debe ser determinístico (mismas credenciales = mismo token)');
+        $this->assertGreaterThan(0, $tokenId);
+        $this->assertEquals($apiToken, $tokenModel->obtenerApiToken());
+        $this->assertEquals('Token ' . $apiToken, $tokenModel->obtenerHeaderAuthorization());
+        $this->assertEquals('Authorization: Token ' . $apiToken, 'Authorization: Token ' . $apiToken);
     }
 
     /**
@@ -451,8 +335,7 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         // Esto asegura que si se llamara a enviarCierreASistema103(), las credenciales existirían
         $tokenModel = new Token103Model();
         $tokenId = $tokenModel->insert([
-            'username' => 'testuser@example.com',
-            'password' => 'TestPassword123#!'
+            'api_token' => 'token_test_103_valid'
         ]);
 
         // Validación 1: Verificar que las credenciales se crearon
@@ -564,8 +447,7 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         // Esto asegura que si se llamara a enviarCierreASistema103(), las credenciales existirían
         $tokenModel = new Token103Model();
         $tokenId = $tokenModel->insert([
-            'username' => 'testuser@example.com',
-            'password' => 'TestPassword123#!'
+            'api_token' => 'token_test_103_valid'
         ]);
 
         // Validación 1: Verificar que las credenciales se crearon
@@ -739,8 +621,7 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         $db->table('token103')->truncate(); // Limpiar credenciales existentes
         
         $tokenId = $tokenModel->insert([
-            'username' => 'invalid_user@example.com',
-            'password' => 'InvalidPassword123!'
+            'api_token' => 'token_test_103_invalid'
         ]);
 
         // Validación 2: Verificar que las credenciales inválidas se crearon
@@ -798,68 +679,21 @@ class CierreReclamosSistema103Test extends CIUnitTestCase
         }
     }
 
-    /**
-     * HU-033 - Prueba 7: Generación de token Basic Auth
-     * 
-     * Objetivo: Verificar que el sistema genera correctamente el token Base64 a partir de username:password
-     * según el estándar Basic Auth (RFC 7617), y que el formato del token es correcto y válido.
-     * 
-     * Tipo de Prueba: API - Unit - Autenticación
+        /**
+     * HU-033 - Prueba 7: Construcción del header Token
      */
     public function testGeneracionTokenBasicAuth()
     {
-        // Paso 1: Definir credenciales de prueba
-        $username = 'testuser@example.com';
-        $password = 'TestPassword123#!';
-        
-        // Paso 2: Generar el token Base64 según el estándar Basic Auth
-        // El formato es: base64_encode(username:password)
-        $credencialesString = $username . ':' . $password;
-        $tokenBase64 = base64_encode($credencialesString);
+        $apiToken = 'abc123tokenXYZ';
+        $tokenModel = new Token103Model();
+        $tokenModel->insert(['api_token' => $apiToken]);
 
-        // Validación 1: Verificar que el token Base64 se genera correctamente
-        $this->assertNotEmpty($tokenBase64, 'El token Base64 no debe estar vacío');
-        $this->assertIsString($tokenBase64, 'El token Base64 debe ser un string');
-        
-        // Validación 2: Verificar que el formato del token Base64 es correcto
-        // Base64 solo contiene caracteres: A-Z, a-z, 0-9, +, /, = (para padding)
-        $this->assertMatchesRegularExpression('/^[A-Za-z0-9+\/=]+$/', $tokenBase64, 'El token Base64 debe contener solo caracteres válidos de Base64 (A-Z, a-z, 0-9, +, /, =)');
-        
-        // Validación 3: Verificar que el token Base64 es decodificable
-        $credencialesDecodificadas = base64_decode($tokenBase64, true);
-        $this->assertNotFalse($credencialesDecodificadas, 'El token Base64 debe ser decodificable');
-        
-        // Validación 4: Verificar que al decodificar se obtiene la cadena original "username:password"
-        $this->assertEquals($credencialesString, $credencialesDecodificadas, 'Al decodificar el token Base64 debe obtenerse la cadena original "username:password"');
-        
-        // Validación 5: Verificar que las credenciales decodificadas son correctas
-        $credencialesArray = explode(':', $credencialesDecodificadas, 2);
-        $this->assertCount(2, $credencialesArray, 'Al decodificar debe haber exactamente 2 partes (username:password)');
-        $this->assertEquals($username, $credencialesArray[0], 'El username decodificado debe coincidir con el original');
-        $this->assertEquals($password, $credencialesArray[1], 'El password decodificado debe coincidir con el original');
-        
-        // Validación 6: Verificar que el token Base64 tiene un formato válido de Base64
-        // La longitud de un string Base64 es siempre múltiplo de 4 (con padding)
-        $longitudToken = strlen($tokenBase64);
-        $this->assertEquals(0, $longitudToken % 4, 'La longitud del token Base64 debe ser múltiplo de 4 (requisito del formato Base64)');
-        
-        // Validación 7: Verificar que el token Base64 es determinístico
-        // Mismas credenciales deben producir el mismo token
-        $tokenBase64Repetido = base64_encode($username . ':' . $password);
-        $this->assertEquals($tokenBase64, $tokenBase64Repetido, 'El token Base64 debe ser determinístico (mismas credenciales = mismo token)');
-        
-        // Validación 8: Verificar con diferentes credenciales que el token es diferente
-        $username2 = 'otheruser@example.com';
-        $password2 = 'OtherPassword456!';
-        $tokenBase64Diferente = base64_encode($username2 . ':' . $password2);
-        $this->assertNotEquals($tokenBase64, $tokenBase64Diferente, 'Diferentes credenciales deben producir diferentes tokens Base64');
-        
-        // Validación 9: Verificar que el token Base64 puede contener caracteres especiales en el password
-        // sin afectar la generación del token
-        $passwordEspecial = 'Password@#$%^&*()!';
-        $tokenBase64Especial = base64_encode($username . ':' . $passwordEspecial);
-        $credencialesDecodificadasEspecial = base64_decode($tokenBase64Especial, true);
-        $this->assertNotFalse($credencialesDecodificadasEspecial, 'El token Base64 debe manejar correctamente caracteres especiales en el password');
-        $this->assertEquals($username . ':' . $passwordEspecial, $credencialesDecodificadasEspecial, 'Los caracteres especiales en el password deben preservarse en el token');
+        $this->assertEquals($apiToken, $tokenModel->obtenerApiToken());
+        $this->assertEquals('Token ' . $apiToken, $tokenModel->obtenerHeaderAuthorization());
+
+        $apiToken2 = 'otro_token_456';
+        $tokenModel->insert(['api_token' => $apiToken2]);
+        $this->assertEquals($apiToken2, $tokenModel->obtenerApiToken());
+        $this->assertNotEquals($apiToken, $tokenModel->obtenerApiToken());
     }
 }

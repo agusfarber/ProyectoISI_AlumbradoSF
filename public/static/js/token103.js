@@ -1,169 +1,134 @@
 const app = Vue.createApp({
     data() {
         return {
-            credenciales: {
-                username: '',
-                password: ''
+            form: {
+                api_token: '',
             },
-            tokenActual: {}, // Ahora solo un objeto
-            tokenBase64: '', // Token Basic Auth en base64
-            credencialesGuardadas: false,
-            mensajeCopiadoVisible: false
+            tokenActual: {},
+            tokenGuardado: false,
+            mensajeCopiadoVisible: false,
         };
     },
 
+    computed: {
+        tokenEnmascarado() {
+            const token = this.tokenActual.api_token || '';
+            if (token.length <= 10) {
+                return token ? '••••••••' : '';
+            }
+            return token.slice(0, 6) + '…' + token.slice(-4);
+        },
+    },
+
     methods: {
-        /**
-         * Obtiene las credenciales más recientes desde la API local
-         */
         async obtenerTokenUnico() {
             try {
-                const urlTokens = BASE_URL + 'api/token103';
-                const response = await axios.get(urlTokens);
-
-                // Si existe al menos una credencial, usa la última
+                const response = await axios.get(BASE_URL + 'api/token103');
                 if (response.data.length > 0) {
-                    this.tokenActual = response.data[response.data.length - 1];
-                    this.credencialesGuardadas = true;
-                    this.credenciales.username = this.tokenActual.username;
-                    this.credenciales.password = this.tokenActual.password;
-                    // Generar el token base64 automáticamente
-                    this.generarTokenBase64();
+                    this.tokenActual = response.data[0];
+                    this.tokenGuardado = !!(this.tokenActual.api_token || '').trim();
+                    this.form.api_token = this.tokenActual.api_token || '';
                 } else {
-                    this.tokenActual = {}; // No hay credenciales, vaciar el objeto
-                    this.credencialesGuardadas = false;
-                    this.tokenBase64 = '';
+                    this.tokenActual = {};
+                    this.tokenGuardado = false;
+                    this.form.api_token = '';
                 }
             } catch (error) {
-                console.error('Error al obtener credenciales:', error);
+                console.error('Error al obtener token:', error);
             }
         },
 
-        /**
-         * Guarda o actualiza las credenciales
-         */
-        async guardarCredenciales() {
-            // Validar campos
-            if (!this.credenciales.username || !this.credenciales.password) {
-                this.mostrarMensaje('Debe ingresar username y password', 'warning');
+        async guardarToken() {
+            if (!(this.form.api_token || '').trim()) {
+                this.mostrarMensaje('Debés ingresar el token', 'warning');
                 return;
             }
 
-            // Confirmación antes de guardar
-            const mensajeConfirmacion = `¿Está seguro que desea guardar las credenciales?`;
-            const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Guardar Credenciales');
-            
-            if (!confirmacion) {
-                return;
-            }
+            const confirmacion = await this.mostrarConfirmacion(
+                '¿Guardar el token del sistema 103?',
+                'Guardar token'
+            );
+            if (!confirmacion) return;
 
             try {
                 const url = BASE_URL + 'api/token103';
+                const payload = { api_token: this.form.api_token.trim() };
 
                 if (this.tokenActual.id) {
-                    // Si ya existe, actualiza las credenciales
-                    await axios.put(url + '/' + this.tokenActual.id, this.credenciales);
+                    await axios.put(url + '/' + this.tokenActual.id, payload);
                 } else {
-                    // Si no, crea un nuevo registro
-                    await axios.post(url, this.credenciales);
+                    await axios.post(url, payload);
                 }
 
-                this.credencialesGuardadas = true;
-                await this.obtenerTokenUnico(); // Recargar las credenciales para actualizar la vista
-
-                // Mensaje de éxito personalizado
-                this.mostrarMensaje('Credenciales guardadas correctamente', 'success');
+                await this.obtenerTokenUnico();
+                this.mostrarMensaje('Token guardado correctamente', 'success');
             } catch (error) {
-                console.error('Error al guardar credenciales:', error);
-                // Mensaje de error personalizado
-                this.mostrarMensaje('Error al guardar las credenciales', 'error');
+                console.error('Error al guardar token:', error);
+                this.mostrarMensaje('Error al guardar el token', 'error');
             }
         },
 
-        /**
-         * Genera el token Basic Auth en base64 localmente
-         */
-        generarTokenBase64() {
-            if (!this.credenciales.username || !this.credenciales.password) {
-                this.tokenBase64 = '';
-                return;
-            }
-            
-            // Generar token Basic Auth: "username:password" codificado en base64
-            const credencialesString = this.credenciales.username + ':' + this.credenciales.password;
-            this.tokenBase64 = btoa(credencialesString);
-        },
-
-        /**
-         * Copia el token al portapapeles
-         */
         copiarToken() {
-            if (!this.tokenBase64) {
+            const token = this.tokenActual.api_token;
+            if (!token) {
                 this.mostrarMensaje('No hay token para copiar', 'warning');
                 return;
             }
 
-            const tokenInput = document.getElementById('tokenInput');
-            tokenInput.select();
-            tokenInput.setSelectionRange(0, 99999);
-
-            try {
-                document.execCommand('copy');
-
-                // Mostrar el mensaje
+            const copiar = async () => {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(token);
+                } else {
+                    const input = document.getElementById('tokenInput');
+                    input.value = token;
+                    input.select();
+                    document.execCommand('copy');
+                    input.value = this.tokenEnmascarado;
+                }
                 this.mensajeCopiadoVisible = true;
-
-                // Ocultar el mensaje después de 2 segundos
                 setTimeout(() => {
                     this.mensajeCopiadoVisible = false;
                 }, 2000);
+            };
 
-            } catch (err) {
+            copiar().catch((err) => {
                 console.error('Error al copiar:', err);
-                // Mensaje de error personalizado
                 this.mostrarMensaje('No se pudo copiar el token', 'error');
-            }
+            });
         },
 
-        /**
-         * Muestra mensajes de notificación estilo cuadrillas
-         */
         mostrarMensaje(mensaje, tipo) {
-            // Si es un mensaje de éxito, eliminar mensajes de progreso anteriores
             if (tipo === 'success') {
-                $('.alert-info.mensaje-notificacion').fadeOut(200, function() {
+                $('.alert-info.mensaje-notificacion').fadeOut(200, function () {
                     $(this).remove();
                 });
             }
-            
-            // Crear y mostrar un toast o alert
-            const alertClass = tipo === 'success' ? 'alert-success' : 
-                              tipo === 'warning' ? 'alert-warning' : 
-                              tipo === 'info' ? 'alert-info' : 'alert-danger';
-            
+
+            const alertClass = tipo === 'success'
+                ? 'alert-success'
+                : tipo === 'warning'
+                    ? 'alert-warning'
+                    : tipo === 'info'
+                        ? 'alert-info'
+                        : 'alert-danger';
+
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
-            
+
             $('body').append(alertHtml);
-            
-            // Auto-remover después de 5 segundos - solo los mensajes de notificación flotantes
             setTimeout(() => {
-                $('.mensaje-notificacion').fadeOut(500, function() {
+                $('.mensaje-notificacion').fadeOut(500, function () {
                     $(this).remove();
                 });
             }, 5000);
         },
 
-        /**
-         * Muestra una confirmación personalizada estilo cuadrillas
-         */
         mostrarConfirmacion(mensaje, titulo = 'Confirmar Acción') {
             return new Promise((resolve) => {
-                // Crear el modal de confirmación
                 const modalHtml = `
                     <div class="modal fade" id="modalConfirmacion" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
@@ -193,75 +158,33 @@ const app = Vue.createApp({
                     </div>
                 `;
 
-                // Remover modal anterior si existe
                 $('#modalConfirmacion').remove();
-                
-                // Agregar el modal al body
                 $('body').append(modalHtml);
-                
-                // Mostrar el modal
                 const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
                 modal.show();
 
-                // Manejar botones
                 $('#btnConfirmar').on('click', () => {
                     modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
+                    setTimeout(() => $('#modalConfirmacion').remove(), 300);
                     resolve(true);
                 });
 
                 $('#btnCancelar').on('click', () => {
                     modal.hide();
-                    setTimeout(() => {
-                        $('#modalConfirmacion').remove();
-                    }, 300);
+                    setTimeout(() => $('#modalConfirmacion').remove(), 300);
                     resolve(false);
                 });
 
-                // Manejar cierre del modal (X o ESC)
                 $('#modalConfirmacion').on('hidden.bs.modal', () => {
                     $('#modalConfirmacion').remove();
                     resolve(false);
                 });
             });
         },
-
-        /**
-         * Formatea una fecha para mostrar en la interfaz
-         */
-        formatearFecha(fecha) {
-            if (!fecha) return '';
-
-            try {
-                // Si la fecha viene en formato YYYY-MM-DD HH:MM:SS, crear el objeto Date correctamente
-                let date;
-                if (typeof fecha === 'string' && fecha.includes(' ')) {
-                    // Formato de base de datos: YYYY-MM-DD HH:MM:SS
-                    date = new Date(fecha.replace(' ', 'T'));
-                } else {
-                    date = new Date(fecha);
-                }
-                
-                return date.toLocaleString('es-AR', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    timeZone: 'America/Argentina/Buenos_Aires'
-                });
-            } catch (error) {
-                console.error('Error al formatear fecha:', error);
-                return fecha;
-            }
-        }
     },
 
     mounted() {
         this.obtenerTokenUnico();
-    }
+    },
 });
 

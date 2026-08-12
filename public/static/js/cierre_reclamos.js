@@ -30,11 +30,11 @@ const app = Vue.createApp({
 
             this.$nextTick(() => {
                 if (solapa === 'pendientes' && this.tabla) {
-                    this.tabla.columns.adjust().responsive.recalc();
+                    this.tabla.columns.adjust();
                 }
 
                 if (solapa === 'cerrados' && this.tablaCerrados) {
-                    this.tablaCerrados.columns.adjust().responsive.recalc();
+                    this.tablaCerrados.columns.adjust();
                 }
             });
         },
@@ -514,13 +514,13 @@ const app = Vue.createApp({
                              tipo === 'info' ? 'bi-info-circle-fill' : 'bi-x-circle-fill';
 
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion shadow-lg" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 350px; max-width: 500px;" role="alert">
-                    <i class="bi ${iconClass} me-2"></i>
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body"><i class="bi ${iconClass} me-2"></i>
                     <div style="display: inline-block; vertical-align: top;">
                         ${mensaje}
                     </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
 

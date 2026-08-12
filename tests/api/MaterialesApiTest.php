@@ -33,7 +33,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $materialData = [
             'nombre' => 'Lámpara LED 50W',
             'idTipo' => 1, // Lámpara LED (del seeder)
-            'cantidad' => 100
         ];
 
         // Paso 1: Crear material via POST (enviando como JSON)
@@ -57,7 +56,6 @@ class MaterialesApiTest extends CIUnitTestCase
         // Validación 4: Los datos se guardaron correctamente
         $this->assertEquals($materialData['nombre'], $responseData['nombre'], 'El nombre debe coincidir');
         $this->assertEquals($materialData['idTipo'], $responseData['idTipo'], 'El tipo debe coincidir');
-        $this->assertEquals($materialData['cantidad'], $responseData['cantidad'], 'La cantidad debe coincidir');
 
         // Paso 2: Verificar que el material se guardó en la BD consultando directamente
         $materialModel = model('MaterialModel');
@@ -66,7 +64,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertNotNull($materialEnBD, 'El material debe existir en la base de datos');
         $this->assertEquals($materialData['nombre'], $materialEnBD['nombre'], 'El nombre en BD debe coincidir');
         $this->assertEquals($materialData['idTipo'], $materialEnBD['idTipo'], 'El tipo en BD debe coincidir');
-        $this->assertEquals($materialData['cantidad'], $materialEnBD['cantidad'], 'La cantidad en BD debe coincidir');
 
         // Paso 3: Verificar que el material puede ser recuperado via GET
         $resultGet = $this->get("api/materiales");
@@ -99,7 +96,6 @@ class MaterialesApiTest extends CIUnitTestCase
      * Validar:
      * - Nombre vacío → 400
      * - Tipo de material vacío/inválido → 400
-     * - Cantidad negativa → 400
      * - Mensajes de error claros
      */
     public function testValidacionCamposObligatorios()
@@ -108,7 +104,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $dataNombreVacio = [
             'nombre' => '',
             'idTipo' => 1,
-            'cantidad' => 50
         ];
 
         $result1 = $this->withBodyFormat('json')->post('api/materiales', $dataNombreVacio);
@@ -121,7 +116,6 @@ class MaterialesApiTest extends CIUnitTestCase
         // Caso 2: Nombre null (omitido)
         $dataSinNombre = [
             'idTipo' => 1,
-            'cantidad' => 50
         ];
 
         $result2 = $this->withBodyFormat('json')->post('api/materiales', $dataSinNombre);
@@ -135,7 +129,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $dataTipoInvalido = [
             'nombre' => 'Material Test',
             'idTipo' => 0,
-            'cantidad' => 50
         ];
 
         $result3 = $this->withBodyFormat('json')->post('api/materiales', $dataTipoInvalido);
@@ -149,7 +142,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $dataTipoNegativo = [
             'nombre' => 'Material Test',
             'idTipo' => -1,
-            'cantidad' => 50
         ];
 
         $result4 = $this->withBodyFormat('json')->post('api/materiales', $dataTipoNegativo);
@@ -161,7 +153,6 @@ class MaterialesApiTest extends CIUnitTestCase
         // Caso 5: Sin idTipo (omitido)
         $dataSinTipo = [
             'nombre' => 'Material Test',
-            'cantidad' => 50
         ];
 
         $result5 = $this->withBodyFormat('json')->post('api/materiales', $dataSinTipo);
@@ -171,45 +162,17 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertArrayHasKey('messages', $response5, 'La respuesta debe contener mensajes de error');
         $this->assertStringContainsString('obligatorio', strtolower($result5->getJSON()), 'El mensaje debe indicar que faltan datos obligatorios');
 
-        // Caso 6: Cantidad negativa
-        $dataCantidadNegativa = [
-            'nombre' => 'Material Test',
-            'idTipo' => 1,
-            'cantidad' => -10
+        // Caso 6: Todos los campos vacíos/inválidos
+        $dataTodoInvalido = [
+            'nombre' => '',
+            'idTipo' => 0,
         ];
 
-        $result6 = $this->withBodyFormat('json')->post('api/materiales', $dataCantidadNegativa);
+        $result6 = $this->withBodyFormat('json')->post('api/materiales', $dataTodoInvalido);
         $result6->assertStatus(400);
         
         $response6 = json_decode($result6->getJSON(), true);
         $this->assertArrayHasKey('messages', $response6, 'La respuesta debe contener mensajes de error');
-        $this->assertStringContainsString('cantidad', strtolower($result6->getJSON()), 'El mensaje debe mencionar la cantidad');
-
-        // Caso 7: Sin cantidad (omitida)
-        $dataSinCantidad = [
-            'nombre' => 'Material Test',
-            'idTipo' => 1
-        ];
-
-        $result7 = $this->withBodyFormat('json')->post('api/materiales', $dataSinCantidad);
-        $result7->assertStatus(400);
-        
-        $response7 = json_decode($result7->getJSON(), true);
-        $this->assertArrayHasKey('messages', $response7, 'La respuesta debe contener mensajes de error');
-        $this->assertStringContainsString('obligatorio', strtolower($result7->getJSON()), 'El mensaje debe indicar que faltan datos obligatorios');
-
-        // Caso 8: Todos los campos vacíos/inválidos
-        $dataTodoInvalido = [
-            'nombre' => '',
-            'idTipo' => 0,
-            'cantidad' => -5
-        ];
-
-        $result8 = $this->withBodyFormat('json')->post('api/materiales', $dataTodoInvalido);
-        $result8->assertStatus(400);
-        
-        $response8 = json_decode($result8->getJSON(), true);
-        $this->assertArrayHasKey('messages', $response8, 'La respuesta debe contener mensajes de error');
 
         // Verificar que NO se creó ningún material inválido en la BD
         $materialModel = model('MaterialModel');
@@ -236,27 +199,22 @@ class MaterialesApiTest extends CIUnitTestCase
             [
                 'nombre' => 'Lámpara LED 50W',
                 'idTipo' => 1, // Lámpara LED
-                'cantidad' => 100
             ],
             [
                 'nombre' => 'Lámpara LED 100W',
                 'idTipo' => 1, // Lámpara LED
-                'cantidad' => 50
             ],
             [
                 'nombre' => 'Lámpara de Sodio 150W',
                 'idTipo' => 2, // Lámpara de Sodio
-                'cantidad' => 75
             ],
             [
                 'nombre' => 'Cable Eléctrico 2x1.5mm',
                 'idTipo' => 3, // Cable Eléctrico
-                'cantidad' => 200
             ],
             [
                 'nombre' => 'Poste de Concreto 8m',
                 'idTipo' => 4, // Poste
-                'cantidad' => 25
             ]
         ];
 
@@ -284,7 +242,7 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertCount(5, $catalogoCompleto, 'El catálogo debe contener los 5 materiales creados');
 
         // Validación 4: Cada material incluye TODOS los campos necesarios
-        $camposRequeridos = ['id', 'nombre', 'idTipo', 'cantidad', 'tipo_nombre'];
+        $camposRequeridos = ['id', 'nombre', 'idTipo', 'tipo_nombre'];
         
         foreach ($catalogoCompleto as $material) {
             // Verificar que es un array (no null u otro tipo)
@@ -299,13 +257,11 @@ class MaterialesApiTest extends CIUnitTestCase
             $this->assertIsNumeric($material['id'], 'El ID debe ser numérico');
             $this->assertIsString($material['nombre'], 'El nombre debe ser string');
             $this->assertIsNumeric($material['idTipo'], 'El idTipo debe ser numérico');
-            $this->assertIsNumeric($material['cantidad'], 'La cantidad debe ser numérica');
             $this->assertIsString($material['tipo_nombre'], 'El tipo_nombre debe ser string');
             
             // Validar que los valores no están vacíos
             $this->assertNotEmpty($material['nombre'], 'El nombre no debe estar vacío');
             $this->assertNotEmpty($material['tipo_nombre'], 'El tipo_nombre no debe estar vacío');
-            $this->assertGreaterThanOrEqual(0, $material['cantidad'], 'La cantidad debe ser >= 0');
         }
 
         // Validación 5: Verificar que todos los IDs creados están en el catálogo
@@ -358,7 +314,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $materialInicial = [
             'nombre' => 'Lámpara LED Original 50W',
             'idTipo' => 1, // Lámpara LED
-            'cantidad' => 100
         ];
 
         $resultCreacion = $this->withBodyFormat('json')->post('api/materiales', $materialInicial);
@@ -370,12 +325,10 @@ class MaterialesApiTest extends CIUnitTestCase
         // Verificar datos iniciales
         $this->assertEquals($materialInicial['nombre'], $materialCreado['nombre']);
         $this->assertEquals($materialInicial['idTipo'], $materialCreado['idTipo']);
-        $this->assertEquals($materialInicial['cantidad'], $materialCreado['cantidad']);
 
-        // Paso 2: Actualizar solo algunos campos (nombre y cantidad)
+        // Paso 2: Actualizar solo el nombre
         $datosActualizacion = [
             'nombre' => 'Lámpara LED Actualizada 100W',
-            'cantidad' => 150
             // NO se envía idTipo, debe permanecer sin cambios
         ];
 
@@ -390,7 +343,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertIsArray($materialActualizado, 'La respuesta debe ser un array');
         $this->assertArrayHasKey('id', $materialActualizado);
         $this->assertArrayHasKey('nombre', $materialActualizado);
-        $this->assertArrayHasKey('cantidad', $materialActualizado);
         $this->assertArrayHasKey('idTipo', $materialActualizado);
 
         // Validación 3: El ID NO cambió
@@ -398,7 +350,6 @@ class MaterialesApiTest extends CIUnitTestCase
 
         // Validación 4: Los campos modificados se actualizaron correctamente
         $this->assertEquals($datosActualizacion['nombre'], $materialActualizado['nombre'], 'El nombre debe estar actualizado');
-        $this->assertEquals($datosActualizacion['cantidad'], $materialActualizado['cantidad'], 'La cantidad debe estar actualizada');
 
         // Validación 5: Los campos NO modificados permanecen sin cambios
         $this->assertEquals($materialInicial['idTipo'], $materialActualizado['idTipo'], 'El idTipo no debe haber cambiado');
@@ -410,13 +361,11 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertNotNull($materialEnBD, 'El material debe existir en la BD');
         $this->assertEquals($materialId, $materialEnBD['id'], 'El ID en BD debe coincidir');
         $this->assertEquals($datosActualizacion['nombre'], $materialEnBD['nombre'], 'El nombre en BD debe estar actualizado');
-        $this->assertEquals($datosActualizacion['cantidad'], $materialEnBD['cantidad'], 'La cantidad en BD debe estar actualizada');
         $this->assertEquals($materialInicial['idTipo'], $materialEnBD['idTipo'], 'El idTipo en BD no debe haber cambiado');
 
-        // Paso 4: Actualizar otro conjunto de campos (tipo y cantidad, no nombre)
+        // Paso 4: Actualizar el tipo (no nombre)
         $segundaActualizacion = [
             'idTipo' => 2, // Cambiar a Lámpara de Sodio
-            'cantidad' => 200
             // NO se envía nombre, debe permanecer como "Lámpara LED Actualizada 100W"
         ];
 
@@ -430,7 +379,6 @@ class MaterialesApiTest extends CIUnitTestCase
 
         // Validación 7: Los campos de la segunda actualización se aplicaron
         $this->assertEquals($segundaActualizacion['idTipo'], $materialDosVecesActualizado['idTipo'], 'El idTipo debe estar actualizado');
-        $this->assertEquals($segundaActualizacion['cantidad'], $materialDosVecesActualizado['cantidad'], 'La cantidad debe estar actualizada nuevamente');
 
         // Validación 8: El nombre de la primera actualización se mantiene
         $this->assertEquals($datosActualizacion['nombre'], $materialDosVecesActualizado['nombre'], 'El nombre de la primera actualización debe mantenerse');
@@ -439,7 +387,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $actualizacionCompleta = [
             'nombre' => 'Material Completamente Actualizado',
             'idTipo' => 3, // Cable Eléctrico
-            'cantidad' => 300
         ];
 
         $resultActualizacionCompleta = $this->withBodyFormat('json')->put("api/materiales/{$materialId}", $actualizacionCompleta);
@@ -453,7 +400,6 @@ class MaterialesApiTest extends CIUnitTestCase
         // Validación 10: Todos los campos se actualizaron correctamente
         $this->assertEquals($actualizacionCompleta['nombre'], $materialFinal['nombre']);
         $this->assertEquals($actualizacionCompleta['idTipo'], $materialFinal['idTipo']);
-        $this->assertEquals($actualizacionCompleta['cantidad'], $materialFinal['cantidad']);
 
         // Paso 6: Verificar via GET que el material tiene los datos finales
         $resultGet = $this->get("api/materiales");
@@ -472,7 +418,6 @@ class MaterialesApiTest extends CIUnitTestCase
         $this->assertNotNull($materialEnCatalogo, 'El material debe estar en el catálogo');
         $this->assertEquals($actualizacionCompleta['nombre'], $materialEnCatalogo['nombre']);
         $this->assertEquals($actualizacionCompleta['idTipo'], $materialEnCatalogo['idTipo']);
-        $this->assertEquals($actualizacionCompleta['cantidad'], $materialEnCatalogo['cantidad']);
         $this->assertEquals('Cable Eléctrico', $materialEnCatalogo['tipo_nombre'], 'El tipo_nombre debe reflejar el tipo actualizado');
     }
 
@@ -490,37 +435,31 @@ class MaterialesApiTest extends CIUnitTestCase
     public function testImportacionCSVExitosa()
     {
         // Paso 1: Preparar datos de importación (simulando un CSV parseado)
-        // El formato esperado es un array de items con: nombre, cantidad, tipo (nombre del tipo, no ID)
+        // El formato esperado es un array de items con: nombre, tipo (nombre del tipo, no ID)
         $datosImportacion = [
             'items' => [
                 [
                     'nombre' => 'Lámpara LED 60W Importada',
-                    'cantidad' => 50,
                     'tipo' => 'Lámpara LED' // Se usa el nombre del tipo, no el ID
                 ],
                 [
                     'nombre' => 'Lámpara LED 100W Importada',
-                    'cantidad' => 30,
                     'tipo' => 'Lámpara LED'
                 ],
                 [
                     'nombre' => 'Lámpara Sodio 250W Importada',
-                    'cantidad' => 40,
                     'tipo' => 'Lámpara de Sodio'
                 ],
                 [
                     'nombre' => 'Cable 3x2.5mm Importado',
-                    'cantidad' => 500,
                     'tipo' => 'Cable Eléctrico'
                 ],
                 [
                     'nombre' => 'Poste Metálico 10m Importado',
-                    'cantidad' => 15,
                     'tipo' => 'Poste'
                 ],
                 [
                     'nombre' => 'Lámpara LED 150W Importada',
-                    'cantidad' => 25,
                     'tipo' => 'Lámpara LED'
                 ]
             ]
@@ -566,7 +505,6 @@ class MaterialesApiTest extends CIUnitTestCase
             }
 
             $this->assertNotNull($materialEnBD, "El material '{$itemEsperado['nombre']}' debe existir en la BD");
-            $this->assertEquals($itemEsperado['cantidad'], $materialEnBD['cantidad'], "La cantidad de '{$itemEsperado['nombre']}' debe coincidir");
             
             // Verificar que el idTipo se mapeó correctamente según el nombre del tipo
             $this->assertNotNull($materialEnBD['idTipo'], "El material '{$itemEsperado['nombre']}' debe tener un idTipo asignado");
@@ -610,16 +548,7 @@ class MaterialesApiTest extends CIUnitTestCase
         // Debe haber 1 material de tipo "Poste"
         $this->assertCount(1, $materialesPoste, 'Debe haber 1 material de tipo Poste');
 
-        // Validación 6: Verificar distribución de cantidades importadas
-        $cantidadTotal = 0;
-        foreach ($catalogoCompleto as $material) {
-            $cantidadTotal += $material['cantidad'];
-        }
-
-        // Suma de cantidades: 50 + 30 + 40 + 500 + 15 + 25 = 660
-        $this->assertEquals(660, $cantidadTotal, 'La suma total de cantidades debe ser 660');
-
-        // Validación 7: Verificar que todos los materiales tienen IDs únicos
+        // Validación 6: Verificar que todos los materiales tienen IDs únicos
         $ids = array_column($catalogoCompleto, 'id');
         $idsUnicos = array_unique($ids);
         $this->assertCount(count($ids), $idsUnicos, 'Todos los IDs deben ser únicos');
@@ -697,7 +626,6 @@ class MaterialesApiTest extends CIUnitTestCase
             'items' => [
                 [
                     // 'nombre' => 'Falta el nombre', // Campo faltante
-                    'cantidad' => 10,
                     'tipo' => 'Lámpara LED'
                 ]
             ]
@@ -720,7 +648,6 @@ class MaterialesApiTest extends CIUnitTestCase
             'items' => [
                 [
                     'nombre' => 'Material sin tipo',
-                    'cantidad' => 10
                     // 'tipo' => 'Falta el tipo' // Campo faltante
                 ]
             ]
@@ -736,27 +663,6 @@ class MaterialesApiTest extends CIUnitTestCase
         }
         $this->assertStringContainsString('tipo', strtolower($mensajeError4b), 'El error debe mencionar que falta el tipo');
 
-        // 4c. Item sin campo "cantidad"
-        $datosInvalidos4c = [
-            'items' => [
-                [
-                    'nombre' => 'Material sin cantidad',
-                    'tipo' => 'Lámpara LED'
-                    // 'cantidad' => 10 // Campo faltante
-                ]
-            ]
-        ];
-
-        $result4c = $this->withBodyFormat('json')->post('api/materiales/import', $datosInvalidos4c);
-        $result4c->assertStatus(400);
-
-        $response4c = json_decode($result4c->getJSON(), true);
-        $mensajeError4c = $response4c['message'] ?? $response4c['messages'] ?? '';
-        if (is_array($mensajeError4c)) {
-            $mensajeError4c = implode(' ', $mensajeError4c);
-        }
-        $this->assertStringContainsString('cantidad', strtolower($mensajeError4c), 'El error debe mencionar que falta la cantidad');
-
         // ===== CASO 5: Items con valores inválidos =====
 
         // 5a. Nombre vacío
@@ -764,7 +670,6 @@ class MaterialesApiTest extends CIUnitTestCase
             'items' => [
                 [
                     'nombre' => '', // Nombre vacío
-                    'cantidad' => 10,
                     'tipo' => 'Lámpara LED'
                 ]
             ]
@@ -780,13 +685,12 @@ class MaterialesApiTest extends CIUnitTestCase
         }
         $this->assertStringContainsString('nombre', strtolower($mensajeError5a), 'El error debe mencionar el nombre');
 
-        // 5b. Cantidad negativa
+        // 5b. Tipo inexistente
         $datosInvalidos5b = [
             'items' => [
                 [
-                    'nombre' => 'Material con cantidad negativa',
-                    'cantidad' => -10, // Cantidad negativa
-                    'tipo' => 'Lámpara LED'
+                    'nombre' => 'Material con tipo inexistente',
+                    'tipo' => 'Tipo Que No Existe En La BD'
                 ]
             ]
         ];
@@ -799,51 +703,26 @@ class MaterialesApiTest extends CIUnitTestCase
         if (is_array($mensajeError5b)) {
             $mensajeError5b = implode(' ', $mensajeError5b);
         }
-        $this->assertStringContainsString('cantidad', strtolower($mensajeError5b), 'El error debe mencionar la cantidad');
-
-        // 5c. Tipo inexistente
-        $datosInvalidos5c = [
-            'items' => [
-                [
-                    'nombre' => 'Material con tipo inexistente',
-                    'cantidad' => 10,
-                    'tipo' => 'Tipo Que No Existe En La BD'
-                ]
-            ]
-        ];
-
-        $result5c = $this->withBodyFormat('json')->post('api/materiales/import', $datosInvalidos5c);
-        $result5c->assertStatus(400);
-
-        $response5c = json_decode($result5c->getJSON(), true);
-        $mensajeError5c = $response5c['message'] ?? $response5c['messages'] ?? '';
-        if (is_array($mensajeError5c)) {
-            $mensajeError5c = implode(' ', $mensajeError5c);
-        }
-        $this->assertStringContainsString('tipo', strtolower($mensajeError5c), 'El error debe mencionar el tipo');
-        $this->assertStringContainsString('no existe', strtolower($mensajeError5c), 'El error debe indicar que el tipo no existe');
+        $this->assertStringContainsString('tipo', strtolower($mensajeError5b), 'El error debe mencionar el tipo');
+        $this->assertStringContainsString('no existe', strtolower($mensajeError5b), 'El error debe indicar que el tipo no existe');
 
         // ===== CASO 6: Importación mixta (algunos válidos, algunos inválidos) =====
         $datosMixtos = [
             'items' => [
                 [
                     'nombre' => 'Material Válido 1',
-                    'cantidad' => 10,
                     'tipo' => 'Lámpara LED'
                 ],
                 [
                     'nombre' => '', // Inválido: nombre vacío
-                    'cantidad' => 20,
                     'tipo' => 'Cable Eléctrico'
                 ],
                 [
                     'nombre' => 'Material Válido 2',
-                    'cantidad' => 30,
                     'tipo' => 'Poste'
                 ],
                 [
                     'nombre' => 'Material con tipo inválido',
-                    'cantidad' => 40,
                     'tipo' => 'Tipo Inventado'
                 ]
             ]

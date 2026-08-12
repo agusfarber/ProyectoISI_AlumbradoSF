@@ -71,9 +71,11 @@ const app = Vue.createApp({
             // Variables para el modal de añadir reclamos
             reclamosRecibidos: [],
             reclamosRecibidosFiltrados: [],
+            indiceReclamoParadaAñadir: {},
             filtroBusquedaReclamos: '',
             reclamoRecibidoSeleccionado: {},
             añadiendoReclamo: null,
+            añadiendoParadaClave: null,
             
             // Variables para la solapa de materiales
             tiposMaterial: [],
@@ -84,24 +86,35 @@ const app = Vue.createApp({
                 cantidad: null,
                 observacion: ''
             },
-            materialNuevo: {
-                tipo_id: '',
-                nombre: '',
-                cantidad: null
-            },
-            modoMaterialNuevo: false, // false = material existente, true = crear material nuevo
+            filtroBusquedaMaterial: '',
+            cargandoCatalogoMateriales: false,
+            guardandoMaterialObra: false,
             historialMateriales: [],
-            mostrarHistorialMateriales: false,
+            mostrarHistorialMateriales: true,
             cargandoMateriales: false,
+            materialesCountPorReclamoOperario: {},
             detalleMaterial: null,
             cargandoDetalleMaterial: false,
+            eliminandoMaterialReclamoId: null,
 
             /** Reloj para cronómetro de ejecución (persistente vía inicio_ejecucion_at del servidor) */
             ahoraCronometro: Date.now(),
             _tickCronometro: null,
 
+            /** Sync liviano operario: visibility + polling espaciado */
+            _pollOperarioLiviano: null,
+            _sincronizandoOperarioLiviano: false,
+            _omitirReinicioPreviewPorSync: false,
+            intervaloPollOperarioLiviano: 10000,
+            _ultimoFingerprintRutasOperario: null,
+            _ultimoFingerprintReclamosOperario: null,
+            _onVisibilityOperarioLiviano: null,
+
             /** Sesión de reparación en obra por reclamo (solo cliente; clave = id reclamo) */
             reparacionPorReclamoId: {},
+
+            /** Popover confirmar acción de reclamo en lista: { clave, tipo } */
+            confirmarAccionParada: null,
 
             /** ID de fila ruta_ejecucion abierta (servidor); para eventos de reclamo durante la ejecución */
             rutaEjecucionActivaId: null,
@@ -109,6 +122,14 @@ const app = Vue.createApp({
             /** Modal acciones: solo pestaña materiales (operario) */
             modalAccionesSoloMateriales: false,
             modalMaterialesSoloLectura: false,
+
+            /** Prompt materiales antes de completar */
+            promptMaterialesDetalle: '',
+            _resolverPromptMateriales: null,
+
+            /** Confirmación eliminar material */
+            confirmarEliminarMaterialNombre: '',
+            _resolverConfirmarEliminarMaterial: null,
 
             observacionEjecucionTexto: '',
             historialObservacionesEjecucion: [],
@@ -251,6 +272,29 @@ const app = Vue.createApp({
             return this.idsCuadrillasOperario.includes(this.rutaSeleccionada.cuadrilla_id);
         },
 
+        puedeAñadirReclamosRutaSeleccionada() {
+            if (!this.esOperario) return true;
+            if (!this.rutaSeleccionada) return false;
+            const cid = Number(this.rutaSeleccionada.cuadrilla_id);
+            if (!this.idsCuadrillasComoJefe.some((id) => Number(id) === cid)) {
+                return false;
+            }
+            return this.claveEstadoEjecucionRuta(this.rutaSeleccionada) === 'en ejecución';
+        },
+
+        proximaPosicionAlAñadir() {
+            if (!this.reclamos || this.reclamos.length === 0) return 1;
+            const maxPos = Math.max(
+                ...this.reclamos.map((r) => Number(r.posicion) || 0),
+                0
+            );
+            return maxPos + 1;
+        },
+
+        paradasReclamosAñadir() {
+            return this.agruparParadasPorDomicilio(this.reclamosRecibidosFiltrados);
+        },
+
         puedeEditarTareasRutaSeleccionada() {
             if (!this.esOperario) return true;
             if (!this.rutaSeleccionada) return false;
@@ -271,23 +315,24 @@ const app = Vue.createApp({
         
         puedeGuardarMaterial() {
             if (!this.puedeEditarTareasRutaSeleccionada) return false;
-            // Solo el material es obligatorio, la cantidad es opcional
-            return !!this.materialSeleccionado.material_id;
+            const cantidad = Number(this.materialSeleccionado.cantidad);
+            return !!this.materialSeleccionado.material_id
+                && Number.isFinite(cantidad)
+                && cantidad >= 1;
         },
-        
-        puedeGuardarMaterialNuevo() {
-            if (!this.puedeEditarTareasRutaSeleccionada) return false;
-            // Para crear material nuevo, solo el nombre es obligatorio
-            return !!this.materialNuevo.nombre && this.materialNuevo.nombre.trim().length > 0;
+
+        materialesCatalogoFiltrados() {
+            const termino = (this.filtroBusquedaMaterial || '').trim().toLowerCase();
+            const lista = Array.isArray(this.materialesFiltrados) ? this.materialesFiltrados : [];
+            if (!termino) return lista;
+            return lista.filter((m) => (m.nombre || '').toLowerCase().includes(termino));
         },
-        
-        puedeGuardarMaterialSegunModo() {
-            // Retorna true si puede guardar según el modo actual
-            if (this.modoMaterialNuevo) {
-                return this.puedeGuardarMaterialNuevo();
-            } else {
-                return this.puedeGuardarMaterial();
-            }
+
+        nombreMaterialSeleccionadoObra() {
+            const id = this.materialSeleccionado.material_id;
+            if (!id) return '';
+            const mat = (this.materialesFiltrados || []).find((m) => String(m.id) === String(id));
+            return mat ? mat.nombre : 'Material seleccionado';
         },
 
         historialBitacoraEjecucionOrdenado() {
@@ -327,9 +372,13 @@ const app = Vue.createApp({
             }
         },
         rutasPanel() {
-            if (this.esOperario && this.vistaOperarioActual === 'panel') {
-                this.$nextTick(() => this.inicializarMapasPreviewOperario());
+            if (!this.esOperario || this.vistaOperarioActual !== 'panel') {
+                return;
             }
+            if (this._omitirReinicioPreviewPorSync) {
+                return;
+            }
+            this.$nextTick(() => this.inicializarMapasPreviewOperario());
         }
     },
 
@@ -363,7 +412,8 @@ const app = Vue.createApp({
             }
         },
 
-        async obtenerReclamosPorRutaSeleccionada() {
+        async obtenerReclamosPorRutaSeleccionada(opciones = {}) {
+            const { silencioso = false } = opciones;
             if (!this.rutaSeleccionadaId) {
                 this.reclamos = [];
                 return;
@@ -379,17 +429,47 @@ const app = Vue.createApp({
                     ruta_color: rutaActual?.color || reclamo.ruta_color || '#808080'
                 }));
 
-                this.reclamos = this.eliminarDuplicadosReclamos(reclamosConRuta);
+                const nuevos = this.eliminarDuplicadosReclamos(reclamosConRuta);
+                const fpNuevo = this._fingerprintReclamosOperario(nuevos);
+                const datosCambiaron = fpNuevo !== this._ultimoFingerprintReclamosOperario;
+
+                // Sync liviano sin cambios: no tocar estado (evita parpadeo de lista/mapa/modales)
+                if (silencioso && !datosCambiaron) {
+                    return;
+                }
+
+                this.reclamos = nuevos;
                 this.aplicarSesionesReparacionDesdeReclamos(this.reclamos);
-                this.indiceReclamoListaParadaOperario = {};
+                if (!silencioso || datosCambiaron) {
+                    this.indiceReclamoListaParadaOperario = {};
+                }
 
                 await this.sincronizarRutaEjecucionActivaId();
-                await this.cargarObservacionesEjecucionOperario(this.reclamos);
+
+                if (!silencioso || datosCambiaron) {
+                    await Promise.all([
+                        this.cargarObservacionesEjecucionOperario(this.reclamos),
+                        this.cargarMaterialesCountOperario(this.reclamos)
+                    ]);
+                }
+
+                this._ultimoFingerprintReclamosOperario = fpNuevo;
 
                 if (this.esOperario && this.modoVistaRuta === 'mapa') {
-                    this.$nextTick(() => this.inicializarMapaDetalleOperario());
+                    const mapaListo = !!(this.mapaDetalleGoogle || this.mapaDetalleOperarioMapbox);
+                    if (silencioso && mapaListo) {
+                        if (datosCambiaron) {
+                            this.$nextTick(() => this.redibujarMapaDetalleOperario());
+                        }
+                    } else {
+                        this.$nextTick(() => this.inicializarMapaDetalleOperario());
+                    }
                 }
             } catch (error) {
+                if (silencioso) {
+                    console.warn('Recarga silenciosa reclamos operario:', error);
+                    return;
+                }
                 console.error('Error al obtener reclamos de la ruta seleccionada:', error);
                 this.reclamos = [];
                 this.reparacionPorReclamoId = {};
@@ -436,10 +516,22 @@ const app = Vue.createApp({
             this.vistaOperarioActual = 'detalle';
             this.modoVistaRuta = 'lista';
             await this.obtenerReclamosPorRutaSeleccionada();
+            // Primera sync pronto por si la hoja ya no existe / cambió mientras abría
+            void this.sincronizarVistaOperarioLiviana();
         },
 
         async iniciarEjecucionRutaSeleccionada() {
             if (!this.rutaSeleccionadaId) return;
+
+            const nombreHoja = this.rutaSeleccionada?.nombre || 'esta hoja de ruta';
+            const confirmacion = await this.mostrarConfirmacion(
+                `¿Confirmás iniciar la ejecución de “${nombreHoja}”?`,
+                'Iniciar ejecución'
+            );
+            if (!confirmacion) {
+                return;
+            }
+
             try {
                 const response = await axios.post(BASE_URL + 'api/rutas/operario/iniciar-ejecucion', {
                     ruta_id: this.rutaSeleccionadaId
@@ -489,6 +581,16 @@ const app = Vue.createApp({
                 );
                 return;
             }
+
+            const nombreHoja = this.rutaSeleccionada?.nombre || 'esta hoja de ruta';
+            const confirmacion = await this.mostrarConfirmacion(
+                `¿Confirmás finalizar la ejecución de “${nombreHoja}”? Se cerrará la hoja y no se puede deshacer.`,
+                'Finalizar ejecución'
+            );
+            if (!confirmacion) {
+                return;
+            }
+
             try {
                 const response = await axios.post(BASE_URL + 'api/rutas/operario/finalizar-ejecucion', {
                     ruta_id: this.rutaSeleccionadaId
@@ -640,10 +742,162 @@ const app = Vue.createApp({
             }
         },
 
+        _fingerprintRutasOperario(rutas) {
+            return (rutas || [])
+                .map((r) => [
+                    r.id,
+                    r.estado_ejecucion || '',
+                    r.inicio_ejecucion_at || '',
+                    r.cuadrilla_id || '',
+                    r.cantidadReclamos ?? '',
+                    r.nombre || '',
+                    r.color || ''
+                ].join(':'))
+                .join('|');
+        },
+
+        _fingerprintReclamosOperario(reclamos) {
+            return (reclamos || [])
+                .map((r) => {
+                    const sr = r.sesion_reparacion || {};
+                    return [
+                        r.id,
+                        r.municipalidad_estado || '',
+                        r.orden ?? r.orden_ruta ?? '',
+                        sr.activo ? 1 : 0,
+                        sr.acumulado_ms || 0,
+                        sr.inicio_segmento_at || ''
+                    ].join(':');
+                })
+                .join('|');
+        },
+
+        /** Polling continuo en panel y en detalle (detecta baja/desasignación de la hoja) */
+        debePollingContinuoOperario() {
+            return this.esOperario
+                && (this.vistaOperarioActual === 'panel' || this.vistaOperarioActual === 'detalle');
+        },
+
+        iniciarSyncOperarioLiviano() {
+            if (!this.esOperario) {
+                return;
+            }
+            this.iniciarPollingOperarioLiviano();
+            this.configurarVisibilitySyncOperario();
+        },
+
+        detenerSyncOperarioLiviano() {
+            this.detenerPollingOperarioLiviano();
+            this.quitarVisibilitySyncOperario();
+        },
+
+        iniciarPollingOperarioLiviano() {
+            if (!this.esOperario || this._pollOperarioLiviano) {
+                return;
+            }
+            this._pollOperarioLiviano = setInterval(() => {
+                if (document.hidden || !this.debePollingContinuoOperario()) {
+                    return;
+                }
+                void this.sincronizarVistaOperarioLiviana();
+            }, this.intervaloPollOperarioLiviano);
+        },
+
+        detenerPollingOperarioLiviano() {
+            if (this._pollOperarioLiviano) {
+                clearInterval(this._pollOperarioLiviano);
+                this._pollOperarioLiviano = null;
+            }
+        },
+
+        configurarVisibilitySyncOperario() {
+            if (!this.esOperario || this._onVisibilityOperarioLiviano) {
+                return;
+            }
+            this._onVisibilityOperarioLiviano = () => {
+                if (document.hidden || !this.esOperario) {
+                    return;
+                }
+                void this.sincronizarVistaOperarioLiviana();
+            };
+            document.addEventListener('visibilitychange', this._onVisibilityOperarioLiviano);
+        },
+
+        quitarVisibilitySyncOperario() {
+            if (this._onVisibilityOperarioLiviano) {
+                document.removeEventListener('visibilitychange', this._onVisibilityOperarioLiviano);
+                this._onVisibilityOperarioLiviano = null;
+            }
+        },
+
+        async sincronizarVistaOperarioLiviana() {
+            if (!this.esOperario || this._sincronizandoOperarioLiviano) {
+                return;
+            }
+            this._sincronizandoOperarioLiviano = true;
+            try {
+                const response = await axios.get(BASE_URL + 'api/rutas/operario/mis-rutas');
+                const rutas = response.data || [];
+                const fpRutas = this._fingerprintRutasOperario(rutas);
+                const rutasCambiaron = fpRutas !== this._ultimoFingerprintRutasOperario;
+
+                this._omitirReinicioPreviewPorSync = true;
+                this.rutas = rutas;
+                this.rutasPanel = rutas;
+                await this.$nextTick();
+                this._omitirReinicioPreviewPorSync = false;
+                this._ultimoFingerprintRutasOperario = fpRutas;
+
+                if (this.vistaOperarioActual === 'detalle' && this.rutaSeleccionadaId) {
+                    const ruta = rutas.find((r) => String(r.id) === String(this.rutaSeleccionadaId));
+                    if (!ruta) {
+                        this.volverAPanelRutas();
+                        this.mostrarMensaje(
+                            'Esta hoja de ruta ya no está disponible (fue eliminada o desasignada).',
+                            'warning'
+                        );
+                        return;
+                    }
+                    // Con modal abierto no recargar reclamos/mapa: evita el parpadeo de bitácora/materiales
+                    if (this.modalOperarioAbiertoQueEvitaSync()) {
+                        return;
+                    }
+                    await this.obtenerReclamosPorRutaSeleccionada({ silencioso: true });
+                    return;
+                }
+
+                if (this.vistaOperarioActual === 'panel' && rutasCambiaron) {
+                    this.reclamosCachePorRutaId = {};
+                    await this.$nextTick();
+                    await this.inicializarMapasPreviewOperario();
+                }
+            } catch (error) {
+                console.warn('Sincronización liviana operario:', error);
+            } finally {
+                this._omitirReinicioPreviewPorSync = false;
+                this._sincronizandoOperarioLiviano = false;
+            }
+        },
+
+        /** Modales donde un sync de fondo hace parpadear el contenido */
+        modalOperarioAbiertoQueEvitaSync() {
+            const ids = [
+                'modalObservacionesEjecucionReclamo',
+                'modalAcciones',
+                'modalDetalleMaterial',
+                'modalAñadirReclamos',
+                'modalPromptMateriales',
+                'modalConfirmarEliminarMaterial',
+                'modalDetalles'
+            ];
+            return ids.some((id) => document.getElementById(id)?.classList.contains('show'));
+        },
+
         volverAPanelRutas() {
             this.limpiarSesionesReparacionReclamos();
             this.rutaEjecucionActivaId = null;
             this.observacionesPorReclamoOperario = {};
+            this.materialesCountPorReclamoOperario = {};
             this.indiceReclamoListaParadaOperario = {};
             this.vistaOperarioActual = 'panel';
             this.rutaSeleccionadaId = null;
@@ -694,6 +948,18 @@ const app = Vue.createApp({
             return `id:${reclamo.id}`;
         },
 
+        agruparParadasPorDomicilio(reclamos) {
+            const mapa = new Map();
+            for (const reclamo of reclamos || []) {
+                const clave = this.claveDomicilioReclamo(reclamo);
+                if (!mapa.has(clave)) {
+                    mapa.set(clave, { clave, reclamos: [] });
+                }
+                mapa.get(clave).reclamos.push(reclamo);
+            }
+            return Array.from(mapa.values());
+        },
+
         agruparParadasRutaVistaPrevia(rutaOptimizada) {
             const paradas = [];
             for (const reclamo of rutaOptimizada) {
@@ -733,6 +999,29 @@ const app = Vue.createApp({
             };
         },
 
+        indiceReclamoEnParadaAñadir(parada) {
+            const idx = this.indiceReclamoParadaAñadir[parada.clave];
+            if (idx === undefined || idx >= parada.reclamos.length) {
+                return 0;
+            }
+            return idx;
+        },
+
+        reclamoActivoEnParadaAñadir(parada) {
+            return parada.reclamos[this.indiceReclamoEnParadaAñadir(parada)] || parada.reclamos[0];
+        },
+
+        navegarReclamoEnParadaAñadir(parada, delta) {
+            if (!parada || parada.reclamos.length <= 1) return;
+            const total = parada.reclamos.length;
+            let idx = this.indiceReclamoEnParadaAñadir(parada);
+            idx = (idx + delta + total) % total;
+            this.indiceReclamoParadaAñadir = {
+                ...this.indiceReclamoParadaAñadir,
+                [parada.clave]: idx,
+            };
+        },
+
         async iniciarReparacionParada(parada) {
             if (!parada?.reclamos?.length) return;
             const elegibles = parada.reclamos.filter((r) => this.puedeMostrarIniciarReparacionReclamo(r));
@@ -769,6 +1058,60 @@ const app = Vue.createApp({
             return this.paradaReclamosContinuables(parada).length > 0;
         },
 
+        pedirConfirmarAccionParada(parada, tipo) {
+            if (!parada?.clave || !tipo) return;
+            const actual = this.confirmarAccionParada;
+            if (actual && actual.clave === parada.clave && actual.tipo === tipo) {
+                this.confirmarAccionParada = null;
+                return;
+            }
+            this.confirmarAccionParada = { clave: parada.clave, tipo };
+        },
+
+        cancelarConfirmarAccionParada() {
+            this.confirmarAccionParada = null;
+        },
+
+        estaConfirmandoAccionParada(parada, tipo) {
+            const actual = this.confirmarAccionParada;
+            return !!(actual && parada?.clave && actual.clave === parada.clave && actual.tipo === tipo);
+        },
+
+        textoConfirmarAccionParada(parada, tipo) {
+            const varios = (parada?.reclamos?.length || 0) > 1;
+            if (tipo === 'iniciar') {
+                return varios ? '¿Iniciar parada?' : '¿Iniciar?';
+            }
+            if (tipo === 'continuar') {
+                return varios ? '¿Continuar parada?' : '¿Continuar?';
+            }
+            if (tipo === 'pendiente') {
+                return varios ? '¿Pausar parada?' : '¿Pausar?';
+            }
+            return varios ? '¿Completar parada?' : '¿Completar?';
+        },
+
+        async confirmarAccionParadaElegida(parada) {
+            const tipo = this.confirmarAccionParada?.tipo;
+            this.confirmarAccionParada = null;
+            if (!parada || !tipo) return;
+            if (tipo === 'iniciar') {
+                await this.iniciarReparacionParada(parada);
+                return;
+            }
+            if (tipo === 'continuar') {
+                await this.continuarReparacionParada(parada);
+                return;
+            }
+            await this.ejecutarCierreParadaObra(parada, tipo);
+        },
+
+        onClickFueraConfirmarAccionParada(e) {
+            if (!this.confirmarAccionParada) return;
+            if (e.target.closest && e.target.closest('.reclamo-confirm-accion')) return;
+            this.cancelarConfirmarAccionParada();
+        },
+
         async ejecutarCierreParadaObra(parada, tipo) {
             if (!parada?.reclamos?.length) return;
             const targets = this.paradaReclamosConObraActiva(parada);
@@ -776,9 +1119,26 @@ const app = Vue.createApp({
                 this.mostrarMensaje('No hay trabajo en curso en esta parada.', 'warning');
                 return;
             }
+
+            if (tipo === 'completado') {
+                const decision = await this.ofrecerRegistroMaterialesAntesDeCerrar(targets);
+                if (decision === 'cancelar') {
+                    return;
+                }
+                if (decision === 'registrar') {
+                    const sinMateriales = await this.filtrarReclamosSinMateriales(targets);
+                    const reclamoDestino = sinMateriales[0] || targets[0];
+                    this.abrirModalMaterialesReclamo(reclamoDestino);
+                    return;
+                }
+            }
+
             let ok = 0;
             for (const reclamo of targets) {
-                const resultado = await this.ejecutarCierreReclamoObra(reclamo, tipo, { silencioso: true });
+                const resultado = await this.ejecutarCierreReclamoObra(reclamo, tipo, {
+                    silencioso: true,
+                    omitirPromptMateriales: true
+                });
                 if (resultado) ok++;
             }
             await this.obtenerReclamosPorRutaSeleccionada();
@@ -867,7 +1227,7 @@ const app = Vue.createApp({
                 return ruta.cuadrilla_nombre || 'Sin asignar';
             }
             const nombres = ops.map((op) => {
-                const rol = Number(op.es_jefe) === 1 ? ' (Jefe)' : '';
+                const rol = Number(op.es_jefe) === 1 ? ' (Gestión)' : '';
                 return `${op.nombre}${rol}`;
             });
             return `${ruta.cuadrilla_nombre || 'Cuadrilla'}: ${nombres.join(', ')}`;
@@ -1030,16 +1390,21 @@ const app = Vue.createApp({
         },
 
         async sincronizarRutaEjecucionActivaId() {
-            this.rutaEjecucionActivaId = null;
             if (!this.esOperario || !this.rutaSeleccionadaId) {
+                this.rutaEjecucionActivaId = null;
                 return;
             }
             if (!this.rutaSeleccionadaEnEjecucion) {
+                this.rutaEjecucionActivaId = null;
                 return;
             }
             try {
                 const r = await axios.get(BASE_URL + 'api/rutas/' + this.rutaSeleccionadaId + '/ejecucion-activa');
-                this.rutaEjecucionActivaId = r.data?.ruta_ejecucion_id ?? null;
+                const nuevoId = r.data?.ruta_ejecucion_id ?? null;
+                // No poner null antes del fetch: hace parpadear el composer de bitácora
+                if (nuevoId !== this.rutaEjecucionActivaId) {
+                    this.rutaEjecucionActivaId = nuevoId;
+                }
             } catch (e) {
                 console.warn('No se pudo obtener ejecución activa:', e);
             }
@@ -1068,8 +1433,8 @@ const app = Vue.createApp({
                 return;
             }
             const primera = reclamos[0];
+            // Si el payload no trae sesiones, conservar las actuales (evita parpadeo del composer)
             if (!Object.prototype.hasOwnProperty.call(primera, 'sesion_reparacion')) {
-                this.reparacionPorReclamoId = {};
                 return;
             }
             const m = {};
@@ -1102,7 +1467,17 @@ const app = Vue.createApp({
                     acumuladoMs: acum
                 };
             }
-            this.reparacionPorReclamoId = m;
+            const fpNuevo = Object.keys(m).sort().map((id) => {
+                const s = m[id];
+                return `${id}:${s.activo ? 1 : 0}:${s.inicioSegmentoMs}:${s.acumuladoMs}`;
+            }).join('|');
+            const fpActual = Object.keys(this.reparacionPorReclamoId || {}).sort().map((id) => {
+                const s = this.reparacionPorReclamoId[id];
+                return `${id}:${s.activo ? 1 : 0}:${s.inicioSegmentoMs}:${s.acumuladoMs}`;
+            }).join('|');
+            if (fpNuevo !== fpActual) {
+                this.reparacionPorReclamoId = m;
+            }
         },
 
         sesionReparacionReclamo(reclamo) {
@@ -1110,14 +1485,23 @@ const app = Vue.createApp({
             return this.reparacionPorReclamoId[reclamo.id] || null;
         },
 
+        /** Reclamo con el cronómetro de obra corriendo: se destaca en la lista. */
+        reclamoEnObraActiva(reclamo) {
+            const s = this.sesionReparacionReclamo(reclamo);
+            if (s) {
+                return !!s.activo;
+            }
+            return !!reclamo?.sesion_reparacion?.activo;
+        },
+
         tiempoMsSesionReparacionReclamo(reclamo) {
             const s = this.sesionReparacionReclamo(reclamo);
             if (s) {
-                let ms = s.acumuladoMs || 0;
-                if (s.activo) {
-                    ms += this.ahoraCronometro - s.inicioSegmentoMs;
-                }
-                return Math.max(0, ms);
+            let ms = s.acumuladoMs || 0;
+            if (s.activo) {
+                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            }
+            return Math.max(0, ms);
             }
             const sr = reclamo?.sesion_reparacion;
             return Math.max(0, Number(sr?.acumulado_ms) || 0);
@@ -1146,7 +1530,7 @@ const app = Vue.createApp({
             const datos = {
                 ...reclamo,
                 municipalidad_estado: 'En ejecución',
-                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
+                municipalidad_fechaModificacion: null
             };
             const response = await axios.put(BASE_URL + 'api/reclamos/' + reclamo.id, datos);
             const actualizado = response.data || {};
@@ -1154,7 +1538,7 @@ const app = Vue.createApp({
             if (idx !== -1) {
                 this.reclamos[idx].municipalidad_estado = actualizado.municipalidad_estado || 'En ejecución';
                 this.reclamos[idx].municipalidad_fechaModificacion = actualizado.municipalidad_fechaModificacion
-                    || datos.municipalidad_fechaModificacion;
+                    || this.reclamos[idx].municipalidad_fechaModificacion;
                 if (Object.prototype.hasOwnProperty.call(actualizado, 'prioridad')) {
                     this.reclamos[idx].prioridad = actualizado.prioridad;
                 }
@@ -1208,14 +1592,26 @@ const app = Vue.createApp({
         },
 
         async ejecutarCierreReclamoObra(reclamo, tipo, opciones = {}) {
-            const { silencioso = false } = opciones;
+            const { silencioso = false, omitirPromptMateriales = false } = opciones;
             const s = this.sesionReparacionReclamo(reclamo);
             if (!s || !s.activo) {
                 if (!silencioso) {
-                    this.mostrarMensaje('No hay trabajo en curso en este reclamo.', 'warning');
+                this.mostrarMensaje('No hay trabajo en curso en este reclamo.', 'warning');
                 }
                 return false;
             }
+
+            if (tipo === 'completado' && !omitirPromptMateriales) {
+                const decision = await this.ofrecerRegistroMaterialesAntesDeCerrar([reclamo]);
+                if (decision === 'cancelar') {
+                    return false;
+                }
+                if (decision === 'registrar') {
+                    this.abrirModalMaterialesReclamo(reclamo);
+                    return false;
+                }
+            }
+
             const msTotal = this.tiempoMsSesionReparacionReclamo(reclamo);
             const minutos = Math.max(1, Math.round(msTotal / 60000));
 
@@ -1227,7 +1623,7 @@ const app = Vue.createApp({
                     || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
                     || 'No se pudo registrar el fin de trabajo en el reclamo.';
                 if (!silencioso) {
-                    this.mostrarMensaje(mensaje, 'error');
+                this.mostrarMensaje(mensaje, 'error');
                 }
                 return false;
             }
@@ -1249,7 +1645,7 @@ const app = Vue.createApp({
 
             const datos = {
                 ...reclamo,
-                municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
+                municipalidad_fechaModificacion: null
             };
             if (tipo === 'completado') {
                 datos.municipalidad_estado = 'Completado';
@@ -1262,35 +1658,176 @@ const app = Vue.createApp({
             } catch (error) {
                 console.error('Error al actualizar reclamo:', error);
                 if (!silencioso) {
-                    this.mostrarMensaje(error?.response?.data?.message || 'No se pudo actualizar el reclamo.', 'error');
-                    await this.obtenerReclamosPorRutaSeleccionada();
+                this.mostrarMensaje(error?.response?.data?.message || 'No se pudo actualizar el reclamo.', 'error');
+                await this.obtenerReclamosPorRutaSeleccionada();
                 }
                 return false;
             }
 
             try {
                 if (tipo === 'completado') {
-                    await axios.post(BASE_URL + 'api/reclamos/' + reclamo.id + '/tiempo-reparacion', {
-                        tiempo_reparacion_minutos: minutos
-                    });
+                await axios.post(BASE_URL + 'api/reclamos/' + reclamo.id + '/tiempo-reparacion', {
+                    tiempo_reparacion_minutos: minutos
+                });
                 }
             } catch (error) {
                 console.warn('Tiempo de reparación automático:', error);
                 if (!silencioso && tipo === 'completado') {
-                    this.mostrarMensaje('Reclamo actualizado, pero no se pudo guardar el tiempo de reparación automático.', 'warning');
+                this.mostrarMensaje('Reclamo actualizado, pero no se pudo guardar el tiempo de reparación automático.', 'warning');
                 }
             }
 
             if (!silencioso) {
-                await this.obtenerReclamosPorRutaSeleccionada();
-                this.mostrarMensaje(
-                    tipo === 'completado'
-                        ? 'Reclamo completado. Tiempo de reparación registrado automáticamente.'
+            await this.obtenerReclamosPorRutaSeleccionada();
+            this.mostrarMensaje(
+                tipo === 'completado'
+                    ? 'Reclamo completado. Tiempo de reparación registrado automáticamente.'
                         : 'Reclamo en estado Pendiente para continuar otro día.',
-                    'success'
-                );
+                'success'
+            );
             }
             return true;
+        },
+
+        async reclamoTieneMaterialesRegistrados(reclamo) {
+            if (!reclamo?.id) return false;
+            // Igual que el historial visible: si el reclamo ya tuvo materiales (aunque sea en rutas viejas), no insistir.
+            if (Object.prototype.hasOwnProperty.call(this.materialesCountPorReclamoOperario, reclamo.id)) {
+                return (Number(this.materialesCountPorReclamoOperario[reclamo.id]) || 0) > 0;
+            }
+            try {
+                const response = await axios.get(BASE_URL + 'api/reclamos/' + reclamo.id + '/materiales');
+                const cantidad = Array.isArray(response.data) ? response.data.length : 0;
+                this.actualizarCountMaterialesReclamoOperario(reclamo.id, cantidad);
+                return cantidad > 0;
+            } catch (error) {
+                console.warn('No se pudo consultar materiales del reclamo:', error);
+                // Si falla la consulta, no bloqueamos el cierre.
+                return true;
+            }
+        },
+
+        cantidadMaterialesReclamoOperario(reclamo) {
+            if (!reclamo?.id) return 0;
+            return Number(this.materialesCountPorReclamoOperario[reclamo.id]) || 0;
+        },
+
+        actualizarCountMaterialesReclamoOperario(reclamoId, cantidad) {
+            if (reclamoId == null) return;
+            this.materialesCountPorReclamoOperario = {
+                ...this.materialesCountPorReclamoOperario,
+                [reclamoId]: Math.max(0, Number(cantidad) || 0)
+            };
+            this.$nextTick(() => this.refrescarBadgesMaterialesInfoWindowMapaDetalleOperario());
+        },
+
+        async cargarMaterialesCountOperario(reclamos) {
+            if (!reclamos?.length) {
+                this.materialesCountPorReclamoOperario = {};
+                return;
+            }
+            // Igual que bitácora: contador con el historial completo del reclamo.
+            const counts = {};
+            await Promise.all(reclamos.map(async (reclamo) => {
+                if (!reclamo?.id) return;
+                try {
+                    const r = await axios.get(BASE_URL + 'api/reclamos/' + reclamo.id + '/materiales');
+                    counts[reclamo.id] = Array.isArray(r.data) ? r.data.length : 0;
+                } catch (error) {
+                    console.warn('No se pudieron cargar materiales del reclamo', reclamo.id, error);
+                    counts[reclamo.id] = 0;
+                }
+            }));
+            this.materialesCountPorReclamoOperario = counts;
+        },
+
+        htmlBadgeMaterialesConId(reclamoId, cantidad) {
+            const texto = this.textoObservacionesEjecucionBadge(cantidad) || '0';
+            const oculto = cantidad > 0 ? '' : ' btn-obs-ejecucion-count--oculto';
+            return `<span class="btn-obs-ejecucion-count${oculto}" data-map-iw-mat-count-id="${reclamoId}" aria-hidden="true">${texto}</span>`;
+        },
+
+        refrescarBadgesMaterialesInfoWindowMapaDetalleOperario() {
+            document.querySelectorAll('[data-map-iw-mat-count-id]').forEach((el) => {
+                const rid = parseInt(el.getAttribute('data-map-iw-mat-count-id'), 10);
+                if (Number.isNaN(rid)) {
+                    return;
+                }
+                const r = (this.reclamos || []).find((x) => Number(x.id) === rid);
+                const count = r ? this.cantidadMaterialesReclamoOperario(r) : 0;
+                const texto = this.textoObservacionesEjecucionBadge(count);
+                if (!texto) {
+                    el.classList.add('btn-obs-ejecucion-count--oculto');
+                    el.textContent = '0';
+                    return;
+                }
+                el.classList.remove('btn-obs-ejecucion-count--oculto');
+                el.textContent = texto;
+            });
+        },
+
+        async filtrarReclamosSinMateriales(reclamos) {
+            const lista = Array.isArray(reclamos) ? reclamos : [];
+            const resultados = await Promise.all(
+                lista.map(async (reclamo) => ({
+                    reclamo,
+                    tiene: await this.reclamoTieneMaterialesRegistrados(reclamo)
+                }))
+            );
+            return resultados.filter((item) => !item.tiene).map((item) => item.reclamo);
+        },
+
+        /**
+         * Recordatorio antes de completar: si no hay materiales, ofrece registrarlos.
+         * @returns {'registrar'|'omitir'|'cancelar'}
+         */
+        async ofrecerRegistroMaterialesAntesDeCerrar(reclamos) {
+            const sinMateriales = await this.filtrarReclamosSinMateriales(reclamos);
+            if (!sinMateriales.length) {
+                return 'omitir';
+            }
+
+            const n = sinMateriales.length;
+            this.promptMaterialesDetalle = n === 1
+                ? `Todavía no hay materiales registrados en el reclamo #${sinMateriales[0].municipalidad_id || sinMateriales[0].id}.`
+                : `Hay ${n} reclamos sin materiales registrados.`;
+
+            return new Promise((resolve) => {
+                this._resolverPromptMateriales = resolve;
+                this.$nextTick(() => {
+                    const el = document.getElementById('modalPromptMateriales');
+                    if (!el) {
+                        resolve('omitir');
+                        return;
+                    }
+                    const modal = bootstrap.Modal.getOrCreateInstance(el, {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    modal.show();
+                });
+            });
+        },
+
+        resolverPromptMateriales(decision) {
+            const resolve = this._resolverPromptMateriales;
+            this._resolverPromptMateriales = null;
+            const el = document.getElementById('modalPromptMateriales');
+            if (el) {
+                const modal = bootstrap.Modal.getInstance(el);
+                if (modal) modal.hide();
+            }
+            if (typeof resolve === 'function') {
+                resolve(decision);
+            }
+        },
+
+        onPromptMaterialesOculto() {
+            if (typeof this._resolverPromptMateriales === 'function') {
+                const resolve = this._resolverPromptMateriales;
+                this._resolverPromptMateriales = null;
+                resolve('cancelar');
+            }
         },
 
         async continuarReparacionReclamo(reclamo, opciones = {}) {
@@ -1307,7 +1844,7 @@ const app = Vue.createApp({
                     || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
                     || 'No se pudo registrar la continuación de trabajo en el reclamo.';
                 if (!silencioso) {
-                    this.mostrarMensaje(mensaje, 'error');
+                this.mostrarMensaje(mensaje, 'error');
                 }
                 return false;
             }
@@ -1392,9 +1929,9 @@ const app = Vue.createApp({
             const soloLectura = this.registrosObraReclamoSoloLectura(reclamo)
                 || !this.puedeEditarTareasRutaSeleccionada;
             if (!soloLectura) {
-                if (!this.sesionReparacionReclamo(reclamo)) {
-                    this.mostrarMensaje('Inicie el reclamo en obra para registrar materiales.', 'warning');
-                    return;
+            if (!this.sesionReparacionReclamo(reclamo)) {
+                this.mostrarMensaje('Inicie el reclamo en obra para registrar materiales.', 'warning');
+                return;
                 }
             }
             this.reclamoSeleccionado = { ...reclamo };
@@ -1406,17 +1943,14 @@ const app = Vue.createApp({
                 cantidad: null,
                 observacion: ''
             };
-            this.materialNuevo = { tipo_id: '', nombre: '', cantidad: null };
-            this.modoMaterialNuevo = false;
+            this.filtroBusquedaMaterial = '';
             this.materialesFiltrados = [];
             this.historialMateriales = [];
-            this.mostrarHistorialMateriales = soloLectura;
+            this.mostrarHistorialMateriales = true;
 
             const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
             modal.show();
-            if (soloLectura) {
-                this.cargarMateriales();
-            }
+            this.cargarMateriales();
             this.$nextTick(() => {
                 const materialesTab = document.getElementById('materiales-tab');
                 const cambiarEstadoTab = document.getElementById('cambiar-estado-tab');
@@ -1528,10 +2062,29 @@ const app = Vue.createApp({
             this.observacionEjecucionTexto = '';
             this.archivoFotoBitacora = null;
             this.previewFotoBitacora = null;
-            this.historialObservacionesEjecucion = [];
-            const modal = new bootstrap.Modal(document.getElementById('modalObservacionesEjecucionReclamo'));
+            const cached = this.observacionesPorReclamoOperario[reclamo.id];
+            this.historialObservacionesEjecucion = Array.isArray(cached) ? [...cached] : [];
+            const elModal = document.getElementById('modalObservacionesEjecucionReclamo');
+            const modal = bootstrap.Modal.getOrCreateInstance(elModal);
+            elModal.addEventListener('shown.bs.modal', () => {
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario');
+            }, { once: true });
             modal.show();
-            this.cargarHistorialObservacionesEjecucion();
+            void this.cargarHistorialObservacionesEjecucion({
+                silencioso: this.historialObservacionesEjecucion.length > 0
+            }).then(() => this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario'));
+        },
+
+        scrollBitacoraObraAlFinal(feedId = 'bitacoraObraFeedOperario') {
+            this.$nextTick(() => {
+                requestAnimationFrame(() => {
+                    const feed = document.getElementById(feedId);
+                    if (!feed) {
+                        return;
+                    }
+                    feed.scrollTop = feed.scrollHeight;
+                });
+            });
         },
 
         esEntradaCambioEstadoBitacora(entrada) {
@@ -1591,22 +2144,112 @@ const app = Vue.createApp({
             if (!archivo) {
                 return;
             }
-            const tipos = ['image/jpeg', 'image/png', 'image/webp'];
-            if (!tipos.includes(archivo.type)) {
-                this.mostrarMensaje('Formato no permitido. Use JPG, PNG o WEBP.', 'warning');
-                input.value = '';
-                return;
+            // Procesar async: iPhone suele mandar HEIC / fotos >5MB / type vacío
+            void this.procesarFotoBitacoraSeleccionada(archivo, input);
+        },
+
+        /**
+         * Normaliza la foto para iOS/Safari: convierte a JPEG comprimido ≤ ~5MB.
+         */
+        async procesarFotoBitacoraSeleccionada(archivo, input) {
+            try {
+                const nombre = String(archivo.name || '').toLowerCase();
+                const tipo = String(archivo.type || '').toLowerCase();
+                const esImagenPorTipo = tipo.startsWith('image/');
+                const esImagenPorExt = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?)$/i.test(nombre);
+                if (!esImagenPorTipo && !esImagenPorExt && tipo !== '') {
+                    this.mostrarMensaje('Formato no permitido. Elegí una imagen desde la galería (JPG, PNG, WEBP o HEIC).', 'warning');
+                    if (input) input.value = '';
+                    return;
+                }
+
+                this.guardandoFotoBitacora = true;
+                const normalizado = await this.normalizarImagenBitacoraParaSubida(archivo);
+                if (this.previewFotoBitacora) {
+                    URL.revokeObjectURL(this.previewFotoBitacora);
+                }
+                this.archivoFotoBitacora = normalizado;
+                this.previewFotoBitacora = URL.createObjectURL(normalizado);
+            } catch (error) {
+                console.error('Error al procesar foto de bitácora:', error);
+                this.mostrarMensaje(
+                    error?.message || 'No se pudo procesar la foto. Probá otra o elegila desde la galería.',
+                    'warning'
+                );
+                this.limpiarPreviewFotoBitacora();
+            } finally {
+                this.guardandoFotoBitacora = false;
+                // Permite volver a elegir la misma foto en iOS
+                if (input) input.value = '';
             }
-            if (archivo.size > 5 * 1024 * 1024) {
-                this.mostrarMensaje('La imagen no debe superar los 5 MB.', 'warning');
-                input.value = '';
-                return;
+        },
+
+        /**
+         * Redimensiona/comprime a JPEG. Safari puede dibujar HEIC en canvas.
+         */
+        async normalizarImagenBitacoraParaSubida(archivo) {
+            const maxLado = 1600;
+            const maxBytes = 5 * 1024 * 1024;
+            const objectUrl = URL.createObjectURL(archivo);
+
+            try {
+                const img = await new Promise((resolve, reject) => {
+                    const el = new Image();
+                    el.onload = () => resolve(el);
+                    el.onerror = () => reject(new Error(
+                        'No se pudo leer la imagen. Si es HEIC, probá otra foto de la galería o convertí a JPG.'
+                    ));
+                    el.src = objectUrl;
+                });
+
+                let { width, height } = img;
+                if (!width || !height) {
+                    throw new Error('La imagen no tiene dimensiones válidas.');
+                }
+                const escala = Math.min(1, maxLado / Math.max(width, height));
+                width = Math.max(1, Math.round(width * escala));
+                height = Math.max(1, Math.round(height * escala));
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    throw new Error('No se pudo preparar la imagen.');
+                }
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                let quality = 0.85;
+                let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+                while (blob && blob.size > maxBytes && quality > 0.45) {
+                    quality -= 0.1;
+                    blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+                }
+
+                if (!blob) {
+                    // Fallback: si ya era JPEG pequeño, usarlo tal cual
+                    if (
+                        archivo.size <= maxBytes
+                        && (/image\/jpe?g/i.test(archivo.type) || /\.jpe?g$/i.test(archivo.name || ''))
+                    ) {
+                        return archivo;
+                    }
+                    throw new Error('No se pudo comprimir la foto.');
+                }
+                if (blob.size > maxBytes) {
+                    throw new Error('La foto sigue siendo demasiado grande. Probá otra con menos resolución.');
+                }
+
+                const baseName = String(archivo.name || 'foto')
+                    .replace(/\.[^.]+$/, '')
+                    .replace(/[^\w\-]+/g, '_')
+                    .slice(0, 40) || 'foto';
+                return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+            } finally {
+                URL.revokeObjectURL(objectUrl);
             }
-            if (this.previewFotoBitacora) {
-                URL.revokeObjectURL(this.previewFotoBitacora);
-            }
-            this.archivoFotoBitacora = archivo;
-            this.previewFotoBitacora = URL.createObjectURL(archivo);
         },
 
         limpiarPreviewFotoBitacora() {
@@ -1632,7 +2275,12 @@ const app = Vue.createApp({
             this.guardandoFotoBitacora = true;
             try {
                 const formData = new FormData();
-                formData.append('foto', this.archivoFotoBitacora);
+                // Nombre explícito ayuda en algunos WebKit
+                formData.append(
+                    'foto',
+                    this.archivoFotoBitacora,
+                    this.archivoFotoBitacora.name || 'foto-obra.jpg'
+                );
                 formData.append('ruta_ejecucion_id', String(this.rutaEjecucionActivaId));
                 const caption = (this.observacionEjecucionTexto || '').trim();
                 if (caption) {
@@ -1640,13 +2288,14 @@ const app = Vue.createApp({
                 }
                 await axios.post(
                     `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones/foto`,
-                    formData,
-                    { headers: { 'Content-Type': 'multipart/form-data' } }
+                    formData
+                    // No forzar Content-Type: el boundary lo pone el navegador
                 );
                 this.observacionEjecucionTexto = '';
                 this.limpiarPreviewFotoBitacora();
                 this.mostrarMensaje('Foto registrada.', 'success');
-                await this.cargarHistorialObservacionesEjecucion();
+                await this.cargarHistorialObservacionesEjecucion({ silencioso: true });
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario');
             } catch (error) {
                 console.error('Error al subir foto de ejecución:', error);
                 const mensaje = error?.response?.data?.message
@@ -1658,33 +2307,59 @@ const app = Vue.createApp({
             }
         },
 
-        async cargarHistorialObservacionesEjecucion() {
+        async cargarHistorialObservacionesEjecucion(opciones = {}) {
+            const { silencioso = false } = opciones;
             const params = this.paramsObservacionesEjecucionOperario();
             if (!this.reclamoSeleccionado?.id || !params) {
                 return;
             }
-            this.cargandoObservacionesEjecucion = true;
+            const mostrarSpinner = !silencioso || this.historialObservacionesEjecucion.length === 0;
+            if (mostrarSpinner) {
+                this.cargandoObservacionesEjecucion = true;
+            }
             try {
                 const r = await axios.get(
                     `${BASE_URL}api/reclamos/${this.reclamoSeleccionado.id}/ejecucion-observaciones`,
                     { params }
                 );
-                this.historialObservacionesEjecucion = Array.isArray(r.data) ? r.data : [];
+                const nuevos = Array.isArray(r.data) ? r.data : [];
+                const fpNuevo = this._fingerprintBitacoraOperario(nuevos);
+                const fpActual = this._fingerprintBitacoraOperario(this.historialObservacionesEjecucion);
+                if (fpNuevo !== fpActual) {
+                    this.historialObservacionesEjecucion = nuevos;
+                }
                 this.observacionesPorReclamoOperario = {
                     ...this.observacionesPorReclamoOperario,
-                    [this.reclamoSeleccionado.id]: this.historialObservacionesEjecucion
+                    [this.reclamoSeleccionado.id]: nuevos
                 };
                 this.refrescarBadgesObservacionesInfoWindowMapaDetalleOperario();
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario');
             } catch (error) {
                 console.error('Error al cargar observaciones de ejecución:', error);
-                const mensaje = error?.response?.data?.message
-                    || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
-                    || 'No se pudo cargar el historial de observaciones.';
-                this.mostrarMensaje(mensaje, 'error');
-                this.historialObservacionesEjecucion = [];
+                if (!silencioso) {
+                    const mensaje = error?.response?.data?.message
+                        || (error?.response?.data?.messages && Object.values(error.response.data.messages).flat().join(' '))
+                        || 'No se pudo cargar el historial de observaciones.';
+                    this.mostrarMensaje(mensaje, 'error');
+                    this.historialObservacionesEjecucion = [];
+                }
             } finally {
                 this.cargandoObservacionesEjecucion = false;
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario');
             }
+        },
+
+        _fingerprintBitacoraOperario(entradas) {
+            return (entradas || [])
+                .map((o) => [
+                    o.id,
+                    o.tipo || '',
+                    o.archivo || '',
+                    o.texto || '',
+                    o.created_at || '',
+                    o.bitacora_tipo || ''
+                ].join(':'))
+                .join('|');
         },
 
         async guardarObservacionEjecucion() {
@@ -1707,7 +2382,8 @@ const app = Vue.createApp({
                 );
                 this.observacionEjecucionTexto = '';
                 this.mostrarMensaje('Observación registrada.', 'success');
-                await this.cargarHistorialObservacionesEjecucion();
+                await this.cargarHistorialObservacionesEjecucion({ silencioso: true });
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedOperario');
             } catch (error) {
                 console.error('Error al guardar observación de ejecución:', error);
                 const mensaje = error?.response?.data?.message
@@ -1737,11 +2413,10 @@ const app = Vue.createApp({
                 cantidad: null,
                 observacion: ''
             };
-            this.materialNuevo = { tipo_id: '', nombre: '', cantidad: null };
-            this.modoMaterialNuevo = false;
+            this.filtroBusquedaMaterial = '';
             this.materialesFiltrados = [];
             this.historialMateriales = [];
-            this.mostrarHistorialMateriales = false;
+            this.mostrarHistorialMateriales = true;
 
             const modal = new bootstrap.Modal(document.getElementById('modalAcciones'));
             modal.show();
@@ -1764,12 +2439,12 @@ const app = Vue.createApp({
         textoCronometroReparacionReclamo(reclamo) {
             const s = this.sesionReparacionReclamo(reclamo);
             if (s) {
-                let ms = s.acumuladoMs;
-                if (s.activo) {
-                    ms += this.ahoraCronometro - s.inicioSegmentoMs;
-                }
-                const sec = Math.max(0, Math.floor(ms / 1000));
-                return this.formatearSegundosCronometro(sec);
+            let ms = s.acumuladoMs;
+            if (s.activo) {
+                ms += this.ahoraCronometro - s.inicioSegmentoMs;
+            }
+            const sec = Math.max(0, Math.floor(ms / 1000));
+            return this.formatearSegundosCronometro(sec);
             }
             const sr = reclamo?.sesion_reparacion;
             const msApi = Number(sr?.acumulado_ms) || 0;
@@ -2310,7 +2985,7 @@ const app = Vue.createApp({
             try {
                 const datosActualizacion = {
                     ...this.reclamoSeleccionado,
-                    municipalidad_fechaModificacion: this.obtenerFechaActualArgentina()
+                    municipalidad_fechaModificacion: null
                 };
 
                 if (nuevoEstadoSeleccionado) {
@@ -2326,13 +3001,13 @@ const app = Vue.createApp({
                 // La prioridad la resuelve el backend según las reglas vigentes.
                 const response = await axios.put(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id, datosActualizacion);
                 const reclamoActualizado = response.data || {};
-
+                
                 // Actualizar el reclamo en la lista local
                 const index = this.reclamos.findIndex(r => r.id === this.reclamoSeleccionado.id);
                 if (index !== -1) {
                     this.reclamos[index].municipalidad_fechaModificacion = reclamoActualizado.municipalidad_fechaModificacion
-                        || datosActualizacion.municipalidad_fechaModificacion;
-
+                        || this.reclamos[index].municipalidad_fechaModificacion;
+                    
                     if (nuevoEstadoSeleccionado) {
                         this.reclamos[index].municipalidad_estado = reclamoActualizado.municipalidad_estado
                             || nuevoEstadoSeleccionado;
@@ -2343,7 +3018,7 @@ const app = Vue.createApp({
                 }
 
                 this.reclamoSeleccionado.municipalidad_fechaModificacion = reclamoActualizado.municipalidad_fechaModificacion
-                    || datosActualizacion.municipalidad_fechaModificacion;
+                    || this.reclamoSeleccionado.municipalidad_fechaModificacion;
                 if (nuevoEstadoSeleccionado) {
                     this.reclamoSeleccionado.municipalidad_estado = reclamoActualizado.municipalidad_estado
                         || nuevoEstadoSeleccionado;
@@ -2395,16 +3070,6 @@ const app = Vue.createApp({
                     this.mostrarMensaje(mensajeError, 'error');
                 }
             }
-        },
-
-        /**
-         * Obtiene la fecha actual en formato para inputs datetime-local
-         */
-        obtenerFechaActualArgentina() {
-            const ahora = new Date();
-            const offset = ahora.getTimezoneOffset() + (3 * 60);
-            const fechaArgentina = new Date(ahora.getTime() - offset * 60 * 1000);
-            return fechaArgentina.toISOString().slice(0, 16);
         },
 
         /**
@@ -2538,9 +3203,9 @@ const app = Vue.createApp({
                               tipo === 'info' ? 'alert-info' : 'alert-danger';
             
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
             
@@ -2552,6 +3217,68 @@ const app = Vue.createApp({
                     $(this).remove();
                 });
             }, 5000);
+        },
+
+        /**
+         * Confirmación modal (Cancelar / Confirmar)
+         */
+        mostrarConfirmacion(mensaje, titulo = 'Confirmar acción') {
+            return new Promise((resolve) => {
+                let resuelto = false;
+                const modalHtml = `
+                    <div class="modal fade" id="modalConfirmacionTareas" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content rutas-modal tareas-modal reclamo-confirm-modal">
+                                <div class="rutas-modal__header">
+                                    <div class="rutas-modal__title">
+                                        <span class="rutas-modal__icon"><i class="bi bi-question-circle"></i></span>
+                                        <h5>${titulo}</h5>
+                                    </div>
+                                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="reclamo-confirm-modal__message mb-0">${mensaje}</p>
+                                </div>
+                                <div class="rutas-modal__footer rutas-modal__footer--end">
+                                    <button type="button" class="tareas-btn tareas-btn--outline" data-bs-dismiss="modal" id="btnCancelarConfirmacionTareas">Cancelar</button>
+                                    <button type="button" class="tareas-btn tareas-btn--danger" id="btnConfirmarConfirmacionTareas">
+                                        <i class="bi bi-check-lg"></i> Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                $('#modalConfirmacionTareas').remove();
+                $('body').append(modalHtml);
+
+                const modal = new bootstrap.Modal(document.getElementById('modalConfirmacionTareas'));
+                modal.show();
+
+                const cerrarConfirmacion = (resultado) => {
+                    if (resuelto) return;
+                    resuelto = true;
+                    modal.hide();
+                    setTimeout(() => {
+                        $('#modalConfirmacionTareas').remove();
+                    }, 300);
+                    resolve(resultado);
+                };
+
+                $('#btnConfirmarConfirmacionTareas').on('click', () => cerrarConfirmacion(true));
+                $('#btnCancelarConfirmacionTareas').on('click', () => cerrarConfirmacion(false));
+
+                $('#modalConfirmacionTareas').on('hidden.bs.modal', () => {
+                    $('#modalConfirmacionTareas').remove();
+                    if (!resuelto) {
+                        resuelto = true;
+                        resolve(false);
+                    }
+                });
+            });
         },
 
         /**
@@ -3015,8 +3742,8 @@ const app = Vue.createApp({
                 const badgeMotivoOCantidad = badgeCantidad > 1
                     ? badgeSvg
                     : this.crearSvgBadgeMotivo(motivo, size - 6, 6, Math.max(4.5, size * 0.17), Math.max(7, size * 0.26));
-
-                if (tienePrioridadAlta) {
+            
+            if (tienePrioridadAlta) {
                     const badgePrioridadX = Math.max(4, Math.round(size * 6 / 32));
                     const badgePrioridadY = badgePrioridadX;
                     const viewTop = -5;
@@ -3024,15 +3751,15 @@ const app = Vue.createApp({
                     const displayH = viewHeight;
                     const anchorY = Math.round(((half - viewTop) / viewHeight) * displayH);
 
-                    return {
-                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                return {
+                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
                             <svg width="${size}" height="${displayH}" viewBox="0 ${viewTop} ${size} ${viewHeight}" xmlns="http://www.w3.org/2000/svg" overflow="visible">
                                 <circle cx="${half}" cy="${half}" r="${r}" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="1.5"/>
                                 <text x="${half}" y="${half + fontSize * 0.35}" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold">${numero}</text>
                                 ${this.crearSvgBadgePrioridadAlta(badgePrioridadX, badgePrioridadY, true)}
                                 ${badgeMotivoOCantidad}
-                            </svg>
-                        `)}`,
+                        </svg>
+                    `)}`,
                         scaledSize: new google.maps.Size(size, displayH),
                         anchor: new google.maps.Point(half, anchorY)
                     };
@@ -3071,17 +3798,17 @@ const app = Vue.createApp({
                 };
             }
 
-            return {
-                url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
-                        <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
+                return {
+                    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="14" fill="${colorEstado}" stroke="#FFFFFF" stroke-width="2"/>
+                            <text x="16" y="20" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="12" font-weight="bold">${numero}</text>
                         ${badgeCantidad > 1 ? this.crearSvgBadgeCantidad(badgeCantidad, 25, 7, 6, 9) : this.crearSvgBadgeMotivo(motivo, 25, 7, 6, 9)}
-                    </svg>
-                `)}`,
-                scaledSize: new google.maps.Size(32, 32),
-                anchor: new google.maps.Point(16, 16)
-            };
+                        </svg>
+                    `)}`,
+                    scaledSize: new google.maps.Size(32, 32),
+                    anchor: new google.maps.Point(16, 16)
+                };
         },
 
         crearElementoMapboxNumeradoMotivo(numero, colorEstado, motivo, size = 32, badgeCantidad = null, prioridadAlta = false) {
@@ -3147,7 +3874,7 @@ const app = Vue.createApp({
             if (this._googleObraDetalleOperarioRefs?.length) {
                 this._googleObraDetalleOperarioRefs = this._googleObraDetalleOperarioRefs.filter((ref) => {
                     const r = (this.reclamos || []).find((x) => Number(x.id) === Number(ref._reclamoIdObra));
-                    if (!r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
+                if (!r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
                         ObraCronometroUtil.quitarCompanionObraGoogle(ref);
                         return false;
                     }
@@ -3161,10 +3888,10 @@ const app = Vue.createApp({
                     const r = (this.reclamos || []).find((x) => Number(x.id) === Number(ref.reclamoId));
                     if (!ref.span || !r || !this.reclamoMuestraCamionObraMapaDetalle(r)) {
                         if (ref.span) ref.span.textContent = '—';
-                        return;
-                    }
+                    return;
+                }
                     this.actualizarIndicadorObraOperario(ref, r);
-                });
+            });
             }
         },
 
@@ -3189,6 +3916,7 @@ const app = Vue.createApp({
                 ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, this.claseCronometroListaObraOperario(r));
             });
             this.refrescarBadgesObservacionesInfoWindowMapaDetalleOperario();
+            this.refrescarBadgesMaterialesInfoWindowMapaDetalleOperario();
         },
 
         refrescarBadgesObservacionesInfoWindowMapaDetalleOperario() {
@@ -3252,35 +3980,48 @@ const app = Vue.createApp({
                 ? ' (todos los reclamos en este domicilio con obra activa)'
                 : '';
 
-            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--obra d-flex flex-wrap align-items-center gap-1 border-top pt-2 mt-2">';
+            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--obra border-top pt-2 mt-2">';
+            let htmlInicio = '';
+            let htmlPaneles = '';
 
             if (enEjecucion && this.puedeEditarTareasRutaSeleccionada && this.puedeMostrarIniciarReparacionReclamo(reclamo)) {
-                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="iniciar" data-reclamo-id="${rid}"><i class="bi bi-play-fill text-white"></i> Iniciar</button>`;
+                htmlInicio += `<button type="button" class="btn btn-sm btn-accion-estado" data-map-accion="iniciar" data-reclamo-id="${rid}"><i class="bi bi-play-fill"></i> Iniciar</button>`;
+            }
+
+            if (mostrarListoPendiente) {
+                htmlInicio += `<button type="button" class="btn btn-sm btn-accion-estado" data-map-accion="completado" data-reclamo-id="${rid}" title="Marcar como completado${tituloParada}"><i class="bi bi-check-lg"></i></button>`;
+                htmlInicio += `<button type="button" class="btn btn-sm btn-accion-estado" data-map-accion="pendiente" data-reclamo-id="${rid}" title="Pendiente para otro día${tituloParada}"><i class="bi bi-pause-circle"></i></button>`;
+            } else if (mostrarContinuar) {
+                htmlInicio += `<button type="button" class="btn btn-sm btn-accion-estado" data-map-accion="continuar" data-reclamo-id="${rid}" title="Continuar ejecución${tituloParada}"><i class="bi bi-play-fill"></i></button>`;
             }
 
             if (puedeVerRegistros) {
                 if (this.mostrarCronometroReparacionReclamo(reclamo)) {
                     const claseCrono = this.claseCronometroListaObraOperario(reclamo);
-                    html += ObraCronometroUtil.htmlSpanCronometroBadge(
+                    htmlInicio += ObraCronometroUtil.htmlSpanCronometroBadge(
                         `badge font-monospace map-detalle-iw-crono ruta-secuencia-crono-reparacion ${claseCrono}`,
                         this.textoCronometroReparacionReclamo(reclamo),
                         'reclamo',
                         `data-map-iw-crono-reclamo-id="${rid}" title="Tiempo en obra"`
                     );
                 }
-                html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="materiales" data-reclamo-id="${rid}" title="Materiales utilizados"><i class="bi bi-box-seam"></i></button>`;
+                const matCount = this.cantidadMaterialesReclamoOperario(reclamo);
+                const tituloMat = matCount > 0
+                    ? `Materiales utilizados (${matCount})`
+                    : 'Materiales utilizados';
+                htmlPaneles += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="materiales" data-reclamo-id="${rid}" title="${tituloMat}"><i class="bi bi-box-seam"></i>${this.htmlBadgeMaterialesConId(rid, matCount)}</button>`;
                 const obsCount = this.cantidadObservacionesEjecucionReclamoOperario(reclamo);
                 const tituloObs = obsCount > 0
                     ? `Registro en obra (${obsCount})`
                     : 'Registro en obra';
-                html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
+                htmlPaneles += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
             }
 
-            if (mostrarListoPendiente) {
-                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="completado" data-reclamo-id="${rid}" title="Marcar como completado${tituloParada}"><i class="bi bi-check-lg"></i></button>`;
-                html += `<button type="button" class="btn btn-sm btn-warning text-dark" data-map-accion="pendiente" data-reclamo-id="${rid}" title="Pendiente para otro día${tituloParada}"><i class="bi bi-pause-circle"></i></button>`;
-            } else if (mostrarContinuar) {
-                html += `<button type="button" class="btn btn-sm btn-success" data-map-accion="continuar" data-reclamo-id="${rid}" title="Continuar ejecución${tituloParada}"><i class="bi bi-play-fill text-white"></i></button>`;
+            if (htmlInicio) {
+                html += `<div class="map-detalle-iw-acciones__inicio">${htmlInicio}</div>`;
+            }
+            if (htmlPaneles) {
+                html += `<div class="map-detalle-iw-acciones__paneles">${htmlPaneles}</div>`;
             }
 
             html += '</div>';
@@ -3470,7 +4211,7 @@ const app = Vue.createApp({
             return wrap;
         },
 
-        onMapaDetalleInfoWindowAccion(e) {
+        async onMapaDetalleInfoWindowAccion(e) {
             const btn = e.target.closest('[data-map-accion]');
             if (!btn) {
                 return;
@@ -3485,6 +4226,12 @@ const app = Vue.createApp({
             }
             if (accion === 'iniciar') {
                 const parada = this.paradaDeReclamoOperario(r);
+                const n = parada ? (parada.reclamos?.length || 1) : 1;
+                const mensaje = n > 1
+                    ? `¿Confirmás iniciar los reclamos de esta parada?`
+                    : `¿Confirmás iniciar el reclamo #${r.municipalidad_id || r.id}?`;
+                const ok = await this.mostrarConfirmacion(mensaje, 'Iniciar reclamo');
+                if (!ok) return;
                 if (parada) {
                     void this.iniciarReparacionParada(parada);
                 } else {
@@ -3502,6 +4249,12 @@ const app = Vue.createApp({
             }
             if (accion === 'completado') {
                 const parada = this.paradaDeReclamoOperario(r);
+                const n = parada ? this.paradaReclamosConObraActiva(parada).length : 1;
+                const mensaje = n > 1
+                    ? `¿Confirmás completar los ${n} reclamos en obra de esta parada?`
+                    : `¿Confirmás completar el reclamo #${r.municipalidad_id || r.id}?`;
+                const ok = await this.mostrarConfirmacion(mensaje, 'Completar reclamo');
+                if (!ok) return;
                 if (parada) {
                     void this.ejecutarCierreParadaObra(parada, 'completado');
                 } else {
@@ -3511,6 +4264,12 @@ const app = Vue.createApp({
             }
             if (accion === 'pendiente') {
                 const parada = this.paradaDeReclamoOperario(r);
+                const n = parada ? this.paradaReclamosConObraActiva(parada).length : 1;
+                const mensaje = n > 1
+                    ? `¿Confirmás pausar los ${n} reclamos en obra de esta parada?`
+                    : `¿Confirmás pausar el reclamo #${r.municipalidad_id || r.id}?`;
+                const ok = await this.mostrarConfirmacion(mensaje, 'Pausar reclamo');
+                if (!ok) return;
                 if (parada) {
                     void this.ejecutarCierreParadaObra(parada, 'pendiente');
                 } else {
@@ -3520,6 +4279,12 @@ const app = Vue.createApp({
             }
             if (accion === 'continuar') {
                 const parada = this.paradaDeReclamoOperario(r);
+                const n = parada ? this.paradaReclamosContinuables(parada).length : 1;
+                const mensaje = n > 1
+                    ? `¿Confirmás continuar los ${n} reclamos de esta parada?`
+                    : `¿Confirmás continuar el reclamo #${r.municipalidad_id || r.id}?`;
+                const ok = await this.mostrarConfirmacion(mensaje, 'Continuar ejecución');
+                if (!ok) return;
                 if (parada) {
                     void this.continuarReparacionParada(parada);
                 } else {
@@ -3671,11 +4436,18 @@ const app = Vue.createApp({
      * Abre el modal para añadir reclamos recibidos a la hoja de ruta
      */
     async abrirModalAñadirReclamos() {
+        if (!this.rutaSeleccionadaId) {
+            this.mostrarMensaje('Seleccioná una hoja de ruta antes de añadir reclamos', 'warning');
+            return;
+        }
+        if (!this.puedeAñadirReclamosRutaSeleccionada) {
+            this.mostrarMensaje('Solo un operario con permisos de gestión puede añadir reclamos', 'warning');
+            return;
+        }
+
         try {
-            // Cargar reclamos recibidos
             await this.obtenerReclamosRecibidos();
             
-            // Mostrar el modal
             const modal = new bootstrap.Modal(document.getElementById('modalAñadirReclamos'));
             modal.show();
             
@@ -3694,6 +4466,8 @@ const app = Vue.createApp({
         this.reclamosRecibidosFiltrados = [];
         this.reclamoRecibidoSeleccionado = {};
         this.añadiendoReclamo = null;
+        this.añadiendoParadaClave = null;
+        this.indiceReclamoParadaAñadir = {};
         
         // Cerrar modal
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalAñadirReclamos'));
@@ -3710,7 +4484,7 @@ const app = Vue.createApp({
             const response = await axios.get(BASE_URL + 'api/rutas/operario/reclamos-recibidos');
             this.reclamosRecibidos = response.data;
             this.reclamosRecibidosFiltrados = [...this.reclamosRecibidos];
-            console.log('Reclamos recibidos obtenidos:', this.reclamosRecibidos);
+            this.indiceReclamoParadaAñadir = {};
         } catch (error) {
             console.error('Error al obtener reclamos recibidos:', error);
             this.mostrarMensaje('Error al cargar los reclamos recibidos', 'error');
@@ -3738,7 +4512,7 @@ const app = Vue.createApp({
                 reclamo.municipalidad_estado,
                 reclamo.municipalidad_domicilio,
                 reclamo.municipalidad_numeroDomicilio,
-                reclamo.municipalidad_motivo,
+                reclamo.municipalidad_descripcion,
                 reclamo.prioridad
             ];
             
@@ -3787,24 +4561,28 @@ const app = Vue.createApp({
     },
 
     /**
-     * Añade un reclamo recibido a la hoja de ruta del operario
+     * Añade la parada completa (todos los reclamos del mismo domicilio) a la hoja.
      */
-    async añadirReclamoARuta(reclamo) {
+    async añadirParadaARuta(parada) {
+        const reclamo = this.reclamoActivoEnParadaAñadir(parada) || parada?.reclamos?.[0];
         if (!reclamo || !reclamo.id) {
-            this.mostrarMensaje('Error: Reclamo no válido', 'error');
+            this.mostrarMensaje('Error: Parada no válida', 'error');
             return;
         }
 
-        // Verificar que hay rutas asignadas
-        if (!this.rutas || this.rutas.length === 0) {
-            this.mostrarMensaje('No tiene rutas asignadas para añadir reclamos', 'warning');
+        if (!this.puedeAñadirReclamosRutaSeleccionada) {
+            this.mostrarMensaje('Solo un operario con permisos de gestión puede añadir reclamos', 'warning');
             return;
         }
 
-        // Usar la primera ruta asignada (en el futuro se podría permitir seleccionar)
-        const rutaId = this.rutas[0].id;
+        const rutaId = this.rutaSeleccionadaId;
+        if (!rutaId) {
+            this.mostrarMensaje('Seleccioná una hoja de ruta antes de añadir reclamos', 'warning');
+            return;
+        }
 
         this.añadiendoReclamo = reclamo.id;
+        this.añadiendoParadaClave = parada.clave;
 
         try {
             const response = await axios.post(BASE_URL + 'api/rutas/operario/add-reclamo', {
@@ -3812,26 +4590,48 @@ const app = Vue.createApp({
                 ruta_id: rutaId
             });
 
-            // Añadir el reclamo a la lista local de reclamos
-            const reclamoAñadido = response.data.reclamo;
-            this.reclamos.push(reclamoAñadido);
-            
-            // Aplicar deduplicación después de añadir
+            const añadidos = response.data.reclamos || (response.data.reclamo ? [response.data.reclamo] : []);
+            for (const item of añadidos) {
+                this.reclamos.push(item);
+            }
             this.reclamos = this.eliminarDuplicadosReclamos(this.reclamos);
 
-            // Remover el reclamo de la lista de recibidos
-            this.reclamosRecibidos = this.reclamosRecibidos.filter(r => r.id !== reclamo.id);
+            const idsAñadidos = new Set(añadidos.map((r) => Number(r.id)));
+            // Quitar también cualquier otro del mismo domicilio que haya quedado
+            const clave = parada.clave;
+            this.reclamosRecibidos = this.reclamosRecibidos.filter((r) => {
+                if (idsAñadidos.has(Number(r.id))) return false;
+                return this.claveDomicilioReclamo(r) !== clave;
+            });
             this.filtrarReclamosRecibidos();
 
-            // Actualizar contadores
-            this.actualizarContadoresRutas();
+            if (response.data.cantidadReclamos != null) {
+                this.actualizarContadoresRutas(response.data.cantidadReclamos);
+            } else {
+                this.actualizarContadoresRutas();
+            }
 
-            // Actualizar el mapa si está abierto
+            if (response.data.tiempoEstimado != null && this.rutaSeleccionadaId) {
+                const t = response.data.tiempoEstimado;
+                const id = this.rutaSeleccionadaId;
+                const patchTiempo = (lista) => (lista || []).map((r) =>
+                    Number(r.id) === Number(id) ? { ...r, tiempoEstimado: t } : r
+                );
+                this.rutas = patchTiempo(this.rutas);
+                this.rutasPanel = patchTiempo(this.rutasPanel);
+            }
+
             this.actualizarMapaDespuesDeAñadirReclamo();
 
-            this.mostrarMensaje(`Reclamo #${reclamo.municipalidad_id} añadido exitosamente a la hoja de ruta`, 'success');
+            const nombreHoja = this.rutaSeleccionada?.nombre || 'la hoja de ruta';
+            const n = añadidos.length;
+            this.mostrarMensaje(
+                n > 1
+                    ? `${n} reclamos del mismo domicilio añadidos a ${nombreHoja}`
+                    : `Reclamo #${reclamo.municipalidad_id} añadido a ${nombreHoja}`,
+                'success'
+            );
 
-            // Si estamos en el modal de detalles, cerrarlo y volver al de añadir
             const modalDetalles = bootstrap.Modal.getInstance(document.getElementById('modalDetallesReclamoRecibido'));
             if (modalDetalles) {
                 this.cerrarModalDetallesReclamoRecibido();
@@ -3848,17 +4648,41 @@ const app = Vue.createApp({
             this.mostrarMensaje(mensajeError, 'error');
         } finally {
             this.añadiendoReclamo = null;
+            this.añadiendoParadaClave = null;
         }
     },
 
     /**
-     * Actualiza los contadores de rutas después de añadir un reclamo
+     * Compatibilidad: añadir desde detalles usa la parada del domicilio.
      */
-    actualizarContadoresRutas() {
-        // Actualizar la cantidad de reclamos en la ruta
-        if (this.rutas && this.rutas.length > 0) {
-            this.rutas[0].cantidadReclamos = this.reclamos.length;
+    async añadirReclamoARuta(reclamo) {
+        if (!reclamo || !reclamo.id) {
+            this.mostrarMensaje('Error: Reclamo no válido', 'error');
+            return;
         }
+        const clave = this.claveDomicilioReclamo(reclamo);
+        const delDom = this.reclamosRecibidos.filter((r) => this.claveDomicilioReclamo(r) === clave);
+        const parada = { clave, reclamos: delDom.length ? delDom : [reclamo] };
+        this.indiceReclamoParadaAñadir = {
+            ...this.indiceReclamoParadaAñadir,
+            [clave]: Math.max(0, delDom.findIndex((r) => Number(r.id) === Number(reclamo.id))),
+        };
+        await this.añadirParadaARuta(parada);
+    },
+
+    /**
+     * Actualiza el contador de la hoja seleccionada después de añadir un reclamo
+     */
+    actualizarContadoresRutas(cantidadOpcional) {
+        const rutaId = this.rutaSeleccionadaId;
+        if (!rutaId) return;
+
+        const cantidad = cantidadOpcional != null ? cantidadOpcional : this.reclamos.length;
+        const patch = (lista) => (lista || []).map(r =>
+            Number(r.id) === Number(rutaId) ? { ...r, cantidadReclamos: cantidad } : r
+        );
+        this.rutas = patch(this.rutas);
+        this.rutasPanel = patch(this.rutasPanel);
     },
 
     /**
@@ -3895,30 +4719,106 @@ const app = Vue.createApp({
      * Carga los tipos de materiales y materiales cuando se abre la solapa de materiales
      */
     async cargarMateriales() {
+        this.cargandoCatalogoMateriales = true;
+        try {
         if (this.tiposMaterial.length === 0) {
             await this.obtenerTiposMaterial();
         }
         await this.filtrarMaterialesPorTipo();
+            await this.obtenerHistorialMateriales();
+        } finally {
+            this.cargandoCatalogoMateriales = false;
+        }
     },
 
-    /**
-     * Alterna entre el modo de material existente y crear material nuevo
-     */
-    alternarModoMaterial() {
-        this.modoMaterialNuevo = !this.modoMaterialNuevo;
-        
-        // Limpiar campos al cambiar de modo
-        if (this.modoMaterialNuevo) {
-            // Cambiando a modo crear nuevo - limpiar campos de material existente
+    urlFotoMaterialCatalogo(nombreArchivo) {
+        if (!nombreArchivo) return '';
+        return BASE_URL + 'static/uploads/materiales/' + nombreArchivo;
+    },
+
+    seleccionarTipoMaterialObra(tipoId) {
+        this.materialSeleccionado.tipo_id = tipoId === '' || tipoId == null ? '' : tipoId;
+        this.materialSeleccionado.material_id = '';
+        this.filtrarMaterialesPorTipo();
+    },
+
+    seleccionarMaterialObra(mat) {
+        if (!mat || !mat.id) return;
+        this.materialSeleccionado.material_id = mat.id;
+        this.materialSeleccionado.cantidad = 1;
+    },
+
+    limpiarSeleccionMaterialObra() {
             this.materialSeleccionado.material_id = '';
             this.materialSeleccionado.cantidad = null;
-        } else {
-            // Cambiando a modo existente - limpiar campos de material nuevo
-            this.materialNuevo = {
-                tipo_id: '',
-                nombre: '',
-                cantidad: null
-            };
+        this.materialSeleccionado.observacion = '';
+    },
+
+    ajustarCantidadMaterialObra(delta) {
+        const actual = Number(this.materialSeleccionado.cantidad);
+        const base = Number.isFinite(actual) && actual >= 1 ? actual : 1;
+        this.materialSeleccionado.cantidad = Math.max(1, base + delta);
+    },
+
+    async eliminarMaterialObra(item) {
+        if (!item?.id || this.modalMaterialesSoloLectura) return;
+
+        const nombre = item.material_nombre || 'este material';
+        const confirmar = await this.confirmarEliminarMaterialObra(nombre);
+        if (!confirmar) return;
+
+        this.eliminandoMaterialReclamoId = item.id;
+        try {
+            await axios.delete(BASE_URL + 'api/reclamos/materiales/' + item.id);
+            this.mostrarMensaje('Material eliminado.', 'success');
+            await this.obtenerHistorialMateriales();
+        } catch (error) {
+            console.error('Error al eliminar material:', error);
+            const mensajeError = error.response?.data?.message
+                || 'Error al eliminar el material';
+            this.mostrarMensaje(mensajeError, 'error');
+        } finally {
+            this.eliminandoMaterialReclamoId = null;
+        }
+    },
+
+    confirmarEliminarMaterialObra(nombre) {
+        this.confirmarEliminarMaterialNombre = nombre || 'este material';
+        return new Promise((resolve) => {
+            this._resolverConfirmarEliminarMaterial = resolve;
+            this.$nextTick(() => {
+                const el = document.getElementById('modalConfirmarEliminarMaterial');
+                if (!el) {
+                    resolve(false);
+                    return;
+                }
+                const modal = bootstrap.Modal.getOrCreateInstance(el, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                modal.show();
+            });
+        });
+    },
+
+    resolverConfirmarEliminarMaterial(aceptar) {
+        const resolve = this._resolverConfirmarEliminarMaterial;
+        this._resolverConfirmarEliminarMaterial = null;
+        const el = document.getElementById('modalConfirmarEliminarMaterial');
+        if (el) {
+            const modal = bootstrap.Modal.getInstance(el);
+            if (modal) modal.hide();
+        }
+        if (typeof resolve === 'function') {
+            resolve(!!aceptar);
+        }
+    },
+
+    onConfirmarEliminarMaterialOculto() {
+        if (typeof this._resolverConfirmarEliminarMaterial === 'function') {
+            const resolve = this._resolverConfirmarEliminarMaterial;
+            this._resolverConfirmarEliminarMaterial = null;
+            resolve(false);
         }
     },
 
@@ -3947,9 +4847,8 @@ const app = Vue.createApp({
             }
             
             const response = await axios.get(BASE_URL + 'api/reclamos/materiales/por-tipo', { params });
-            this.materialesFiltrados = response.data;
+            this.materialesFiltrados = response.data || [];
             
-            // Si cambió el tipo, limpiar la selección de material
             if (this.materialSeleccionado.material_id) {
                 const materialExiste = this.materialesFiltrados.find(m => m.id == this.materialSeleccionado.material_id);
                 if (!materialExiste) {
@@ -3968,7 +4867,7 @@ const app = Vue.createApp({
      */
     async guardarMaterialReclamo() {
         if (!this.puedeGuardarMaterial) {
-            this.mostrarMensaje('Debe seleccionar un material', 'warning');
+            this.mostrarMensaje('Debe seleccionar un material y una cantidad válida (mínimo 1)', 'warning');
             return;
         }
 
@@ -3977,29 +4876,30 @@ const app = Vue.createApp({
             return;
         }
 
+        this.guardandoMaterialObra = true;
         try {
             const datos = {
                 material_id: this.materialSeleccionado.material_id,
-                cantidad: this.materialSeleccionado.cantidad || null, // Cantidad opcional
+                cantidad: Number(this.materialSeleccionado.cantidad),
                 observacion: this.materialSeleccionado.observacion || null
             };
 
-            await axios.post(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales', datos);
-            
+            await axios.post(
+                BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales',
+                datos
+            );
             this.mostrarMensaje('Material registrado exitosamente', 'success');
             
-            // Limpiar el formulario
             this.materialSeleccionado = {
-                tipo_id: this.materialSeleccionado.tipo_id, // Mantener el tipo seleccionado
+                tipo_id: this.materialSeleccionado.tipo_id,
                 material_id: '',
                 cantidad: null,
                 observacion: ''
             };
+            this.filtroBusquedaMaterial = '';
             
-            // Si el historial está visible, actualizarlo
-            if (this.mostrarHistorialMateriales) {
+            this.mostrarHistorialMateriales = true;
                 await this.obtenerHistorialMateriales();
-            }
             
         } catch (error) {
             console.error('Error al guardar material:', error);
@@ -4007,129 +4907,47 @@ const app = Vue.createApp({
                 ? error.response.data.message 
                 : 'Error al guardar el material';
             this.mostrarMensaje(mensajeError, 'error');
-        }
-    },
-
-    /**
-     * Crea un material nuevo y lo registra en material_reclamo
-     */
-    async guardarMaterialNuevoYReclamo() {
-        if (!this.puedeGuardarMaterialNuevo) {
-            this.mostrarMensaje('Debe ingresar el nombre del material', 'warning');
-            return;
-        }
-
-        if (!this.reclamoSeleccionado.id) {
-            this.mostrarMensaje('Error: No hay reclamo seleccionado', 'error');
-            return;
-        }
-
-        try {
-            const nombreMaterial = this.materialNuevo.nombre.trim();
-            
-            // Paso 0: Verificar si el material ya existe
-            const responseVerificacion = await axios.get(BASE_URL + 'api/materiales/verificar', {
-                params: { nombre: nombreMaterial }
-            });
-            
-            if (responseVerificacion.data.existe) {
-                this.mostrarMensaje(
-                    `El material "${nombreMaterial}" ya existe. Por favor, selecciónelo de la lista de materiales existentes.`,
-                    'warning'
-                );
-                // Cambiar automáticamente al modo de material existente
-                this.modoMaterialNuevo = false;
-                // Limpiar el campo de nombre nuevo
-                this.materialNuevo.nombre = '';
-                // Recargar materiales para que aparezca en la lista
-                await this.filtrarMaterialesPorTipo();
-                return;
-            }
-            
-            // Guardar la cantidad ingresada para usarla en material_reclamo
-            const cantidadParaReclamo = this.materialNuevo.cantidad || null;
-            
-            // Paso 1: Crear el material nuevo (siempre con cantidad 0 en la tabla material)
-            const datosMaterial = {
-                nombre: nombreMaterial,
-                idTipo: this.materialNuevo.tipo_id || null,
-                cantidad: 0 // Siempre 0 cuando se crea desde esta interfaz
-            };
-
-            const responseMaterial = await axios.post(BASE_URL + 'api/materiales', datosMaterial);
-            const materialCreado = responseMaterial.data;
-            
-            // Paso 2: Registrar el material en material_reclamo con la cantidad ingresada
-            const datosMaterialReclamo = {
-                material_id: materialCreado.id,
-                cantidad: cantidadParaReclamo, // La cantidad ingresada solo va a material_reclamo
-                observacion: this.materialSeleccionado.observacion || null
-            };
-
-            await axios.post(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales', datosMaterialReclamo);
-            
-            this.mostrarMensaje(`Material "${materialCreado.nombre}" creado y registrado exitosamente`, 'success');
-            
-            // Limpiar los formularios
-            this.materialSeleccionado = {
-                tipo_id: '',
-                material_id: '',
-                cantidad: null,
-                observacion: ''
-            };
-            this.materialNuevo = {
-                tipo_id: '',
-                nombre: '',
-                cantidad: null
-            };
-            
-            // Recargar materiales para que aparezca el nuevo material en la lista
-            await this.filtrarMaterialesPorTipo();
-            
-            // Si el historial está visible, actualizarlo
-            if (this.mostrarHistorialMateriales) {
-                await this.obtenerHistorialMateriales();
-            }
-            
-        } catch (error) {
-            console.error('Error al crear y guardar material nuevo:', error);
-            const mensajeError = error.response && error.response.data && error.response.data.message 
-                ? error.response.data.message 
-                : 'Error al crear y guardar el material nuevo';
-            this.mostrarMensaje(mensajeError, 'error');
+        } finally {
+            this.guardandoMaterialObra = false;
         }
     },
 
     /**
      * Obtiene el historial de materiales del reclamo
      */
-    async obtenerHistorialMateriales() {
+    async obtenerHistorialMateriales(opciones = {}) {
+        const { silencioso = false } = opciones;
         if (!this.reclamoSeleccionado.id) {
             return;
         }
 
-        this.cargandoMateriales = true;
+        const mostrarSpinner = !silencioso || this.historialMateriales.length === 0;
+        if (mostrarSpinner) {
+            this.cargandoMateriales = true;
+        }
         
         try {
-            const response = await axios.get(BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales');
-            this.historialMateriales = response.data;
+            const response = await axios.get(
+                BASE_URL + 'api/reclamos/' + this.reclamoSeleccionado.id + '/materiales'
+            );
+            const nuevos = response.data || [];
+            const fpNuevo = (nuevos || []).map((m) => `${m.id}:${m.cantidad || ''}:${m.fecha || ''}:${m.observacion || ''}`).join('|');
+            const fpActual = (this.historialMateriales || []).map((m) => `${m.id}:${m.cantidad || ''}:${m.fecha || ''}:${m.observacion || ''}`).join('|');
+            if (fpNuevo !== fpActual) {
+                this.historialMateriales = nuevos;
+            }
+            this.actualizarCountMaterialesReclamoOperario(
+                this.reclamoSeleccionado.id,
+                nuevos.length
+            );
         } catch (error) {
             console.error('Error al obtener historial de materiales:', error);
-            this.mostrarMensaje('Error al cargar el historial de materiales', 'error');
-            this.historialMateriales = [];
+            if (!silencioso) {
+                this.mostrarMensaje('Error al cargar el historial de materiales', 'error');
+                this.historialMateriales = [];
+            }
         } finally {
             this.cargandoMateriales = false;
-        }
-    },
-
-    /**
-     * Alterna la visualización del historial de materiales
-     */
-    async toggleHistorialMateriales() {
-        this.mostrarHistorialMateriales = !this.mostrarHistorialMateriales;
-        
-        if (this.mostrarHistorialMateriales && this.historialMateriales.length === 0) {
-            await this.obtenerHistorialMateriales();
         }
     },
 
@@ -4261,7 +5079,10 @@ const app = Vue.createApp({
                 this.obtenerCuadrillas(),
                 this.cargarPromediosTiempoMotivo()
             ]);
+            this._ultimoFingerprintRutasOperario = this._fingerprintRutasOperario(this.rutasPanel);
             this.iniciarRelojEjecucionOperario();
+            this.iniciarSyncOperarioLiviano();
+            document.addEventListener('click', this.onClickFueraConfirmarAccionParada);
             await this.$nextTick();
             this.inicializarMapasPreviewOperario();
         } else {
@@ -4273,6 +5094,8 @@ const app = Vue.createApp({
     beforeUnmount() {
         this.cerrarModalFotoBitacoraObra();
         this.detenerRelojEjecucionOperario();
+        this.detenerSyncOperarioLiviano();
+        document.removeEventListener('click', this.onClickFueraConfirmarAccionParada);
         this.limpiarMapasPreviewOperario();
     }
 });

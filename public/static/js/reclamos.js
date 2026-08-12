@@ -27,29 +27,78 @@ const app = Vue.createApp({
             filtroFechaHasta: '',
             filtroBusqueda: '',
             filtroPrioridad: '', // Filtro de prioridad
-            // Variables para sincronización y credenciales token 103
+            // Variables para sincronización y token 103
             tokenDisponible: false,
             tokenActual: null,
             credenciales: {
-                username: '',
-                password: ''
+                api_token: ''
             },
-            tokenBase64: '',
             credencialesGuardadas: false,
-            mensajeCopiadoVisible: false,
+            guardandoFicha: false,
+            observacionEliminacion: '',
+            eliminandoReclamo: false,
+            reclamoAEliminar: null,
             syncFechaDesde: '',
             syncFechaHasta: '',
             numeroReclamo: '',
             syncOpcionActiva: 'fechas',
             // Variables para progreso
             sincronizando: false,
+            syncFase: '', // 'descarga' | 'procesando'
+            syncTramoActual: 0,
+            syncTramosTotal: 0,
+            syncDetalle: '',
             progresoActual: 0,
             progresoTotal: 0,
-            detenerSincronizacion: false
+            detenerSincronizacion: false,
+            domicilioAutocomplete: null,
+            domicilioAutocompleteListo: false
         };
     },
 
+    computed: {
+        modoCreacion() {
+            return !this.reclamo?.id;
+        },
+
+        syncPorcentaje() {
+            if (this.syncFase === 'descarga' && this.syncTramosTotal > 0) {
+                return Math.min(100, Math.round((this.syncTramoActual / this.syncTramosTotal) * 100));
+            }
+            if (this.syncFase === 'procesando' && this.progresoTotal > 0) {
+                return Math.min(100, Math.round((this.progresoActual / this.progresoTotal) * 100));
+            }
+            return 0;
+        },
+
+        syncEtiqueta() {
+            if (this.syncFase === 'descarga') {
+                return 'Descargando del 103';
+            }
+            if (this.syncFase === 'procesando') {
+                return 'Guardando reclamos';
+            }
+            return 'Procesando';
+        },
+
+        syncContadorTexto() {
+            if (this.syncFase === 'descarga' && this.syncTramosTotal > 0) {
+                return `Tramo ${this.syncTramoActual} / ${this.syncTramosTotal}`;
+            }
+            if (this.syncFase === 'procesando' && this.progresoTotal > 0) {
+                return `${this.progresoActual} / ${this.progresoTotal}`;
+            }
+            return '…';
+        }
+    },
+
     methods: {
+        esOrigenLocal(reclamo) {
+            if (!reclamo) return false;
+            if (reclamo.origen === 'local') return true;
+            return String(reclamo.municipalidad_id || '').startsWith('L');
+        },
+
         /**
          * Obtiene los reclamos desde la API.
          * Después de obtener los datos, inicializa o actualiza la DataTable.
@@ -83,7 +132,11 @@ const app = Vue.createApp({
                 console.log('Destruyendo tabla anterior');
                 this.tabla.destroy();
             }
-            this.reclamos.sort((a, b) => parseInt(b.municipalidad_id, 10) - parseInt(a.municipalidad_id, 10));
+            this.reclamos.sort((a, b) => {
+                const fa = a.municipalidad_fechaInicio ? new Date(a.municipalidad_fechaInicio).getTime() : 0;
+                const fb = b.municipalidad_fechaInicio ? new Date(b.municipalidad_fechaInicio).getTime() : 0;
+                return fb - fa;
+            });
             console.log('Creando nueva tabla con datos:', this.reclamos);
             this.tabla = $('#tabla_reclamos').DataTable({
                 data: this.reclamos,
@@ -118,7 +171,11 @@ const app = Vue.createApp({
                         type: 'num',
                         className: 'text-start text-nowrap',
                         render: (data, type, row) => {
-                            return `<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
+                            const esLocal = row.origen === 'local' || String(data || '').startsWith('L');
+                            const badge = esLocal
+                                ? '<span class="reclamo-origen reclamo-origen--local me-1">Local</span>'
+                                : '<span class="reclamo-origen reclamo-origen--103 me-1">103</span>';
+                            return `${badge}<a href="#" class="ver-reclamo-id text-primary fw-bold" data-id="${row.id}" style="text-decoration: none; cursor: pointer;">${data}</a>`;
                         }
                     },
                     { 
@@ -141,7 +198,7 @@ const app = Vue.createApp({
                         render: (data, type, row) => {
                             // Si el reclamo está cerrado, mostrar "Cerrado" en lugar de "Completado"
                             if (row.cerrado == 1 && data === 'Completado') {
-                                return '<span class="badge bg-dark">Cerrado</span>';
+                                return '<span class="badge reclamo-estado reclamo-estado--cerrado">Cerrado</span>';
                             }
                             // Colores alineados al mapa de reclamos
                             const estadoClass = {
@@ -164,24 +221,23 @@ const app = Vue.createApp({
                     { 
                         data: 'municipalidad_numeroDomicilio',
                         className: 'text-start'
-                    }
-                    /*
-                    ,
+                    },
                     {
                         data: null,
-                        className: 'text-start',
+                        orderable: false,
+                        searchable: false,
+                        className: 'text-center text-nowrap',
                         render: (data, type, row) => {
                             return `
-                                <button class="btn btn-sm btn-warning me-1 editar-reclamo" data-id="${row.id}" title="Editar">
+                                <button type="button" class="reclamos-btn reclamos-btn--outline reclamos-btn--sm editar-reclamo" data-id="${row.id}" title="Editar ficha">
                                     <i class="bi bi-pencil"></i>
                                 </button>
-                                <button class="btn btn-sm btn-danger eliminar-reclamo" data-id="${row.id}" title="Eliminar">
+                                <button type="button" class="reclamos-btn reclamos-btn--sm reclamos-btn--danger eliminar-reclamo" data-id="${row.id}" title="Eliminar reclamo">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             `;
                         }
                     }
-                    */
                 ],
                 columnDefs: [
                     { defaultContent: '-', targets: '_all' }
@@ -320,39 +376,61 @@ const app = Vue.createApp({
                 municipalidad_fechaInicio: ahora,
                 municipalidad_fechaModificacion: ahora,
                 municipalidad_recepcion: '',
-                municipalidad_estado: '',
-                prioridad: 'Baja', // Valor por defecto para nuevos reclamos, ahora 'prioridad'
+                municipalidad_estado: 'Recibido',
+                prioridad: '',
                 municipalidad_telefono: '',
                 municipalidad_domicilio: '',
                 municipalidad_numeroDomicilio: '',
                 municipalidad_entreCalleUno: '',
                 municipalidad_entreCalleDos: '',
                 municipalidad_ciudadano: '',
-                municipalidad_descripcion: ''
+                municipalidad_descripcion: '',
+                origen: 'local'
             };
             new bootstrap.Modal(document.getElementById('modalReclamo')).show();
         },
 
         /**
-         * Carga los datos de un reclamo existente en el modal de edición.
-         * @param {Object} reclamo El objeto reclamo a editar.
+         * Carga los datos de un reclamo existente en el modal de edición de ficha.
          */
         editarReclamo(reclamo) {
-            const reclamoEditado = { ...reclamo };
-            if (reclamoEditado.municipalidad_fechaInicio) {
-                reclamoEditado.municipalidad_fechaInicio = this.formatearFechaParaInput(reclamoEditado.municipalidad_fechaInicio);
-            }
-            if (reclamoEditado.municipalidad_fechaModificacion) {
-                reclamoEditado.municipalidad_fechaModificacion = this.formatearFechaParaInput(reclamoEditado.municipalidad_fechaModificacion);
-            }
-
-            this.reclamo = reclamoEditado;
+            this.reclamo = {
+                id: reclamo.id,
+                municipalidad_id: reclamo.municipalidad_id,
+                municipalidad_tipo: reclamo.municipalidad_tipo || 'ALUMBRADO PÚBLICO',
+                municipalidad_motivo: reclamo.municipalidad_motivo || '',
+                municipalidad_recepcion: reclamo.municipalidad_recepcion || '',
+                municipalidad_estado: reclamo.municipalidad_estado || '',
+                prioridad: reclamo.prioridad || '',
+                municipalidad_telefono: reclamo.municipalidad_telefono || '',
+                municipalidad_domicilio: reclamo.municipalidad_domicilio || '',
+                municipalidad_numeroDomicilio: reclamo.municipalidad_numeroDomicilio || '',
+                municipalidad_entreCalleUno: reclamo.municipalidad_entreCalleUno || '',
+                municipalidad_entreCalleDos: reclamo.municipalidad_entreCalleDos || '',
+                municipalidad_ciudadano: reclamo.municipalidad_ciudadano || '',
+                municipalidad_descripcion: reclamo.municipalidad_descripcion || '',
+                ficha_editada: reclamo.ficha_editada,
+                origen: reclamo.origen || '103',
+            };
             new bootstrap.Modal(document.getElementById('modalReclamo')).show();
+        },
+
+        editarDesdeDetalle() {
+            const reclamo = this.reclamoSeleccionado;
+            if (!reclamo || !reclamo.id) return;
+            bootstrap.Modal.getInstance(document.getElementById('modalVerReclamo'))?.hide();
+            this.$nextTick(() => this.editarReclamo(reclamo));
+        },
+
+        eliminarDesdeDetalle() {
+            const reclamo = this.reclamoSeleccionado;
+            if (!reclamo || !reclamo.id) return;
+            bootstrap.Modal.getInstance(document.getElementById('modalVerReclamo'))?.hide();
+            this.$nextTick(() => this.eliminarReclamo(reclamo));
         },
 
         /**
          * Muestra los detalles de un reclamo en un modal de solo lectura.
-         * @param {Object} reclamo El objeto reclamo a visualizar.
          */
         verReclamo(reclamo) {
             this.reclamoSeleccionado = { ...reclamo };
@@ -360,42 +438,107 @@ const app = Vue.createApp({
         },
 
         /**
-         * Guarda (crea o actualiza) un reclamo enviando los datos a la API.
+         * Crea un reclamo local o guarda correcciones de ficha.
          */
-        guardarReclamo() {
-            const esNuevo = !this.reclamo.id;
-            const url = BASE_URL + 'api/reclamos' + (esNuevo ? '' : '/' + this.reclamo.id);
-            const metodo = esNuevo ? 'post' : 'put';
-
-            const datosParaEnviar = { ...this.reclamo };
-            if (datosParaEnviar.municipalidad_fechaInicio) {
-                datosParaEnviar.municipalidad_fechaInicio = this.convertirFechaParaBD(datosParaEnviar.municipalidad_fechaInicio);
+        async guardarReclamo() {
+            if (!(this.reclamo.municipalidad_motivo || '').trim()) {
+                this.mostrarMensaje('El motivo es obligatorio.', 'warning');
+                return;
             }
-            if (datosParaEnviar.municipalidad_fechaModificacion) {
-                datosParaEnviar.municipalidad_fechaModificacion = this.convertirFechaParaBD(datosParaEnviar.municipalidad_fechaModificacion);
+            if (!(this.reclamo.municipalidad_domicilio || '').trim()) {
+                this.mostrarMensaje('El domicilio es obligatorio.', 'warning');
+                return;
             }
+            if (!(this.reclamo.municipalidad_numeroDomicilio || '').trim()) {
+                this.mostrarMensaje('El número de domicilio es obligatorio.', 'warning');
+                return;
+            }
+            if (this.guardandoFicha) return;
 
-            axios[metodo](url, datosParaEnviar).then(() => {
-                this.obtenerReclamos();
-                bootstrap.Modal.getInstance(document.getElementById('modalReclamo')).hide();
-            }).catch(error => {
+            this.guardandoFicha = true;
+
+            try {
+                if (this.modoCreacion) {
+                    const payload = {
+                        municipalidad_motivo: this.reclamo.municipalidad_motivo,
+                        municipalidad_recepcion: this.reclamo.municipalidad_recepcion,
+                        municipalidad_telefono: this.reclamo.municipalidad_telefono,
+                        municipalidad_domicilio: this.reclamo.municipalidad_domicilio,
+                        municipalidad_numeroDomicilio: this.reclamo.municipalidad_numeroDomicilio,
+                        municipalidad_entreCalleUno: this.reclamo.municipalidad_entreCalleUno,
+                        municipalidad_entreCalleDos: this.reclamo.municipalidad_entreCalleDos,
+                        municipalidad_ciudadano: this.reclamo.municipalidad_ciudadano,
+                        municipalidad_descripcion: this.reclamo.municipalidad_descripcion,
+                        municipalidad_fechaInicio: this.reclamo.municipalidad_fechaInicio,
+                    };
+                    await axios.post(BASE_URL + 'api/reclamos', payload);
+                    bootstrap.Modal.getInstance(document.getElementById('modalReclamo'))?.hide();
+                    this.mostrarMensaje('Reclamo local creado correctamente.', 'success');
+                } else {
+                    const payload = {
+                        municipalidad_motivo: this.reclamo.municipalidad_motivo,
+                        municipalidad_recepcion: this.reclamo.municipalidad_recepcion,
+                        municipalidad_telefono: this.reclamo.municipalidad_telefono,
+                        municipalidad_domicilio: this.reclamo.municipalidad_domicilio,
+                        municipalidad_numeroDomicilio: this.reclamo.municipalidad_numeroDomicilio,
+                        municipalidad_entreCalleUno: this.reclamo.municipalidad_entreCalleUno,
+                        municipalidad_entreCalleDos: this.reclamo.municipalidad_entreCalleDos,
+                        municipalidad_ciudadano: this.reclamo.municipalidad_ciudadano,
+                        municipalidad_descripcion: this.reclamo.municipalidad_descripcion,
+                    };
+                    await axios.put(BASE_URL + 'api/reclamos/' + this.reclamo.id + '/ficha', payload);
+                    bootstrap.Modal.getInstance(document.getElementById('modalReclamo'))?.hide();
+                    this.mostrarMensaje('Ficha actualizada correctamente.', 'success');
+                }
+                await this.obtenerReclamos();
+            } catch (error) {
                 console.error('Error al guardar reclamo:', error);
-                alert('Error al guardar el reclamo');
-            });
+                const msg = error?.response?.data?.messages
+                    || error?.response?.data?.message
+                    || 'Error al guardar el reclamo';
+                const texto = typeof msg === 'object' ? Object.values(msg).flat().join(' ') : String(msg);
+                this.mostrarMensaje(texto, 'danger');
+            } finally {
+                this.guardandoFicha = false;
+            }
         },
 
         /**
-         * Elimina un reclamo de la base de datos.
-         * @param {Object} reclamo El objeto reclamo a eliminar.
+         * Abre el modal de confirmación para excluir un reclamo.
          */
         eliminarReclamo(reclamo) {
-            if (confirm(`¿Seguro que deseas eliminar el reclamo ${reclamo.municipalidad_id}?`)) {
-                axios.delete(BASE_URL + 'api/reclamos/' + reclamo.id).then(() => {
-                    this.obtenerReclamos();
-                }).catch(error => {
-                    console.error('Error al eliminar reclamo:', error);
-                    alert('Error al eliminar el reclamo');
+            this.reclamoAEliminar = { ...reclamo };
+            this.observacionEliminacion = '';
+            this.eliminandoReclamo = false;
+            new bootstrap.Modal(document.getElementById('modalEliminarReclamo')).show();
+        },
+
+        /**
+         * Confirma la exclusión lógica del reclamo (no hard delete).
+         */
+        async confirmarEliminarReclamo() {
+            if (!this.reclamoAEliminar?.id || this.eliminandoReclamo) return;
+
+            this.eliminandoReclamo = true;
+            try {
+                await axios.delete(BASE_URL + 'api/reclamos/' + this.reclamoAEliminar.id, {
+                    data: { observacion: this.observacionEliminacion || '' }
                 });
+                bootstrap.Modal.getInstance(document.getElementById('modalEliminarReclamo'))?.hide();
+                this.mostrarMensaje('Reclamo excluido correctamente.', 'success');
+                this.reclamoAEliminar = null;
+                this.observacionEliminacion = '';
+                await this.obtenerReclamos();
+            } catch (error) {
+                console.error('Error al eliminar reclamo:', error);
+                const texto = error.response?.data?.messages?.error
+                    || error.response?.data?.messages
+                    || error.response?.data?.message
+                    || 'Error al eliminar el reclamo';
+                const mensaje = typeof texto === 'object' ? Object.values(texto).flat().join(' ') : texto;
+                this.mostrarMensaje(mensaje, 'danger');
+            } finally {
+                this.eliminandoReclamo = false;
             }
         },
 
@@ -405,10 +548,16 @@ const app = Vue.createApp({
          * @returns {string} La fecha y hora actual formateada.
          */
         obtenerFechaActualArgentina() {
-            const ahora = new Date();
-            const offset = ahora.getTimezoneOffset() + (3 * 60);
-            const fechaArgentina = new Date(ahora.getTime() - offset * 60 * 1000);
-            return fechaArgentina.toISOString().slice(0, 16);
+            const partes = new Intl.DateTimeFormat('sv-SE', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(new Date());
+            return partes.replace(' ', 'T');
         },
 
         /**
@@ -518,20 +667,18 @@ const app = Vue.createApp({
             try {
                 const response = await axios.get(BASE_URL + 'api/token103');
                 if (response.data && response.data.length > 0) {
-                    const ultimasCredenciales = response.data[response.data.length - 1];
-                    if (ultimasCredenciales.username && ultimasCredenciales.password) {
-                        this.tokenActual = ultimasCredenciales;
+                    const ultimo = response.data[0];
+                    if ((ultimo.api_token || '').trim()) {
+                        this.tokenActual = ultimo;
                         this.tokenDisponible = true;
                         this.credencialesGuardadas = true;
-                        this.credenciales.username = ultimasCredenciales.username;
-                        this.credenciales.password = ultimasCredenciales.password;
-                        this.generarTokenBase64();
+                        this.credenciales.api_token = ultimo.api_token;
                         return;
                     }
                 }
                 this.limpiarEstadoCredenciales();
             } catch (error) {
-                console.error('Error al obtener credenciales:', error);
+                console.error('Error al obtener token:', error);
                 this.limpiarEstadoCredenciales();
             }
         },
@@ -546,14 +693,11 @@ const app = Vue.createApp({
             this.tokenActual = null;
             this.tokenDisponible = false;
             this.credencialesGuardadas = false;
-            this.credenciales.username = '';
-            this.credenciales.password = '';
-            this.tokenBase64 = '';
+            this.credenciales.api_token = '';
         },
 
         async abrirModalToken() {
             await this.obtenerTokenActual();
-            this.generarTokenBase64();
             const modalEl = document.getElementById('modalToken103');
             if (modalEl && window.bootstrap) {
                 bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -561,14 +705,14 @@ const app = Vue.createApp({
         },
 
         async guardarCredencialesToken() {
-            if (!this.credenciales.username || !this.credenciales.password) {
-                this.mostrarMensaje('Debe ingresar username y password', 'warning');
+            if (!(this.credenciales.api_token || '').trim()) {
+                this.mostrarMensaje('Debés ingresar el token', 'warning');
                 return;
             }
 
             const confirmacion = await this.mostrarConfirmacion(
-                '¿Está seguro que desea guardar las credenciales?',
-                'Guardar Credenciales'
+                '¿Guardar el token del sistema 103?',
+                'Guardar token'
             );
             if (!confirmacion) {
                 return;
@@ -576,53 +720,18 @@ const app = Vue.createApp({
 
             try {
                 const url = BASE_URL + 'api/token103';
+                const payload = { api_token: this.credenciales.api_token.trim() };
                 if (this.tokenActual && this.tokenActual.id) {
-                    await axios.put(url + '/' + this.tokenActual.id, this.credenciales);
+                    await axios.put(url + '/' + this.tokenActual.id, payload);
                 } else {
-                    await axios.post(url, this.credenciales);
+                    await axios.post(url, payload);
                 }
 
                 await this.obtenerTokenActual();
-                this.mostrarMensaje('Credenciales guardadas correctamente', 'success');
+                this.mostrarMensaje('Token guardado correctamente', 'success');
             } catch (error) {
-                console.error('Error al guardar credenciales:', error);
-                this.mostrarMensaje('Error al guardar las credenciales', 'error');
-            }
-        },
-
-        generarTokenBase64() {
-            if (!this.credenciales.username || !this.credenciales.password) {
-                this.tokenBase64 = '';
-                return;
-            }
-
-            const credencialesString = this.credenciales.username + ':' + this.credenciales.password;
-            this.tokenBase64 = btoa(credencialesString);
-        },
-
-        copiarToken() {
-            if (!this.tokenBase64) {
-                this.mostrarMensaje('No hay token para copiar', 'warning');
-                return;
-            }
-
-            const tokenInput = document.getElementById('tokenInputReclamos');
-            if (!tokenInput) {
-                return;
-            }
-
-            tokenInput.select();
-            tokenInput.setSelectionRange(0, 99999);
-
-            try {
-                document.execCommand('copy');
-                this.mensajeCopiadoVisible = true;
-                setTimeout(() => {
-                    this.mensajeCopiadoVisible = false;
-                }, 2000);
-            } catch (err) {
-                console.error('Error al copiar:', err);
-                this.mostrarMensaje('No se pudo copiar el token', 'error');
+                console.error('Error al guardar token:', error);
+                this.mostrarMensaje('Error al guardar el token', 'error');
             }
         },
 
@@ -695,7 +804,45 @@ const app = Vue.createApp({
         },
 
         /**
-         * Sincroniza reclamos por rango de fechas
+         * Parte un rango [desde, hasta] en tramos de N días (inclusive).
+         * Evita timeouts del backend al sincronizar períodos largos.
+         */
+        partirRangoFechasSync(fechaDesde, fechaHasta, diasPorTramo = 14) {
+            const parseLocal = (s) => {
+                const [y, m, d] = String(s).split('-').map(Number);
+                return new Date(y, m - 1, d);
+            };
+            const fmt = (date) => {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
+
+            const inicio = parseLocal(fechaDesde);
+            const fin = parseLocal(fechaHasta);
+            if (Number.isNaN(inicio.getTime()) || Number.isNaN(fin.getTime()) || fin < inicio) {
+                return [];
+            }
+
+            const tramos = [];
+            let cursor = new Date(inicio);
+            while (cursor <= fin) {
+                const desde = new Date(cursor);
+                const hasta = new Date(cursor);
+                hasta.setDate(hasta.getDate() + (diasPorTramo - 1));
+                if (hasta > fin) {
+                    hasta.setTime(fin.getTime());
+                }
+                tramos.push({ desde: fmt(desde), hasta: fmt(hasta) });
+                cursor = new Date(hasta);
+                cursor.setDate(cursor.getDate() + 1);
+            }
+            return tramos;
+        },
+
+        /**
+         * Sincroniza reclamos por rango de fechas (en tramos para rangos largos)
          */
         async sincronizarReclamosPorFechas() {
             if (!this.tokenDisponible || !this.tokenActual) {
@@ -708,65 +855,151 @@ const app = Vue.createApp({
                 return;
             }
 
-            // Confirmación antes de sincronizar
+            if (this.syncFechaDesde > this.syncFechaHasta) {
+                this.mostrarMensaje('El rango de fechas no es válido (desde > hasta).', 'warning');
+                return;
+            }
+
             const mensajeConfirmacion = `¿Está seguro que desea sincronizar los reclamos del sistema 103?`;
-            
             const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Sincronizar Reclamos por Fechas');
-            
             if (!confirmacion) {
                 return;
             }
 
+            const tramos = this.partirRangoFechasSync(this.syncFechaDesde, this.syncFechaHasta, 14);
+            if (!tramos.length) {
+                this.mostrarMensaje('No se pudo armar el rango de fechas.', 'warning');
+                return;
+            }
+
+            this.sincronizando = true;
+            this.detenerSincronizacion = false;
+            this.syncFase = 'descarga';
+            this.syncTramoActual = 0;
+            this.syncTramosTotal = tramos.length;
+            this.syncDetalle = '';
+            this.progresoTotal = 0;
+            this.progresoActual = 0;
+
             try {
-                // Obtener reclamos del backend (sin guardarlos aún)
-                const response = await axios.get(BASE_URL + 'api/sincronizacion/reclamos', {
-                    params: {
-                        fecha_desde: this.syncFechaDesde,
-                        fecha_hasta: this.syncFechaHasta
+                const reclamosPorId = new Map();
+                let totalRecibidos = 0;
+                let totalAlumbrado = 0;
+                let reclamosOmitidos = 0;
+                let reclamosInvalidos = 0;
+                let tramosOk = 0;
+
+                for (let i = 0; i < tramos.length; i++) {
+                    if (this.detenerSincronizacion) {
+                        break;
                     }
-                });
 
-                console.log('Respuesta del backend:', response.data);
-                this.logRespuesta103Cruda(response.data);
+                    const tramo = tramos[i];
+                    this.syncTramoActual = i + 1;
+                    this.syncDetalle = `${tramo.desde} → ${tramo.hasta}`;
 
-                if (!response.data.success) {
-                    throw new Error('Error en la respuesta del servidor');
+                    try {
+                        const response = await axios.get(BASE_URL + 'api/sincronizacion/reclamos', {
+                            params: {
+                                fecha_desde: tramo.desde,
+                                fecha_hasta: tramo.hasta
+                            },
+                            timeout: 120000
+                        });
+
+                        console.log(`Respuesta tramo ${i + 1}/${tramos.length}:`, response.data);
+                        this.logRespuesta103Cruda(response.data);
+
+                        if (!response.data?.success) {
+                            throw new Error(`El tramo ${tramo.desde} → ${tramo.hasta} no devolvió success`);
+                        }
+
+                        const resultado = response.data;
+                        totalRecibidos += Number(resultado.total_recibidos) || 0;
+                        totalAlumbrado += Number(resultado.total_alumbrado) || 0;
+                        reclamosOmitidos += Number(resultado.reclamos_omitidos) || 0;
+                        reclamosInvalidos += Number(resultado.reclamos_invalidos) || 0;
+
+                        (resultado.reclamos || []).forEach((r) => {
+                            const id = r?.municipalidad_id ?? r?.id;
+                            if (id == null) return;
+                            reclamosPorId.set(String(id), r);
+                        });
+
+                        tramosOk++;
+                    } catch (errorTramo) {
+                        console.error(`Error en tramo ${tramo.desde} → ${tramo.hasta}:`, errorTramo);
+                        const status = errorTramo?.response?.status;
+                        const detalle = errorTramo?.response?.data?.messages?.error
+                            || errorTramo?.response?.data?.message
+                            || errorTramo?.message
+                            || 'Error desconocido';
+                        this.mostrarMensaje(
+                            `Falló el tramo ${i + 1}/${tramos.length} (${tramo.desde} → ${tramo.hasta}).`
+                            + (status ? ` HTTP ${status}.` : '')
+                            + `<br><small>${detalle}</small>`
+                            + (tramosOk > 0 ? '<br><small>Se continuará con los tramos ya descargados.</small>' : ''),
+                            'warning'
+                        );
+                        if (tramosOk === 0 && i === 0) {
+                            throw errorTramo;
+                        }
+                    }
                 }
 
-                const resultado = response.data;
-                const reclamosParaProcesar = resultado.reclamos || [];
+                const reclamosParaProcesar = Array.from(reclamosPorId.values());
 
-                // Mostrar si hay reclamos omitidos (ya existentes)
-                if (resultado.reclamos_omitidos > 0) {
-                    console.log(`Se omitieron ${resultado.reclamos_omitidos} reclamos que ya existen en la base de datos (ID <= ${resultado.ultimo_id_guardado})`);
+                if (reclamosOmitidos > 0) {
+                    console.log(`Se omitieron ${reclamosOmitidos} reclamos que ya existen en la base de datos`);
                 }
-                if (resultado.reclamos_invalidos > 0) {
-                    console.log(`Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)"`);
+                if (reclamosInvalidos > 0) {
+                    console.log(`Se omitieron ${reclamosInvalidos} reclamos con estado "Inválido (N/A)"`);
                 }
 
                 if (reclamosParaProcesar.length === 0) {
+                    this.resetEstadoSyncUI();
                     let mensaje = 'No hay reclamos nuevos en el rango de fechas seleccionado';
-                    if (resultado.reclamos_omitidos > 0) {
-                        mensaje += `<br><small>Se encontraron ${resultado.reclamos_omitidos} reclamos, pero ya están guardados en la base de datos.</small>`;
+                    if (reclamosOmitidos > 0) {
+                        mensaje += `<br><small>Se encontraron ${reclamosOmitidos} reclamos, pero ya estaban guardados.</small>`;
                     }
-                    if (resultado.reclamos_invalidos > 0) {
-                        mensaje += `<br><small>Se omitieron ${resultado.reclamos_invalidos} reclamos con estado "Inválido (N/A)".</small>`;
+                    if (reclamosInvalidos > 0) {
+                        mensaje += `<br><small>Se omitieron ${reclamosInvalidos} reclamos con estado "Inválido (N/A)".</small>`;
+                    }
+                    if (this.detenerSincronizacion) {
+                        mensaje = 'Descarga detenida. No quedaron reclamos nuevos para procesar.';
                     }
                     this.mostrarMensaje(mensaje, 'info');
                     return;
                 }
 
-                // Iniciar procesamiento progresivo
                 await this.procesarReclamosProgresivamente(reclamosParaProcesar, {
-                    total_recibidos: resultado.total_recibidos,
-                    total_alumbrado: resultado.total_alumbrado,
-                    reclamos_omitidos: resultado.reclamos_omitidos || 0,
-                    reclamos_invalidos: resultado.reclamos_invalidos || 0
+                    fecha_desde: this.syncFechaDesde,
+                    fecha_hasta: this.syncFechaHasta,
+                    total_recibidos: totalRecibidos,
+                    total_alumbrado: totalAlumbrado,
+                    reclamos_omitidos: reclamosOmitidos,
+                    reclamos_invalidos: reclamosInvalidos,
+                    tramos_descargados: tramosOk,
+                    tramos_totales: tramos.length
                 });
 
             } catch (error) {
                 console.error('Error al sincronizar reclamos:', error);
-                this.mostrarMensaje('Error en sincronización: No se pudieron sincronizar los reclamos. Verifique el token y la conexión.', 'error');
+                this.resetEstadoSyncUI();
+                const status = error?.response?.status;
+                const detalle = error?.response?.data?.messages?.error
+                    || error?.response?.data?.message
+                    || '';
+                let mensaje = 'Error en sincronización: No se pudieron sincronizar los reclamos.';
+                if (status === 500) {
+                    mensaje += ' El servidor agotó el tiempo al consultar el 103 (rango demasiado grande o API lenta).';
+                } else {
+                    mensaje += ' Verifique el token y la conexión.';
+                }
+                if (detalle) {
+                    mensaje += `<br><small>${detalle}</small>`;
+                }
+                this.mostrarMensaje(mensaje, 'error');
             }
         },
 
@@ -810,6 +1043,15 @@ const app = Vue.createApp({
                 // El backend ya guardó el reclamo
                 const resultado = response.data;
 
+                if (resultado.accion === 'omitido' && resultado.motivo === 'excluido_local') {
+                    this.mostrarMensaje(
+                        `El reclamo #${this.numeroReclamo} está excluido localmente y no se sincroniza.`,
+                        'warning'
+                    );
+                    this.numeroReclamo = '';
+                    return;
+                }
+
                 // Mensaje de éxito con detalles
                 const accionTexto = resultado.accion === 'creado' ? 'Nuevo reclamo creado' : 'Reclamo actualizado';
                 const mensajeExito = `Reclamo sincronizado exitosamente<br>
@@ -842,11 +1084,14 @@ const app = Vue.createApp({
         async procesarReclamosProgresivamente(reclamos, metadatos) {
             this.sincronizando = true;
             this.detenerSincronizacion = false;
+            this.syncFase = 'procesando';
+            this.syncDetalle = 'Guardando y geocodificando en el sistema local';
             this.progresoTotal = reclamos.length;
             this.progresoActual = 0;
             
             let nuevos = 0;
             let actualizados = 0;
+            let omitidos = 0;
             let errores = 0;
             let detenidoPorUsuario = false;
 
@@ -860,6 +1105,8 @@ const app = Vue.createApp({
                             nuevos++;
                         } else if (response.data.accion === 'actualizado') {
                             actualizados++;
+                        } else if (response.data.accion === 'omitido') {
+                            omitidos++;
                         }
                     }
 
@@ -886,8 +1133,7 @@ const app = Vue.createApp({
             }
 
             // Finalizar
-            this.sincronizando = false;
-            this.detenerSincronizacion = false;
+            this.resetEstadoSyncUI();
 
             // Mensaje final
             let mensajeFinal = '';
@@ -908,6 +1154,10 @@ const app = Vue.createApp({
                 <strong>Nuevos:</strong> ${nuevos}<br>
                 <strong>Actualizados:</strong> ${actualizados}`;
             
+            if (omitidos > 0) {
+                mensajeFinal += `<br><strong class="text-muted">Omitidos (excluidos locales):</strong> ${omitidos}`;
+            }
+
             if (metadatos.reclamos_omitidos > 0) {
                 mensajeFinal += `<br><strong class="text-muted">Omitidos (ya existentes):</strong> ${metadatos.reclamos_omitidos}`;
             }
@@ -936,14 +1186,35 @@ const app = Vue.createApp({
             await this.obtenerReclamos();
         },
 
+        resetEstadoSyncUI() {
+            this.sincronizando = false;
+            this.detenerSincronizacion = false;
+            this.syncFase = '';
+            this.syncTramoActual = 0;
+            this.syncTramosTotal = 0;
+            this.syncDetalle = '';
+        },
+
         /**
          * Detiene la sincronización en curso
          */
         detenerSincronizacionEnCurso() {
             if (this.sincronizando) {
                 this.detenerSincronizacion = true;
-                this.mostrarMensaje('Deteniendo sincronización... Se completará el reclamo actual', 'info');
+                if (this.syncFase === 'descarga') {
+                    this.mostrarMensaje('Deteniendo… Se termina el tramo actual y no se descargan más.', 'info');
+                } else {
+                    this.mostrarMensaje('Deteniendo sincronización… Se completa el reclamo actual.', 'info');
+                }
             }
+        },
+
+        onBeforeUnloadSync(event) {
+            if (!this.sincronizando) {
+                return;
+            }
+            event.preventDefault();
+            event.returnValue = '';
         },
 
         /**
@@ -951,14 +1222,17 @@ const app = Vue.createApp({
          */
         async procesarYGuardarReclamo(reclamoExterno) {
             // Mapear campos del sistema externo a nuestra base de datos
+            const estado = reclamoExterno.estado || 'Recibido';
+            const fechaInicio = this.convertirFechaExterna(reclamoExterno.fecha_inicio);
+            const fechaModificacion = this.convertirFechaExterna(reclamoExterno.fecha_modificacion);
             const reclamoMapeado = {
                 municipalidad_id: reclamoExterno.nro_reclamo.toString(),
                 municipalidad_tipo: reclamoExterno.tipo || 'ALUMBRADO PÚBLICO',
                 municipalidad_motivo: reclamoExterno.motivo?.nombre || 'No especificado',
-                municipalidad_fechaInicio: this.convertirFechaExterna(reclamoExterno.fecha_inicio),
-                municipalidad_fechaModificacion: this.convertirFechaExterna(reclamoExterno.fecha_modificacion),
+                municipalidad_fechaInicio: fechaInicio,
+                municipalidad_fechaModificacion: fechaModificacion,
                 municipalidad_recepcion: reclamoExterno.recepcion || 'No especificado',
-                municipalidad_estado: reclamoExterno.estado || 'Recibido',
+                municipalidad_estado: estado,
                 prioridad: reclamoExterno.prioridad || 'Baja', // Asignar prioridad, ahora simplemente 'prioridad'
                 municipalidad_telefono: reclamoExterno.telefono || '',
                 municipalidad_domicilio: reclamoExterno.domicilio || '',
@@ -968,6 +1242,12 @@ const app = Vue.createApp({
                 municipalidad_ciudadano: reclamoExterno.ciudadano || '',
                 municipalidad_descripcion: reclamoExterno.descripcion || ''
             };
+
+            // En el 103, Completado implica cierre formal
+            if (estado === 'Completado') {
+                reclamoMapeado.cerrado = 1;
+                reclamoMapeado.fecha_cierre = fechaModificacion || fechaInicio || null;
+            }
 
             const reclamoExistente = this.reclamos.find(r => r.municipalidad_id === reclamoMapeado.municipalidad_id);
 
@@ -1014,9 +1294,9 @@ const app = Vue.createApp({
                               tipo === 'info' ? 'alert-info' : 'alert-danger';
             
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
             
@@ -1028,6 +1308,107 @@ const app = Vue.createApp({
                     $(this).remove();
                 });
             }, 5000);
+        },
+
+        /**
+         * Espera a que Google Places esté disponible (script async en footer).
+         */
+        async esperarGooglePlaces(timeoutMs = 12000) {
+            const inicio = Date.now();
+            while (!(window.google && google.maps && google.maps.places)) {
+                if (Date.now() - inicio > timeoutMs) {
+                    return false;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            return true;
+        },
+
+        /**
+         * Autocomplete de calles/direcciones de San Francisco, Córdoba (Google Places).
+         */
+        async inicializarAutocompleteDomicilio() {
+            if (this.domicilioAutocompleteListo) {
+                return;
+            }
+
+            const ok = await this.esperarGooglePlaces();
+            if (!ok) {
+                console.warn('Google Places no disponible; el domicilio queda manual.');
+                return;
+            }
+
+            const input = document.getElementById('inputDomicilioReclamo');
+            if (!input) {
+                return;
+            }
+
+            // Área aprox. de San Francisco, Córdoba
+            const bounds = new google.maps.LatLngBounds(
+                { lat: -31.52, lng: -62.20 },
+                { lat: -31.35, lng: -61.98 }
+            );
+
+            this.domicilioAutocomplete = new google.maps.places.Autocomplete(input, {
+                bounds,
+                strictBounds: false,
+                componentRestrictions: { country: 'ar' },
+                fields: ['address_components', 'formatted_address', 'geometry', 'name'],
+                types: ['address'],
+            });
+            this.domicilioAutocomplete.setBounds(bounds);
+
+            this.domicilioAutocomplete.addListener('place_changed', () => {
+                this.aplicarLugarAutocomplete();
+            });
+
+            this.domicilioAutocompleteListo = true;
+        },
+
+        /**
+         * Completa domicilio y número desde la sugerencia elegida.
+         */
+        aplicarLugarAutocomplete() {
+            if (!this.domicilioAutocomplete) {
+                return;
+            }
+
+            const place = this.domicilioAutocomplete.getPlace();
+            if (!place || !place.address_components) {
+                return;
+            }
+
+            let ruta = '';
+            let numero = '';
+            let localidad = '';
+
+            place.address_components.forEach((comp) => {
+                const tipos = comp.types || [];
+                if (tipos.includes('route')) {
+                    ruta = comp.long_name;
+                }
+                if (tipos.includes('street_number')) {
+                    numero = comp.long_name;
+                }
+                if (tipos.includes('locality') || tipos.includes('administrative_area_level_2')) {
+                    localidad = comp.long_name;
+                }
+            });
+
+            // Preferir el nombre de calle; si no viene, usar el name del place
+            const domicilio = (ruta || place.name || '').trim();
+            if (domicilio) {
+                this.reclamo.municipalidad_domicilio = domicilio;
+            }
+            if (numero) {
+                this.reclamo.municipalidad_numeroDomicilio = numero;
+            }
+
+            // Aviso suave si la sugerencia no parece de San Francisco
+            const loc = (localidad || '').toLowerCase();
+            if (loc && !loc.includes('san francisco') && !loc.includes('francisco')) {
+                console.warn('Sugerencia fuera de San Francisco:', place.formatted_address);
+            }
         },
 
         /**
@@ -1107,7 +1488,22 @@ const app = Vue.createApp({
         const haceUnMes = new Date(hoy.getFullYear(), hoy.getMonth() - 1, hoy.getDate());
         this.syncFechaDesde = haceUnMes.toISOString().split('T')[0];
         this.syncFechaHasta = hoy.toISOString().split('T')[0];
+
+        this._onBeforeUnloadSync = (event) => this.onBeforeUnloadSync(event);
+        window.addEventListener('beforeunload', this._onBeforeUnloadSync);
+
+        const modalReclamo = document.getElementById('modalReclamo');
+        if (modalReclamo) {
+            modalReclamo.addEventListener('shown.bs.modal', () => {
+                this.inicializarAutocompleteDomicilio();
+            });
+        }
+    },
+
+    beforeUnmount() {
+        if (this._onBeforeUnloadSync) {
+            window.removeEventListener('beforeunload', this._onBeforeUnloadSync);
+        }
     },
 });
-
 

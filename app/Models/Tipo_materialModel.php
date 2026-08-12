@@ -10,6 +10,6 @@ class Tipo_materialModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['nombre'];
+  protected $allowedFields = ['nombre', 'icono', 'color'];
 
 }

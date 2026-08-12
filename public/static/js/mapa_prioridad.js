@@ -2,7 +2,10 @@
  * Reglas de prioridad alta para el mapa (espejo de ReclamoPrioridadService).
  */
 const MapaPrioridadUtil = (function () {
-    const MOTIVO_PRIORIDAD_ALTA = 'Postes, cables caídos o por caer (Telecom, Epec, Monet)';
+    const MOTIVOS_PRIORIDAD_ALTA = [
+        'Postes, cables caídos o por caer (Telecom, Epec, Monet)',
+        'Semáforos - Arreglo y sincronización',
+    ];
     const DIAS_SIN_ATENDER_PARA_ALTA = 10;
 
     function escaparHtml(texto) {
@@ -21,7 +24,8 @@ const MapaPrioridadUtil = (function () {
     }
 
     function motivoRequierePrioridadAlta(motivo) {
-        return String(motivo ?? '').trim() === MOTIVO_PRIORIDAD_ALTA;
+        const valor = String(motivo ?? '').trim();
+        return valor !== '' && MOTIVOS_PRIORIDAD_ALTA.includes(valor);
     }
 
     function estadoRequierePrioridadAlta(estado) {

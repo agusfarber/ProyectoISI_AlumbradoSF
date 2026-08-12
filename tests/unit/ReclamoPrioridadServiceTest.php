@@ -19,6 +19,18 @@ class ReclamoPrioridadServiceTest extends CIUnitTestCase
         $this->assertEquals('Alta', ReclamoPrioridadService::evaluarPrioridad($reclamo));
     }
 
+    public function testMotivoSemaforosEsPrioridadAlta(): void
+    {
+        $reclamo = [
+            'municipalidad_motivo' => 'Semáforos - Arreglo y sincronización',
+            'municipalidad_estado' => 'Recibido',
+            'cerrado' => 0,
+            'prioridad' => 'Baja',
+        ];
+
+        $this->assertEquals('Alta', ReclamoPrioridadService::evaluarPrioridad($reclamo));
+    }
+
     public function testPendienteEsPrioridadAlta(): void
     {
         $reclamo = [

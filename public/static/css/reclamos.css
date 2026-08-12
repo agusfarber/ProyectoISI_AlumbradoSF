@@ -183,17 +183,42 @@
     background: rgba(58, 57, 114, 0.06);
 }
 
+.reclamos-sync__main {
+    flex: 1 1 220px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
 .reclamos-sync__info {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.6rem;
     font-size: 0.84rem;
     color: var(--color-purple-dark);
 }
 
+.reclamos-sync__texts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.55rem;
+    min-width: 0;
+}
+
+.reclamos-sync__detalle {
+    flex: 1 1 100%;
+    color: #6c757d;
+    font-size: 0.72rem;
+    line-height: 1.25;
+}
+
 .reclamos-sync__spinner {
     width: 18px;
     height: 18px;
+    margin-top: 0.15rem;
+    flex: 0 0 auto;
     border: 2px solid rgba(58, 57, 114, 0.2);
     border-top-color: var(--color-purple-medium);
     border-radius: 50%;
@@ -211,6 +236,22 @@
     color: var(--color-white);
     font-size: 0.72rem;
     font-weight: 700;
+}
+
+.reclamos-sync__bar {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(58, 57, 114, 0.12);
+    overflow: hidden;
+}
+
+.reclamos-sync__bar-fill {
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #3a3972, #5b9bd5);
+    transition: width 0.25s ease;
 }
 
 /* Paneles colapsables */
@@ -430,6 +471,11 @@
     color: #fff !important;
 }
 
+.reclamos-page .reclamo-estado--cerrado {
+    background: #000000 !important;
+    color: #fff !important;
+}
+
 .reclamos-page .badge.bg-dark {
     background: var(--color-purple-dark) !important;
     color: var(--color-white) !important;
@@ -455,11 +501,17 @@
 
 /* Recuadro solo en la fila que contiene la tabla */
 .reclamos-page #tabla_reclamos_wrapper .dt-layout-table {
+    display: block;
     background: var(--color-white);
     border: 1px solid var(--color-light-gray);
     border-radius: 12px;
     box-shadow: var(--shadow-light);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.reclamos-page #tabla_reclamos_wrapper .reclamos-table {
+    min-width: 940px;
 }
 
 .reclamos-page #tabla_reclamos_wrapper .dt-layout-table .dt-layout-cell {
@@ -539,6 +591,80 @@
     letter-spacing: -0.5px;
 }
 
+.reclamos-info-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    color: var(--color-purple-medium);
+    cursor: help;
+    flex-shrink: 0;
+}
+
+.reclamos-info-tip i {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.reclamos-info-tip:hover,
+.reclamos-info-tip:focus {
+    color: var(--color-purple-dark);
+    background: rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.reclamos-info-tip__popup {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    z-index: 1080;
+    width: min(340px, 70vw);
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-light-gray);
+    background: var(--color-white);
+    box-shadow: var(--shadow-medium);
+    color: var(--color-purple-dark);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    text-align: left;
+    white-space: normal;
+}
+
+.reclamos-info-tip__popup strong {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    color: var(--color-purple-dark);
+}
+
+.reclamos-info-tip__popup p {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--color-purple-medium);
+    font-weight: 500;
+}
+
+.reclamos-info-tip__popup p + p {
+    margin-top: 0.4rem;
+}
+
+.reclamos-info-tip:hover .reclamos-info-tip__popup,
+.reclamos-info-tip:focus .reclamos-info-tip__popup,
+.reclamos-info-tip:focus-within .reclamos-info-tip__popup {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
 .reclamo-modal__close {
     background: transparent;
     border: none;
@@ -585,6 +711,18 @@
     margin-bottom: 0.25rem;
 }
 
+/* Asterisco de obligatorio: no heredar la caja rosa de .text-danger global */
+.reclamo-modal .campo-obligatorio {
+    color: #dc3545;
+    font-weight: 700;
+    font-size: inherit;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
 .reclamo-modal .modal-body label.fw-bold {
     display: block;
     font-size: 0.7rem;
@@ -599,6 +737,48 @@
     font-size: 0.88rem;
     font-weight: 600;
     color: var(--color-purple-dark);
+}
+
+/* Origen del reclamo: 103 vs local */
+.reclamo-origen {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    vertical-align: middle;
+    line-height: 1.2;
+}
+
+.reclamo-origen--103 {
+    background: rgba(13, 110, 253, 0.12);
+    color: #0a58ca;
+}
+
+.reclamo-origen--local {
+    background: rgba(25, 135, 84, 0.14);
+    color: #146c43;
+}
+
+/* Dropdown de Google Places por encima del modal Bootstrap */
+.pac-container {
+    z-index: 2000 !important;
+    border-radius: 10px;
+    border: 1px solid var(--color-light-gray);
+    box-shadow: var(--shadow-medium);
+    font-family: inherit;
+}
+
+.pac-item {
+    padding: 0.45rem 0.7rem;
+    cursor: pointer;
+}
+
+.pac-item:hover {
+    background: #f7f7fb;
 }
 
 /* reclamo-modal__footer: estilos en global.css */

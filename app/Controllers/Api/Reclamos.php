@@ -37,56 +37,87 @@ class Reclamos extends ResourceController
     {
         ReclamoPrioridadService::sincronizarPrioridadesMasivas();
 
-        return $this->respond($this->model->findAll());
+        return $this->respond($this->model->findAllActivos());
     }
 
     public function create()
     {
+        $role = (string) (session()->get('role') ?? '');
+        if ($role !== '2') {
+            return $this->failForbidden('Solo supervisores pueden cargar reclamos desde el formulario.');
+        }
+
         $data = $this->request->getJSON(true);
-
-        // Validar datos obligatorios
-        if (empty($data['municipalidad_id']) || empty($data['municipalidad_motivo']) || empty($data['municipalidad_estado'])) {
-            return $this->failValidationErrors('Faltan datos obligatorios (ID, Motivo, Estado).');
+        if (!is_array($data) || empty($data)) {
+            return $this->failValidationErrors('No se recibieron datos.');
         }
 
-        // Establecer tipo fijo
-        $data['municipalidad_tipo'] = 'ALUMBRADO PÚBLICO';
-
-        // Validar y formatear fechas
-        if (!empty($data['municipalidad_fechaInicio'])) {
-            $data['municipalidad_fechaInicio'] = $this->formatearFecha($data['municipalidad_fechaInicio']);
-        } else {
-            $data['municipalidad_fechaInicio'] = date('Y-m-d H:i:s');
+        if (empty(trim((string) ($data['municipalidad_motivo'] ?? '')))) {
+            return $this->failValidationErrors('El motivo es obligatorio.');
+        }
+        if (empty(trim((string) ($data['municipalidad_domicilio'] ?? '')))) {
+            return $this->failValidationErrors('El domicilio es obligatorio.');
+        }
+        if (empty(trim((string) ($data['municipalidad_numeroDomicilio'] ?? '')))) {
+            return $this->failValidationErrors('El número de domicilio es obligatorio.');
         }
 
-        if (!empty($data['municipalidad_fechaModificacion'])) {
-            $data['municipalidad_fechaModificacion'] = $this->formatearFecha($data['municipalidad_fechaModificacion']);
-        } else {
-            $data['municipalidad_fechaModificacion'] = date('Y-m-d H:i:s');
-        }
+        $ahora = date('Y-m-d H:i:s');
+        $payload = [
+            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
+            'municipalidad_motivo' => trim((string) $data['municipalidad_motivo']),
+            'municipalidad_fechaInicio' => !empty($data['municipalidad_fechaInicio'])
+                ? $this->formatearFecha($data['municipalidad_fechaInicio'])
+                : $ahora,
+            'municipalidad_fechaModificacion' => $ahora,
+            'municipalidad_recepcion' => isset($data['municipalidad_recepcion']) && $data['municipalidad_recepcion'] !== ''
+                ? trim((string) $data['municipalidad_recepcion'])
+                : null,
+            'municipalidad_estado' => 'Recibido',
+            'municipalidad_telefono' => isset($data['municipalidad_telefono']) && $data['municipalidad_telefono'] !== ''
+                ? trim((string) $data['municipalidad_telefono'])
+                : null,
+            'municipalidad_domicilio' => trim((string) $data['municipalidad_domicilio']),
+            'municipalidad_numeroDomicilio' => trim((string) $data['municipalidad_numeroDomicilio']),
+            'municipalidad_entreCalleUno' => isset($data['municipalidad_entreCalleUno']) && trim((string) $data['municipalidad_entreCalleUno']) !== ''
+                ? trim((string) $data['municipalidad_entreCalleUno'])
+                : null,
+            'municipalidad_entreCalleDos' => isset($data['municipalidad_entreCalleDos']) && trim((string) $data['municipalidad_entreCalleDos']) !== ''
+                ? trim((string) $data['municipalidad_entreCalleDos'])
+                : null,
+            'municipalidad_ciudadano' => isset($data['municipalidad_ciudadano']) && $data['municipalidad_ciudadano'] !== ''
+                ? trim((string) $data['municipalidad_ciudadano'])
+                : null,
+            'municipalidad_descripcion' => isset($data['municipalidad_descripcion']) && $data['municipalidad_descripcion'] !== ''
+                ? trim((string) $data['municipalidad_descripcion'])
+                : null,
+            'origen' => ReclamoModel::ORIGEN_LOCAL,
+            'ficha_editada' => 1,
+            'excluido_local' => 0,
+            'cerrado' => 0,
+            // Placeholder hasta tener el PK interno (columna debe ser VARCHAR)
+            'municipalidad_id' => 'TMP',
+        ];
 
-        // Si la prioridad no viene, asignar un valor por defecto
-        if (empty($data['prioridad'])) {
-            $data['prioridad'] = 'Baja';
-        }
+        $payload['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($payload);
 
-        $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($data);
-
-        // Insertar reclamo
-        $reclamoId = $this->model->insert($data);
-
+        $reclamoId = $this->model->insert($payload);
         if ($reclamoId === false) {
             return $this->failServerError('Error al guardar reclamo.');
         }
 
-        // Procesar y guardar la dirección del reclamo automáticamente
-        if (!empty($data['municipalidad_domicilio']) && !empty($data['municipalidad_numeroDomicilio'])) {
-            $this->procesarDireccionReclamo($data['municipalidad_domicilio'], $data['municipalidad_numeroDomicilio']);
+        // ID visible distintivo: L{id} — no choca con IDs numéricos del 103
+        $codigoLocal = 'L' . $reclamoId;
+        $this->model->update($reclamoId, ['municipalidad_id' => $codigoLocal]);
+
+        if (!empty($payload['municipalidad_domicilio']) && !empty($payload['municipalidad_numeroDomicilio'])) {
+            $this->procesarDireccionReclamo(
+                $payload['municipalidad_domicilio'],
+                $payload['municipalidad_numeroDomicilio']
+            );
         }
 
-        $reclamoCreado = $this->model->find($reclamoId);
-
-        return $this->respondCreated($reclamoCreado);
+        return $this->respondCreated($this->model->find($reclamoId));
     }
 
     public function update($id = null)
@@ -214,14 +245,170 @@ class Reclamos extends ResourceController
         return $this->respond($reclamoActualizado);
     }
 
-    public function delete($id = null)
+    /**
+     * Edición de ficha por supervisor: corrige datos sin tocar estado/cierre/prioridad manual.
+     * Marca ficha_editada para que el sync puntual del 103 no pise esas correcciones.
+     */
+    public function actualizarFicha($id = null)
     {
-        if (!$id || !$this->model->find($id)) {
+        $role = (string) (session()->get('role') ?? '');
+        if ($role !== '2') {
+            return $this->failForbidden('Solo supervisores pueden editar la ficha del reclamo.');
+        }
+
+        if (!$id) {
+            return $this->failValidationErrors('ID de reclamo requerido.');
+        }
+
+        $reclamoActual = $this->model->find($id);
+        if (!$reclamoActual) {
             return $this->failNotFound('Reclamo no encontrado.');
         }
 
-        $this->model->delete($id);
-        return $this->respondDeleted(['mensaje' => 'Reclamo eliminado con éxito.']);
+        if ((int) ($reclamoActual['excluido_local'] ?? 0) === 1) {
+            return $this->failValidationErrors('No se puede editar un reclamo excluido.');
+        }
+
+        $data = $this->request->getJSON(true);
+        if (!is_array($data) || empty($data)) {
+            return $this->failValidationErrors('No se recibieron datos.');
+        }
+
+        unset($data['observacion']);
+
+        $camposEditables = [
+            'municipalidad_motivo',
+            'municipalidad_recepcion',
+            'municipalidad_telefono',
+            'municipalidad_domicilio',
+            'municipalidad_numeroDomicilio',
+            'municipalidad_entreCalleUno',
+            'municipalidad_entreCalleDos',
+            'municipalidad_ciudadano',
+            'municipalidad_descripcion',
+        ];
+
+        $payload = [];
+        foreach ($camposEditables as $campo) {
+            if (array_key_exists($campo, $data)) {
+                $valor = $data[$campo];
+                if (is_string($valor)) {
+                    $valor = trim($valor);
+                }
+                $payload[$campo] = ($valor === '') ? null : $valor;
+            }
+        }
+
+        if (empty($payload)) {
+            return $this->failValidationErrors('No hay cambios para guardar.');
+        }
+
+        $fichaFinal = array_merge($reclamoActual, $payload);
+        if (empty(trim((string) ($fichaFinal['municipalidad_motivo'] ?? '')))) {
+            return $this->failValidationErrors('El motivo es obligatorio.');
+        }
+        if (empty(trim((string) ($fichaFinal['municipalidad_domicilio'] ?? '')))) {
+            return $this->failValidationErrors('El domicilio es obligatorio.');
+        }
+        if (empty(trim((string) ($fichaFinal['municipalidad_numeroDomicilio'] ?? '')))) {
+            return $this->failValidationErrors('El número de domicilio es obligatorio.');
+        }
+
+        $payload['municipalidad_tipo'] = 'ALUMBRADO PÚBLICO';
+        $payload['municipalidad_fechaModificacion'] = date('Y-m-d H:i:s');
+        $payload['ficha_editada'] = 1;
+
+        $reclamoParaPrioridad = array_merge($reclamoActual, $payload);
+        $payload['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($reclamoParaPrioridad);
+
+        if ($this->model->update($id, $payload) === false) {
+            return $this->failServerError('Error al actualizar la ficha del reclamo.');
+        }
+
+        if (
+            array_key_exists('municipalidad_domicilio', $payload)
+            || array_key_exists('municipalidad_numeroDomicilio', $payload)
+        ) {
+            $domicilio = $payload['municipalidad_domicilio'] ?? $reclamoActual['municipalidad_domicilio'] ?? null;
+            $numero = $payload['municipalidad_numeroDomicilio'] ?? $reclamoActual['municipalidad_numeroDomicilio'] ?? null;
+            $direccionCambio = (
+                ($payload['municipalidad_domicilio'] ?? $reclamoActual['municipalidad_domicilio']) != ($reclamoActual['municipalidad_domicilio'] ?? null)
+                || ($payload['municipalidad_numeroDomicilio'] ?? $reclamoActual['municipalidad_numeroDomicilio']) != ($reclamoActual['municipalidad_numeroDomicilio'] ?? null)
+            );
+            if ($direccionCambio && !empty($domicilio) && !empty($numero)) {
+                $this->procesarDireccionReclamo($domicilio, $numero);
+            }
+        }
+
+        return $this->respond($this->model->find($id));
+    }
+
+    /**
+     * Exclusión lógica: no borra el registro (el sync 103 no lo recrea).
+     * Solo supervisor. Bloqueado si cerrado, en ejecución o asignado a una ruta.
+     */
+    public function delete($id = null)
+    {
+        $role = (string) (session()->get('role') ?? '');
+        if ($role !== '2') {
+            return $this->failForbidden('Solo supervisores pueden eliminar reclamos.');
+        }
+
+        if (!$id) {
+            return $this->failValidationErrors('ID de reclamo requerido.');
+        }
+
+        $reclamo = $this->model->find($id);
+        if (!$reclamo) {
+            return $this->failNotFound('Reclamo no encontrado.');
+        }
+
+        if ((int) ($reclamo['excluido_local'] ?? 0) === 1) {
+            return $this->failValidationErrors('El reclamo ya fue excluido.');
+        }
+
+        if ((int) ($reclamo['cerrado'] ?? 0) === 1) {
+            return $this->failValidationErrors('No se puede eliminar un reclamo cerrado.');
+        }
+
+        $estado = trim((string) ($reclamo['municipalidad_estado'] ?? ''));
+        if ($estado === 'En ejecución') {
+            return $this->failValidationErrors('No se puede eliminar un reclamo en ejecución.');
+        }
+
+        $enRuta = (new Ruta_reclamoModel())->where('reclamo_id', $id)->first();
+        if ($enRuta) {
+            return $this->failValidationErrors(
+                'No se puede eliminar un reclamo que está en una hoja de ruta. Quítelo de la ruta primero.'
+            );
+        }
+
+        $payload = $this->request->getJSON(true);
+        if (!is_array($payload)) {
+            $payload = [];
+        }
+        $observacion = trim((string) ($payload['observacion'] ?? ''));
+
+        $ok = $this->model->update($id, [
+            'excluido_local' => 1,
+            'excluido_at' => date('Y-m-d H:i:s'),
+            'excluido_observacion' => $observacion !== '' ? $observacion : null,
+        ]);
+
+        if ($ok === false) {
+            return $this->failServerError('Error al excluir el reclamo.');
+        }
+
+        $textoHistorial = $observacion !== ''
+            ? $observacion
+            : 'Reclamo excluido localmente por supervisor.';
+        $nroReclamo = $reclamo['municipalidad_id'] ?? '';
+        $this->registrarCambioEstado($nroReclamo, $estado, $estado, $textoHistorial);
+
+        return $this->respondDeleted([
+            'mensaje' => 'Reclamo excluido con éxito.',
+            'id' => (int) $id,
+        ]);
     }
 
     /**
@@ -238,15 +425,13 @@ class Reclamos extends ResourceController
             return $fecha;
         }
 
-        // Si es formato ISO, convertirlo considerando zona horaria de Argentina
-        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $fecha)) {
-            $date = new \DateTime($fecha, new \DateTimeZone('UTC'));
-            $date->setTimezone(new \DateTimeZone('America/Argentina/Buenos_Aires'));
-            return $date->format('Y-m-d H:i:s');
-        }
+        $zonaLocal = new \DateTimeZone('America/Argentina/Buenos_Aires');
 
-        // Intentar parsear la fecha con zona horaria de Argentina
-        $date = new \DateTime($fecha, new \DateTimeZone('America/Argentina/Buenos_Aires'));
+        // Los inputs datetime-local envían la hora local sin zona: se toma como argentina.
+        // Si el string trae zona explícita (Z u offset), DateTime la respeta y se convierte.
+        $date = new \DateTime($fecha, $zonaLocal);
+        $date->setTimezone($zonaLocal);
+
         return $date->format('Y-m-d H:i:s');
     }
 
@@ -567,9 +752,19 @@ class Reclamos extends ResourceController
 
             $data = $this->request->getJSON(true);
 
-            // Validar datos obligatorios - solo material_id es obligatorio
+            // Validar datos obligatorios
             if (empty($data['material_id'])) {
                 return $this->failValidationErrors('El material es obligatorio.');
+            }
+
+            $cantidadValor = isset($data['cantidad']) ? (int) $data['cantidad'] : 0;
+            if ($cantidadValor < 1) {
+                return $this->failValidationErrors('La cantidad es obligatoria y debe ser al menos 1.');
+            }
+
+            $materialModel = new MaterialModel();
+            if (! $materialModel->find((int) $data['material_id'])) {
+                return $this->failValidationErrors('El material indicado no existe.');
             }
 
             // Obtener el ID del usuario desde la sesión
@@ -578,21 +773,15 @@ class Reclamos extends ResourceController
                 $usuarioId = 0; // Sistema o no especificado
             }
 
+            $rutaEjecucionId = RutaEjecucionHistorialService::findActiveEjecucionIdByReclamoId((int) $reclamoId);
+
             $materialReclamoModel = new Material_reclamoModel();
-            
-            // La cantidad es opcional - si no se proporciona o es <= 0, se guarda como null
-            $cantidad = null;
-            if (isset($data['cantidad']) && $data['cantidad'] !== '' && $data['cantidad'] !== null) {
-                $cantidadValor = (int) $data['cantidad'];
-                if ($cantidadValor > 0) {
-                    $cantidad = $cantidadValor;
-                }
-            }
             
             $datosMaterialReclamo = [
                 'reclamo_id' => $reclamoId,
+                'ruta_ejecucion_id' => $rutaEjecucionId,
                 'material_id' => (int) $data['material_id'],
-                'cantidad' => $cantidad,
+                'cantidad' => $cantidadValor,
                 'observacion' => isset($data['observacion']) ? trim((string) $data['observacion']) : null,
                 'fecha' => date('Y-m-d H:i:s'),
                 'usuario_id' => $usuarioId
@@ -616,7 +805,8 @@ class Reclamos extends ResourceController
     }
 
     /**
-     * Obtiene el historial de materiales utilizados en un reclamo
+     * Obtiene el historial de materiales utilizados en un reclamo.
+     * Query opcional: ruta_ejecucion_id | ruta_id para acotar a una jornada/hoja.
      */
     public function getMaterialesReclamo($reclamoId = null)
     {
@@ -632,25 +822,64 @@ class Reclamos extends ResourceController
             }
 
             $db = \Config\Database::connect();
-            $materialReclamoModel = new Material_reclamoModel();
             
-            // Obtener el historial con información del material y usuario
+            // Obtener el historial con información del material, usuario y ruta de la ejecución
             $query = $db->table('material_reclamo mr')
-                        ->select('mr.*, m.nombre as material_nombre, m.cantidad as material_cantidad_stock, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre')
+                        ->select('mr.*, m.nombre as material_nombre, m.foto as material_foto, m.idTipo as material_tipo_id, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre, u.foto_perfil as usuario_foto_perfil, ruta.nombre as ruta_nombre, ruta.color as ruta_color')
                         ->join('material m', 'm.id = mr.material_id', 'left')
                         ->join('tipo_material tm', 'tm.id = m.idTipo', 'left')
                         ->join('usuario u', 'u.id = mr.usuario_id', 'left')
-                        ->where('mr.reclamo_id', $reclamoId)
-                        ->orderBy('mr.fecha', 'DESC')
-                        ->get();
-            
-            $historial = $query->getResultArray();
+                        ->join('ruta_ejecucion re', 're.id = mr.ruta_ejecucion_id', 'left')
+                        ->join('ruta', 'ruta.id = re.ruta_id', 'left')
+                        ->where('mr.reclamo_id', $reclamoId);
+
+            $rutaEjecucionId = $this->request->getGet('ruta_ejecucion_id');
+            $rutaIdConsulta  = $this->request->getGet('ruta_id');
+            if ($rutaEjecucionId !== null && $rutaEjecucionId !== '') {
+                $this->aplicarFiltroMaterialesPorEjecucion($query, (int) $rutaEjecucionId);
+            } elseif ($rutaIdConsulta !== null && $rutaIdConsulta !== '') {
+                $this->aplicarFiltroMaterialesPorRuta($query, (int) $rutaIdConsulta);
+            }
+
+            $historial = $query->orderBy('mr.fecha', 'DESC')->get()->getResultArray();
             
             return $this->respond($historial);
             
         } catch (\Exception $e) {
             log_message('error', 'Error al obtener materiales del reclamo: ' . $e->getMessage());
             return $this->failServerError('Error al obtener los materiales del reclamo.');
+        }
+    }
+
+    /**
+     * Elimina un registro material_reclamo (solo en obra / con permiso de edición).
+     */
+    public function eliminarMaterialReclamo($materialReclamoId = null)
+    {
+        try {
+            if (! $materialReclamoId) {
+                return $this->failValidationErrors('ID de material_reclamo requerido.');
+            }
+
+            $materialReclamoModel = new Material_reclamoModel();
+            $existente = $materialReclamoModel->find($materialReclamoId);
+            if (! $existente) {
+                return $this->failNotFound('Registro de material no encontrado.');
+            }
+
+            $permisoEdicion = $this->validarPermisoEdicionOperario((int) $existente['reclamo_id']);
+            if ($permisoEdicion !== true) {
+                return $permisoEdicion;
+            }
+
+            if ($materialReclamoModel->delete($materialReclamoId) === false) {
+                return $this->failServerError('Error al eliminar el material del reclamo.');
+            }
+
+            return $this->respondDeleted(['id' => (int) $materialReclamoId, 'message' => 'Material eliminado.']);
+        } catch (\Exception $e) {
+            log_message('error', 'Error al eliminar material_reclamo: ' . $e->getMessage());
+            return $this->failServerError('Error al eliminar el material del reclamo.');
         }
     }
 
@@ -686,15 +915,102 @@ class Reclamos extends ResourceController
         $db = \Config\Database::connect();
         
         $query = $db->table('material_reclamo mr')
-                    ->select('mr.*, m.nombre as material_nombre, m.cantidad as material_cantidad_stock, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre, r.municipalidad_id as reclamo_municipalidad_id')
+                    ->select('mr.*, m.nombre as material_nombre, m.foto as material_foto, tm.nombre as tipo_material_nombre, u.nombre as usuario_nombre, u.foto_perfil as usuario_foto_perfil, r.municipalidad_id as reclamo_municipalidad_id, ruta.nombre as ruta_nombre, ruta.color as ruta_color')
                     ->join('material m', 'm.id = mr.material_id', 'left')
                     ->join('tipo_material tm', 'tm.id = m.idTipo', 'left')
                     ->join('usuario u', 'u.id = mr.usuario_id', 'left')
                     ->join('reclamo r', 'r.id = mr.reclamo_id', 'left')
+                    ->join('ruta_ejecucion re', 're.id = mr.ruta_ejecucion_id', 'left')
+                    ->join('ruta', 'ruta.id = re.ruta_id', 'left')
                     ->where('mr.id', $materialReclamoId)
                     ->get();
         
         return $query->getRowArray();
+    }
+
+    /**
+     * Filtra materiales de una ejecución concreta (incluye legados sin ruta_ejecucion_id por ventana de fechas).
+     */
+    private function aplicarFiltroMaterialesPorEjecucion($builder, int $rutaEjecucionId): void
+    {
+        $db = \Config\Database::connect();
+        $ej = $db->table('ruta_ejecucion')->where('id', $rutaEjecucionId)->get()->getRowArray();
+        if (! $ej) {
+            $builder->where('1 = 0', null, false);
+            return;
+        }
+
+        $inicio = $ej['inicio_at'] ?? null;
+        $fin    = $ej['fin_at'] ?: date('Y-m-d H:i:s');
+        if (! $inicio) {
+            $builder->where('mr.ruta_ejecucion_id', $rutaEjecucionId);
+            return;
+        }
+
+        $builder->groupStart()
+            ->where('mr.ruta_ejecucion_id', $rutaEjecucionId)
+            ->orGroupStart()
+                ->where('mr.ruta_ejecucion_id IS NULL', null, false)
+                ->where('mr.fecha >=', $inicio)
+                ->where('mr.fecha <=', $fin)
+            ->groupEnd()
+        ->groupEnd();
+    }
+
+    /**
+     * Filtra materiales asociados a cualquier ejecución de una hoja de ruta.
+     */
+    private function aplicarFiltroMaterialesPorRuta($builder, int $rutaId): void
+    {
+        $db = \Config\Database::connect();
+        $ejecuciones = $db->table('ruta_ejecucion')
+            ->where('ruta_id', $rutaId)
+            ->get()
+            ->getResultArray();
+
+        if (! $ejecuciones) {
+            $builder->where('1 = 0', null, false);
+            return;
+        }
+
+        $ids = array_values(array_filter(array_map(static fn ($e) => (int) ($e['id'] ?? 0), $ejecuciones)));
+        $builder->groupStart();
+        if ($ids) {
+            $builder->whereIn('mr.ruta_ejecucion_id', $ids);
+        } else {
+            $builder->where('1 = 0', null, false);
+        }
+
+        $builder->orGroupStart()
+            ->where('mr.ruta_ejecucion_id IS NULL', null, false)
+            ->groupStart();
+
+        $primero = true;
+        foreach ($ejecuciones as $ej) {
+            $inicio = $ej['inicio_at'] ?? null;
+            if (! $inicio) {
+                continue;
+            }
+            $fin = $ej['fin_at'] ?: date('Y-m-d H:i:s');
+            if ($primero) {
+                $builder->groupStart()
+                    ->where('mr.fecha >=', $inicio)
+                    ->where('mr.fecha <=', $fin)
+                    ->groupEnd();
+                $primero = false;
+            } else {
+                $builder->orGroupStart()
+                    ->where('mr.fecha >=', $inicio)
+                    ->where('mr.fecha <=', $fin)
+                    ->groupEnd();
+            }
+        }
+
+        if ($primero) {
+            $builder->where('1 = 0', null, false);
+        }
+
+        $builder->groupEnd()->groupEnd()->groupEnd();
     }
 
     /**
@@ -1162,8 +1478,12 @@ class Reclamos extends ResourceController
                 return $this->failValidationErrors('No se recibió una imagen válida.');
             }
 
-            $tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp'];
-            if (! in_array($archivo->getMimeType(), $tiposPermitidos, true)) {
+            $tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+            $mime = strtolower((string) $archivo->getMimeType());
+            // iOS a veces reporta application/octet-stream; validar también por extensión
+            $ext = strtolower((string) ($archivo->getExtension() ?: ''));
+            $extOk = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
+            if (! in_array($mime, $tiposPermitidos, true) && ! $extOk) {
                 return $this->failValidationErrors('Formato no permitido. Use JPG, PNG o WEBP.');
             }
 
@@ -1187,8 +1507,13 @@ class Reclamos extends ResourceController
                 mkdir($directorio, 0775, true);
             }
 
-            $extension     = $archivo->getExtension() ?: 'jpg';
-            $nombreArchivo   = 'rec' . $reclamoId . '_ej' . $ctx['ruta_ejecucion_id'] . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+            if ($ext === '' || ! $extOk) {
+                $ext = 'jpg';
+            }
+            if ($ext === 'jpeg') {
+                $ext = 'jpg';
+            }
+            $nombreArchivo = 'rec' . $reclamoId . '_ej' . $ctx['ruta_ejecucion_id'] . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
 
             if (! $archivo->move($directorio, $nombreArchivo)) {
                 return $this->failServerError('No se pudo guardar la imagen.');
@@ -1464,7 +1789,7 @@ class Reclamos extends ResourceController
     }
 
     /**
-     * Si el usuario es operario, solo el jefe de su cuadrilla puede editar acciones.
+     * Si el usuario es operario, solo quienes tienen permisos de gestión en su cuadrilla pueden editar acciones.
      */
     private function validarPermisoEdicionOperario(int $reclamoId)
     {
@@ -1514,7 +1839,7 @@ class Reclamos extends ResourceController
         }
 
         if ((int)($asignacion['es_jefe'] ?? 0) !== 1) {
-            return $this->failForbidden('Solo el jefe de cuadrilla puede editar las tareas de esta hoja de ruta.');
+            return $this->failForbidden('Solo un operario con permisos de gestión puede editar las tareas de esta hoja de ruta.');
         }
 
         return true;

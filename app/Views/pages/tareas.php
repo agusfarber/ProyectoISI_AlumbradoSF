@@ -1,7 +1,6 @@
 <div id="app" class="tareas-page">
-    <div v-if="!esOperario" class="tareas-page-title">Gestión de Tareas</div>
     <!-- Encabezado operario: detalle de hoja (compacto) -->
-    <div v-if="esOperario && vistaOperarioActual === 'detalle' && rutaSeleccionada" class="ruta-detalle-encabezado mb-3">
+    <div v-if="vistaOperarioActual === 'detalle' && rutaSeleccionada" class="ruta-detalle-encabezado mb-3">
         <div class="ruta-detalle-fila-superior d-flex justify-content-between align-items-center gap-2 flex-wrap">
             <div
                 class="ruta-detalle-titulo"
@@ -20,9 +19,9 @@
                     type="button"
                     class="tareas-btn tareas-btn--success tareas-btn--sm"
                     @click="abrirModalAñadirReclamos"
-                    v-if="rutas.length > 0 && puedeOperarRutaSeleccionada"
-                    title="Añadir Reclamos"
-                    aria-label="Añadir Reclamos"
+                    v-if="rutas.length > 0 && puedeAñadirReclamosRutaSeleccionada"
+                    title="Añadir paradas (solo con hoja en ejecución y permisos de gestión)"
+                    aria-label="Añadir paradas"
                 >
                     <i class="bi bi-plus-circle" aria-hidden="true"></i><span class="tareas-btn-label"> Añadir Reclamos</span>
                 </button>
@@ -259,67 +258,15 @@
     </div>
     -->
 
-    <!-- Listado clásico de reclamos (admin/supervisor) -->
-    <div class="row" v-if="!esOperario && reclamosFiltrados.length > 0">
-        <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-2" v-for="reclamo in reclamosFiltrados" :key="reclamo.id">
-            <div class="card h-100 reclamo-card" :class="getCardClass(reclamo)" @click="verDetalles(reclamo)">
-                <!-- Indicador de ruta (solo para operarios) -->
-                <div v-if="esOperario && reclamo.ruta_nombre" class="card-header py-1 px-2" :style="`background-color: ${reclamo.ruta_color || '#808080'}; color: white;`">
-                    <small class="d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-map"></i> {{ reclamo.ruta_nombre || 'Ruta' }}</span>
-                        <span class="badge bg-light text-dark">#{{ reclamo.posicion }}</span>
-                    </small>
-                </div>
-                
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-1">
-                        <h6 class="card-title mb-0 text-primary fw-bold">
-                            {{ reclamo.municipalidad_id }}
-                        </h6>
-                        <span class="badge" :class="getEstadoBadgeClass(reclamo.municipalidad_estado)">
-                            {{ reclamo.municipalidad_estado }}
-                        </span>
-                    </div>
-                    
-                    
-                    <div class="mb-1">
-                        <small class="text-dark">
-                            <i class="bi bi-geo-alt me-1"></i>
-                            {{ reclamo.municipalidad_domicilio }} {{ reclamo.municipalidad_numeroDomicilio }}
-                        </small>
-                    </div>
-                    
-                    <div class="mb-1">
-                        <small class="text-dark">
-                            <i class="bi bi-tag me-1"></i>
-                            {{ reclamo.municipalidad_motivo }}
-                        </small>
-                    </div>
-
-                    <div class="mb-1" v-if="reclamo.prioridad">
-                        <small class="text-dark">
-                            <i class="bi bi-exclamation-triangle me-1"></i>
-                            Prioridad: <strong>{{ reclamo.prioridad }}</strong>
-                        </small>
-                    </div>
-                </div>
-                
-                <!-- Cambio de estado (supervisor / admin; los operarios gestionan desde la vista de hoja) -->
-                <div class="card-footer bg-transparent">
-                    <button type="button" class="btn btn-sm btn-outline-primary w-100" @click.stop="abrirModalCambioEstadoSupervisor(reclamo)" title="Cambiar estado">
-                        <i class="bi bi-pencil-square"></i> Cambiar estado
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Recorrido de ruta en lista vertical (operario) -->
     <div v-if="esOperario && vistaOperarioActual === 'detalle' && modoVistaRuta === 'lista' && paradasOrdenRuta.length > 0" class="ruta-secuencia-container supervisor-detalle-secuencia">
         <div v-for="(parada, idx) in paradasOrdenRuta" :key="'op-detalle-parada-' + parada.clave + '-' + idx" class="ruta-secuencia-item">
             <div
                 class="card reclamo-card reclamo-card-secuencia"
-                :class="getCardClass(reclamoActivoEnParadaOperario(parada))"
+                :class="[
+                    getCardClass(reclamoActivoEnParadaOperario(parada)),
+                    { 'reclamo-card-secuencia--en-obra': reclamoEnObraActiva(reclamoActivoEnParadaOperario(parada)) }
+                ]"
                 @click="verDetalles(reclamoActivoEnParadaOperario(parada))"
             >
                 <div class="card-body ruta-secuencia-cardbody">
@@ -360,6 +307,13 @@
                                     {{ reclamoActivoEnParadaOperario(parada).municipalidad_domicilio }}
                                     {{ reclamoActivoEnParadaOperario(parada).municipalidad_numeroDomicilio }}
                                 </span>
+                                <span
+                                    v-if="reclamoActivoEnParadaOperario(parada).municipalidad_descripcion"
+                                    class="ruta-secuencia-descripcion"
+                                    :title="reclamoActivoEnParadaOperario(parada).municipalidad_descripcion"
+                                >
+                                    {{ reclamoActivoEnParadaOperario(parada).municipalidad_descripcion }}
+                                </span>
                                 <div
                                     v-if="parada.reclamos.length > 1"
                                     class="ruta-secuencia-grupo-nav"
@@ -392,61 +346,116 @@
                             class="ruta-secuencia-toolbar"
                             @click.stop
                         >
-                            <template v-if="puedeEditarTareasRutaSeleccionada && rutaSeleccionadaEnEjecucion">
-                                <button
-                                    v-if="puedeMostrarIniciarReparacionReclamo(reclamoActivoEnParadaOperario(parada))"
-                                    type="button"
-                                    class="btn btn-sm btn-success"
-                                    @click="iniciarReparacionParada(parada)"
-                                >
-                                    <i class="bi bi-play-fill text-white"></i><span class="ruta-secuencia-btn-iniciar-text"> Iniciar reclamo</span>
-                                </button>
-                                <template v-else-if="paradaTieneSesionReparacion(parada)">
-                                    <template v-if="paradaTieneObraActiva(parada)">
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-success"
-                                            :title="parada.reclamos.length > 1 ? 'Marcar como completados todos los reclamos en obra en esta parada' : 'Marcar como completado'"
-                                            :aria-label="parada.reclamos.length > 1 ? 'Marcar como completados todos los reclamos en obra en esta parada' : 'Marcar como completado'"
-                                            @click="ejecutarCierreParadaObra(parada, 'completado')"
-                                        >
-                                            <i class="bi bi-check-lg" aria-hidden="true"></i>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-warning text-dark"
-                                            :title="parada.reclamos.length > 1 ? 'Pendiente para otro día (todos los reclamos en obra en esta parada)' : 'Pendiente para otro día'"
-                                            :aria-label="parada.reclamos.length > 1 ? 'Pendiente para otro día (todos los reclamos en obra en esta parada)' : 'Pendiente para otro día'"
-                                            @click="ejecutarCierreParadaObra(parada, 'pendiente')"
-                                        >
-                                            <i class="bi bi-pause-circle" aria-hidden="true"></i>
-                                        </button>
-                                    </template>
-                                    <button
-                                        v-else-if="puedeMostrarContinuarParada(parada)"
-                                        type="button"
-                                        class="btn btn-sm btn-success"
-                                        :title="parada.reclamos.length > 1 ? 'Retomar el trabajo en todos los reclamos pendientes de esta parada' : 'Retomar el trabajo en obra con el tiempo ya acumulado'"
-                                        @click="continuarReparacionParada(parada)"
+                            <div
+                                v-if="(puedeEditarTareasRutaSeleccionada && rutaSeleccionadaEnEjecucion && (puedeMostrarIniciarReparacionReclamo(reclamoActivoEnParadaOperario(parada)) || paradaTieneSesionReparacion(parada))) || (puedeVerRegistrosObraReclamo(reclamoActivoEnParadaOperario(parada)) && mostrarCronometroReparacionReclamo(reclamoActivoEnParadaOperario(parada)))"
+                                class="ruta-secuencia-toolbar__inicio"
+                            >
+                                <template v-if="puedeEditarTareasRutaSeleccionada && rutaSeleccionadaEnEjecucion">
+                                    <div
+                                        v-if="puedeMostrarIniciarReparacionReclamo(reclamoActivoEnParadaOperario(parada))"
+                                        class="reclamo-confirm-accion"
+                                        @click.stop
                                     >
-                                        <i class="bi bi-play-fill text-white"></i><span class="ruta-secuencia-btn-continuar-text text-white"> Continuar ejecución</span>
-                                    </button>
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-accion-estado"
+                                            :class="{ 'is-open': estaConfirmandoAccionParada(parada, 'iniciar') }"
+                                            title="Iniciar reclamo"
+                                            aria-label="Iniciar reclamo"
+                                            @click="pedirConfirmarAccionParada(parada, 'iniciar')"
+                                        >
+                                            <i class="bi bi-play-fill"></i><span class="ruta-secuencia-btn-iniciar-text"> Iniciar reclamo</span>
+                                        </button>
+                                        <div v-if="estaConfirmandoAccionParada(parada, 'iniciar')" class="reclamo-confirm-accion__pop" @click.stop>
+                                            <span>{{ textoConfirmarAccionParada(parada, 'iniciar') }}</span>
+                                            <button type="button" class="reclamo-confirm-accion__si" @click="confirmarAccionParadaElegida(parada)">Sí</button>
+                                            <button type="button" class="reclamo-confirm-accion__no" @click="cancelarConfirmarAccionParada">No</button>
+                                        </div>
+                                    </div>
+                                    <template v-else-if="paradaTieneSesionReparacion(parada)">
+                                        <template v-if="paradaTieneObraActiva(parada)">
+                                            <div class="reclamo-confirm-accion" @click.stop>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-accion-estado"
+                                                    :class="{ 'is-open': estaConfirmandoAccionParada(parada, 'completado') }"
+                                                    :title="parada.reclamos.length > 1 ? 'Marcar como completados todos los reclamos en obra en esta parada' : 'Marcar como completado'"
+                                                    :aria-label="parada.reclamos.length > 1 ? 'Marcar como completados todos los reclamos en obra en esta parada' : 'Marcar como completado'"
+                                                    @click="pedirConfirmarAccionParada(parada, 'completado')"
+                                                >
+                                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                                </button>
+                                                <div v-if="estaConfirmandoAccionParada(parada, 'completado')" class="reclamo-confirm-accion__pop" @click.stop>
+                                                    <span>{{ textoConfirmarAccionParada(parada, 'completado') }}</span>
+                                                    <button type="button" class="reclamo-confirm-accion__si" @click="confirmarAccionParadaElegida(parada)">Sí</button>
+                                                    <button type="button" class="reclamo-confirm-accion__no" @click="cancelarConfirmarAccionParada">No</button>
+                                                </div>
+                                            </div>
+                                            <div class="reclamo-confirm-accion" @click.stop>
+                                                <button
+                                                    type="button"
+                                                    class="btn btn-sm btn-accion-estado"
+                                                    :class="{ 'is-open': estaConfirmandoAccionParada(parada, 'pendiente') }"
+                                                    :title="parada.reclamos.length > 1 ? 'Pendiente para otro día (todos los reclamos en obra en esta parada)' : 'Pendiente para otro día'"
+                                                    :aria-label="parada.reclamos.length > 1 ? 'Pendiente para otro día (todos los reclamos en obra en esta parada)' : 'Pendiente para otro día'"
+                                                    @click="pedirConfirmarAccionParada(parada, 'pendiente')"
+                                                >
+                                                    <i class="bi bi-pause-circle" aria-hidden="true"></i>
+                                                </button>
+                                                <div v-if="estaConfirmandoAccionParada(parada, 'pendiente')" class="reclamo-confirm-accion__pop" @click.stop>
+                                                    <span>{{ textoConfirmarAccionParada(parada, 'pendiente') }}</span>
+                                                    <button type="button" class="reclamo-confirm-accion__si" @click="confirmarAccionParadaElegida(parada)">Sí</button>
+                                                    <button type="button" class="reclamo-confirm-accion__no" @click="cancelarConfirmarAccionParada">No</button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <div
+                                            v-else-if="puedeMostrarContinuarParada(parada)"
+                                            class="reclamo-confirm-accion"
+                                            @click.stop
+                                        >
+                                            <button
+                                                type="button"
+                                                class="btn btn-sm btn-accion-estado"
+                                                :class="{ 'is-open': estaConfirmandoAccionParada(parada, 'continuar') }"
+                                                :title="parada.reclamos.length > 1 ? 'Retomar el trabajo en todos los reclamos pendientes de esta parada' : 'Retomar el trabajo en obra con el tiempo ya acumulado'"
+                                                aria-label="Continuar ejecución"
+                                                @click="pedirConfirmarAccionParada(parada, 'continuar')"
+                                            >
+                                                <i class="bi bi-play-fill"></i><span class="ruta-secuencia-btn-continuar-text"> Continuar ejecución</span>
+                                            </button>
+                                            <div v-if="estaConfirmandoAccionParada(parada, 'continuar')" class="reclamo-confirm-accion__pop" @click.stop>
+                                                <span>{{ textoConfirmarAccionParada(parada, 'continuar') }}</span>
+                                                <button type="button" class="reclamo-confirm-accion__si" @click="confirmarAccionParadaElegida(parada)">Sí</button>
+                                                <button type="button" class="reclamo-confirm-accion__no" @click="cancelarConfirmarAccionParada">No</button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </template>
-                            </template>
-                            <template v-if="puedeVerRegistrosObraReclamo(reclamoActivoEnParadaOperario(parada))">
                                 <span
-                                    v-if="mostrarCronometroReparacionReclamo(reclamoActivoEnParadaOperario(parada))"
+                                    v-if="puedeVerRegistrosObraReclamo(reclamoActivoEnParadaOperario(parada)) && mostrarCronometroReparacionReclamo(reclamoActivoEnParadaOperario(parada))"
                                     class="ruta-secuencia-crono-reparacion badge font-monospace cronometro-badge-con-ico"
                                     :class="claseCronometroListaObraOperario(reclamoActivoEnParadaOperario(parada))"
                                     title="Tiempo en reparación"
                                 ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoCronometroReparacionReclamo(reclamoActivoEnParadaOperario(parada)) }}</span></span>
+                            </div>
+                            <div
+                                v-if="puedeVerRegistrosObraReclamo(reclamoActivoEnParadaOperario(parada))"
+                                class="ruta-secuencia-toolbar__paneles"
+                            >
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-secondary ruta-secuencia-btn-material"
-                                    title="Materiales utilizados"
+                                    class="btn btn-sm btn-outline-secondary ruta-secuencia-btn-material btn-con-badge-obs"
+                                    :title="cantidadMaterialesReclamoOperario(reclamoActivoEnParadaOperario(parada)) > 0
+                                        ? 'Materiales utilizados (' + cantidadMaterialesReclamoOperario(reclamoActivoEnParadaOperario(parada)) + ')'
+                                        : 'Materiales utilizados'"
                                     @click="abrirModalMaterialesReclamo(reclamoActivoEnParadaOperario(parada))"
                                 >
                                     <i class="bi bi-box-seam"></i>
+                                    <span
+                                        class="btn-obs-ejecucion-count"
+                                        :class="{ 'btn-obs-ejecucion-count--oculto': cantidadMaterialesReclamoOperario(reclamoActivoEnParadaOperario(parada)) < 1 }"
+                                    >{{ textoObservacionesEjecucionBadge(cantidadMaterialesReclamoOperario(reclamoActivoEnParadaOperario(parada))) || '0' }}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -462,7 +471,7 @@
                                         :class="{ 'btn-obs-ejecucion-count--oculto': cantidadObservacionesEjecucionReclamoOperario(reclamoActivoEnParadaOperario(parada)) < 1 }"
                                     >{{ textoObservacionesEjecucionBadge(cantidadObservacionesEjecucionReclamoOperario(reclamoActivoEnParadaOperario(parada))) || '0' }}</span>
                                 </button>
-                            </template>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -484,11 +493,6 @@
         <i class="bi bi-map text-muted" style="font-size: 3rem;"></i>
         <h4 class="text-muted mt-3">No hay puntos para mostrar en el mapa</h4>
         <p class="text-muted">La hoja seleccionada no tiene coordenadas disponibles.</p>
-    </div>
-    <div v-if="!esOperario && reclamosFiltrados.length === 0" class="text-center py-5">
-        <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
-        <h4 class="text-muted mt-3">No hay reclamos disponibles</h4>
-        <p class="text-muted">No se encontraron reclamos.</p>
     </div>
 
     <!-- Modal Ver Detalles Reclamo -->
@@ -688,8 +692,8 @@
 
     <!-- Modal registro en obra (bitácora: notas y fotos) -->
     <div class="modal fade" id="modalObservacionesEjecucionReclamo" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-            <div class="modal-content rutas-modal tareas-modal">
+        <div class="modal-dialog modal-lg modal-dialog-centered bitacora-obra-modal-dialog">
+            <div class="modal-content rutas-modal tareas-modal bitacora-obra-modal">
                 <div class="rutas-modal__header">
                     <div class="rutas-modal__title">
                         <span class="rutas-modal__icon"><i class="bi bi-journal-text"></i></span>
@@ -699,15 +703,16 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-                <div class="modal-body d-flex flex-column">
+                <div class="modal-body d-flex flex-column bitacora-obra-modal__body">
+                    <div class="bitacora-obra-modal__feed" id="bitacoraObraFeedOperario">
                     <div v-if="cargandoObservacionesEjecucion" class="text-center py-3 text-muted">
                         <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
                         <span class="ms-2">Cargando…</span>
                     </div>
-                    <div v-else-if="!historialBitacoraEjecucionOrdenado.length" class="alert alert-light border mb-3">
+                    <div v-else-if="!historialBitacoraEjecucionOrdenado.length" class="alert alert-light border mb-0">
                         Aún no hay registros para este reclamo.
                     </div>
-                    <ul v-else class="list-group list-group-flush modal-obs-ejecucion-lista bitacora-obra-feed flex-grow-1 mb-3">
+                    <ul v-else class="list-group list-group-flush modal-obs-ejecucion-lista bitacora-obra-feed mb-0">
                         <li v-for="o in historialBitacoraEjecucionOrdenado" :key="o.id" class="list-group-item px-0 py-2" :class="esEntradaCambioEstadoBitacora(o) ? 'bitacora-obra-evento-estado' : 'bitacora-obra-msg'">
                             <template v-if="esEntradaCambioEstadoBitacora(o)">
                                 <div class="bitacora-obra-evento">
@@ -796,6 +801,7 @@
                             </template>
                         </li>
                     </ul>
+                    </div>
 
                     <div v-if="puedeRegistrarBitacoraEjecucion(reclamoSeleccionado)" class="bitacora-obra-composer border-top pt-3 mt-auto">
                         <textarea
@@ -813,6 +819,7 @@
                         </div>
                         <div class="d-flex flex-wrap gap-2 bitacora-obra-composer__acciones">
                             <button
+                                v-if="!archivoFotoBitacora"
                                 type="button"
                                 class="btn btn-primary btn-sm"
                                 @click="guardarObservacionEjecucion"
@@ -823,29 +830,28 @@
                                 <i v-else class="bi bi-check-lg me-1" aria-hidden="true"></i>
                                 Guardar
                             </button>
-                            <label class="btn btn-outline-primary btn-sm mb-0" :class="{ disabled: guardandoFotoBitacora }" title="Elegir foto">
-                                <i class="bi bi-camera-fill me-1" aria-hidden="true"></i> Foto
+                            <button
+                                v-else
+                                type="button"
+                                class="btn btn-primary btn-sm"
+                                @click="guardarFotoBitacoraEjecucion"
+                                :disabled="!puedeSubirFotoBitacoraEjecucion || guardandoFotoBitacora"
+                                title="Guardar foto en la bitácora"
+                            >
+                                <span v-if="guardandoFotoBitacora" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                                <i v-else class="bi bi-check-lg me-1" aria-hidden="true"></i>
+                                Guardar
+                            </button>
+                            <label class="btn btn-outline-primary btn-sm mb-0" :class="{ disabled: guardandoFotoBitacora || guardandoObservacionEjecucion }" title="Elegir foto de la galería">
+                                <i class="bi bi-image me-1" aria-hidden="true"></i> Foto
                                 <input
                                     id="inputFotoBitacoraEjecucion"
                                     type="file"
-                                    accept="image/jpeg,image/png,image/webp"
-                                    capture="environment"
+                                    accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
                                     class="d-none"
                                     @change="onSeleccionFotoBitacoraEjecucion"
                                 >
                             </label>
-                            <button
-                                v-if="archivoFotoBitacora"
-                                type="button"
-                                class="btn btn-success btn-sm"
-                                @click="guardarFotoBitacoraEjecucion"
-                                :disabled="!puedeSubirFotoBitacoraEjecucion || guardandoFotoBitacora"
-                                title="Subir foto"
-                            >
-                                <span v-if="guardandoFotoBitacora" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                                <i v-else class="bi bi-cloud-upload me-1" aria-hidden="true"></i>
-                                Subir
-                            </button>
                         </div>
                     </div>
                     <p v-else-if="registrosObraReclamoSoloLectura(reclamoSeleccionado)" class="text-muted small mb-0 border-top pt-3">Solo lectura.</p>
@@ -876,15 +882,15 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    <!-- Pestañas de navegación -->
-                    <ul class="nav nav-tabs rutas-tabs" id="accionesTabs" role="tablist">
-                        <li v-show="!modalAccionesSoloMateriales" class="nav-item" role="presentation">
+                    <!-- Pestañas de navegación (solo si hay más de una sección) -->
+                    <ul v-show="!modalAccionesSoloMateriales" class="nav nav-tabs rutas-tabs" id="accionesTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="cambiar-estado-tab" data-bs-toggle="tab" data-bs-target="#cambiar-estado" type="button" role="tab" aria-controls="cambiar-estado" aria-selected="true">
                                 Cambiar Estado
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" :class="{ active: modalAccionesSoloMateriales }" id="materiales-tab" data-bs-toggle="tab" data-bs-target="#materiales" type="button" role="tab" aria-controls="materiales" :aria-selected="modalAccionesSoloMateriales" @click="cargarMateriales">
+                            <button class="nav-link" id="materiales-tab" data-bs-toggle="tab" data-bs-target="#materiales" type="button" role="tab" aria-controls="materiales" aria-selected="false" @click="cargarMateriales">
                                 Materiales
                             </button>
                         </li>
@@ -997,159 +1003,195 @@
                         
                         <!-- Pestaña Materiales -->
                         <div class="tab-pane fade" :class="{ 'show active': modalAccionesSoloMateriales }" id="materiales" role="tabpanel" aria-labelledby="materiales-tab">
-                            <div class="mt-3">
-                                <p v-if="modalMaterialesSoloLectura" class="text-muted small">Registro de materiales (solo lectura).</p>
-                                <!-- Formulario para registrar material -->
-                                <div v-if="!modalMaterialesSoloLectura" class="card mb-3">
-                                    <div class="card-header">
-                                        <h6 class="mb-0"><i class="bi bi-box-seam"></i> Registrar Material Utilizado</h6>
+                            <div class="mat-obra mt-3">
+                                <p v-if="modalMaterialesSoloLectura" class="mat-obra__hint">Registro de materiales (solo lectura).</p>
+
+                                <!-- Registrar -->
+                                <div v-if="!modalMaterialesSoloLectura" class="mat-obra-registrar">
+                                    <div class="mat-obra-search">
+                                        <i class="bi bi-search"></i>
+                                        <input
+                                            type="text"
+                                            v-model="filtroBusquedaMaterial"
+                                            placeholder="Buscar material…">
+                                        <button
+                                            v-if="filtroBusquedaMaterial"
+                                            type="button"
+                                            class="mat-obra-search__clear"
+                                            @click="filtroBusquedaMaterial = ''"
+                                            title="Limpiar">
+                                            <i class="bi bi-x"></i>
+                                        </button>
                                     </div>
-                                    <div class="card-body">
-                                        <!-- Modo: Material Existente -->
-                                        <div v-if="!modoMaterialNuevo">
-                                            <!-- Fila con los tres selects/inputs -->
-                                            <div class="row g-2 mb-3">
-                                                <div class="col-md-4">
-                                                    <label for="tipoMaterialSelect" class="form-label">Tipo de Material</label>
-                                                    <select id="tipoMaterialSelect" class="form-select" v-model="materialSeleccionado.tipo_id" @change="filtrarMaterialesPorTipo">
-                                                        <option value="">Todos los tipos</option>
-                                                        <option v-for="tipo in tiposMaterial" :key="tipo.id" :value="tipo.id">
-                                                            {{ tipo.nombre }}
-                                                        </option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label for="materialSelect" class="form-label">Material</label>
-                                                    <select id="materialSelect" class="form-select" v-model="materialSeleccionado.material_id" :disabled="materialesFiltrados.length === 0">
-                                                        <option value="">Seleccionar material</option>
-                                                        <option v-for="material in materialesFiltrados" :key="material.id" :value="material.id">
-                                                            {{ material.nombre }}
-                                                        </option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label for="cantidadMaterial" class="form-label">Cantidad</label>
-                                                    <input type="number" id="cantidadMaterial" class="form-control" v-model.number="materialSeleccionado.cantidad" min="0" placeholder="Cantidad (opcional)">
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Campo de observación -->
-                                            <div class="mb-3">
-                                                <label for="observacionMaterial" class="form-label">Observación</label>
-                                                <textarea id="observacionMaterial" class="form-control" v-model="materialSeleccionado.observacion" rows="3" placeholder="Observaciones sobre el material utilizado (opcional)"></textarea>
-                                            </div>
-                                            
-                                            <!-- Botón para guardar -->
-                                            <div class="mb-3">
-                                                <button class="btn btn-success w-100" @click="guardarMaterialReclamo" :disabled="!puedeGuardarMaterial">
-                                                    <i class="bi bi-check-circle me-1 text-white"></i> Guardar Material
-                                                </button>
-                                            </div>
-                                            
-                                            <!-- Botón para cambiar a modo crear material nuevo -->
-                                            <div class="mb-0">
-                                                <button class="btn btn-outline-secondary w-100" @click="alternarModoMaterial">
-                                                    <i class="bi bi-plus-circle me-1"></i> El material no existe, crear uno nuevo
-                                                </button>
+
+                                    <div class="mat-obra-chips" v-if="tiposMaterial.length">
+                                        <button
+                                            type="button"
+                                            class="mat-obra-chip"
+                                            :class="{ 'is-active': !materialSeleccionado.tipo_id }"
+                                            @click="seleccionarTipoMaterialObra('')">
+                                            Todos
+                                        </button>
+                                        <button
+                                            v-for="tipo in tiposMaterial"
+                                            :key="tipo.id"
+                                            type="button"
+                                            class="mat-obra-chip"
+                                            :class="{ 'is-active': String(materialSeleccionado.tipo_id) === String(tipo.id) }"
+                                            :style="String(materialSeleccionado.tipo_id) === String(tipo.id) && tipo.color ? { background: tipo.color, borderColor: tipo.color, color: '#fff' } : null"
+                                            @click="seleccionarTipoMaterialObra(tipo.id)">
+                                            <i v-if="tipo.icono" :class="tipo.icono"></i>
+                                            {{ tipo.nombre }}
+                                        </button>
+                                    </div>
+
+                                    <div v-if="cargandoCatalogoMateriales" class="mat-obra-empty">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <p>Cargando catálogo…</p>
+                                    </div>
+
+                                    <div v-else-if="materialesCatalogoFiltrados.length === 0" class="mat-obra-empty">
+                                        <i class="bi bi-box"></i>
+                                        <p v-if="filtroBusquedaMaterial">No hay materiales para “{{ filtroBusquedaMaterial }}”.</p>
+                                        <p v-else>No hay materiales en el catálogo.</p>
+                                    </div>
+
+                                    <div v-else class="mat-obra-grid">
+                                        <button
+                                            v-for="mat in materialesCatalogoFiltrados"
+                                            :key="mat.id"
+                                            type="button"
+                                            class="mat-obra-card"
+                                            :class="{ 'is-selected': String(materialSeleccionado.material_id) === String(mat.id) }"
+                                            @click="seleccionarMaterialObra(mat)">
+                                            <span class="mat-obra-card__foto">
+                                                <img v-if="mat.foto" :src="urlFotoMaterialCatalogo(mat.foto)" :alt="mat.nombre">
+                                                <i v-else class="bi bi-image"></i>
+                                            </span>
+                                            <span class="mat-obra-card__nombre">{{ mat.nombre }}</span>
+                                        </button>
+                                    </div>
+
+                                    <div v-if="materialSeleccionado.material_id" class="mat-obra-selected">
+                                        <div class="mat-obra-selected__info">
+                                            <strong>{{ nombreMaterialSeleccionadoObra }}</strong>
+                                            <span>Cantidad</span>
+                                            <div class="mat-obra-stepper">
+                                                <button type="button" @click="ajustarCantidadMaterialObra(-1)" aria-label="Restar">−</button>
+                                                <input type="number" min="1" v-model.number="materialSeleccionado.cantidad" required>
+                                                <button type="button" @click="ajustarCantidadMaterialObra(1)" aria-label="Sumar">+</button>
                                             </div>
                                         </div>
-                                        
-                                        <!-- Modo: Crear Material Nuevo -->
-                                        <div v-else>
-                                            <!-- Fila para crear material nuevo -->
-                                            <div class="row g-2 mb-3">
-                                                <div class="col-md-4">
-                                                    <label for="nuevoTipoMaterialSelect" class="form-label">Tipo de Material <small class="text-muted">(opcional)</small></label>
-                                                    <select id="nuevoTipoMaterialSelect" class="form-select" v-model="materialNuevo.tipo_id">
-                                                        <option value="">Sin tipo</option>
-                                                        <option v-for="tipo in tiposMaterial" :key="tipo.id" :value="tipo.id">
-                                                            {{ tipo.nombre }}
-                                                        </option>
-                                                    </select>
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label for="nuevoNombreMaterial" class="form-label">Nombre del Material</label>
-                                                    <input type="text" id="nuevoNombreMaterial" class="form-control" v-model="materialNuevo.nombre" placeholder="Nombre del material">
-                                                </div>
-                                                <div class="col-md-4">
-                                                    <label for="nuevoCantidadMaterial" class="form-label">Cantidad</label>
-                                                    <input type="number" id="nuevoCantidadMaterial" class="form-control" v-model.number="materialNuevo.cantidad" min="0" placeholder="Cantidad">
-                                                </div>
-                                            </div>
-                                            
-                                            <!-- Campo de observación -->
-                                            <div class="mb-3">
-                                                <label for="observacionMaterialNuevo" class="form-label">Observación</label>
-                                                <textarea id="observacionMaterialNuevo" class="form-control" v-model="materialSeleccionado.observacion" rows="3" placeholder="Observaciones sobre el material utilizado (opcional)"></textarea>
-                                            </div>
-                                            
-                                            <!-- Botón para guardar -->
-                                            <div class="mb-3">
-                                                <button class="btn btn-primary w-100" @click="guardarMaterialNuevoYReclamo" :disabled="!puedeGuardarMaterialNuevo">
-                                                    <i class="bi bi-plus-circle me-1 text-white"></i> Crear y Guardar Material Nuevo
-                                                </button>
-                                            </div>
-                                            
-                                            <!-- Botón para cambiar a modo material existente -->
-                                            <div class="mb-0">
-                                                <button class="btn btn-outline-secondary w-100" @click="alternarModoMaterial">
-                                                    <i class="bi bi-arrow-left me-1"></i> Seleccionar material existente
-                                                </button>
-                                            </div>
+                                        <textarea
+                                            class="mat-obra-obs"
+                                            v-model="materialSeleccionado.observacion"
+                                            rows="2"
+                                            maxlength="500"
+                                            placeholder="Observación (opcional)"></textarea>
+                                        <div class="mat-obra-selected__actions">
+                                            <button type="button" class="mat-obra-btn mat-obra-btn--ghost" @click="limpiarSeleccionMaterialObra">
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="mat-obra-btn mat-obra-btn--primary"
+                                                :disabled="!puedeGuardarMaterial || guardandoMaterialObra"
+                                                @click="guardarMaterialReclamo">
+                                                <i class="bi bi-check-lg"></i>
+                                                {{ guardandoMaterialObra ? 'Guardando…' : 'Registrar' }}
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <!-- Botón para ver historial -->
-                                <div class="mb-3">
-                                    <button class="btn btn-outline-primary w-100" @click="toggleHistorialMateriales">
-                                        <i class="bi" :class="mostrarHistorialMateriales ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
-                                        {{ mostrarHistorialMateriales ? 'Ocultar' : 'Ver' }} Historial de Materiales
-                                    </button>
-                                </div>
-                                
-                                <!-- Tabla de historial de materiales -->
-                                <div v-if="mostrarHistorialMateriales" class="card">
-                                    <div class="card-header">
-                                        <h6 class="mb-0"><i class="bi bi-clock-history"></i> Historial de Materiales</h6>
+
+                                <!-- Historial -->
+                                <div class="mat-obra-historial">
+                                    <h6 class="mat-obra-historial__title">
+                                        <i class="bi bi-clock-history"></i>
+                                        Registrados en este reclamo
+                                    </h6>
+
+                                    <div v-if="cargandoMateriales" class="mat-obra-empty">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <p>Cargando…</p>
                                     </div>
-                                    <div class="card-body">
-                                        <div v-if="cargandoMateriales" class="text-center py-3">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">Cargando...</span>
+
+                                    <div v-else-if="historialMateriales.length === 0" class="mat-obra-empty mat-obra-empty--sm">
+                                        <p>Todavía no se registraron materiales.</p>
+                                    </div>
+
+                                    <div v-else class="mat-obra-historial__list bitacora-obra-feed">
+                                        <article
+                                            v-for="item in historialMateriales"
+                                            :key="item.id"
+                                            class="bitacora-obra-msg mat-hist-msg"
+                                        >
+                                            <div class="bitacora-obra-msg__layout">
+                                                <div class="bitacora-obra-msg__avatar-col" aria-hidden="true">
+                                                    <img
+                                                        v-if="item.usuario_foto_perfil"
+                                                        class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--img"
+                                                        :src="urlFotoOperario(item.usuario_foto_perfil)"
+                                                        :alt="item.usuario_nombre || 'Usuario'"
+                                                        loading="lazy"
+                                                    >
+                                                    <span
+                                                        v-else
+                                                        class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--iniciales"
+                                                        :style="{ backgroundColor: colorAvatarOperario(item.usuario_nombre) }"
+                                                    >{{ inicialesOperario(item.usuario_nombre) }}</span>
+                                                </div>
+                                                <div class="bitacora-obra-msg__stack">
+                                                    <div class="bitacora-obra-msg__encabezado">
+                                                        <span class="bitacora-obra-msg__usuario">{{ item.usuario_nombre || '—' }}</span>
+                                                        <span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>
+                                                        <span class="bitacora-obra-msg__tipo">
+                                                            <i class="bi bi-box-seam" aria-hidden="true"></i> Material
+                                                        </span>
+                                                        <template v-if="item.ruta_nombre">
+                                                            <span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>
+                                                            <span class="bitacora-obra-msg__ruta" :style="{ color: item.ruta_color || '#6c757d' }">
+                                                                <svg class="bitacora-obra-msg__ruta-ico cronometro-badge-ico cronometro-badge-ico-ruta" viewBox="0 0 20 12" aria-hidden="true" focusable="false"><path d="M1 9.5 H6 V2.5 H14 V9.5 H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                                <span>{{ item.ruta_nombre }}</span>
+                                                            </span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="bitacora-obra-msg__bubble">
+                                                        <div class="bitacora-obra-msg__contenido">
+                                                            <button
+                                                                type="button"
+                                                                class="mat-hist-msg__main"
+                                                                @click="verDetalleMaterial(item.id)"
+                                                            >
+                                                                <span class="mat-hist-msg__foto">
+                                                                    <img v-if="item.material_foto" :src="urlFotoMaterialCatalogo(item.material_foto)" :alt="item.material_nombre" loading="lazy">
+                                                                    <i v-else class="bi bi-box-seam"></i>
+                                                                </span>
+                                                                <div class="mat-hist-msg__body">
+                                                                    <strong>{{ item.material_nombre || 'Material' }}</strong>
+                                                                    <small>
+                                                                        <span v-if="item.cantidad">x{{ item.cantidad }}</span>
+                                                                        <span v-else>Sin cantidad</span>
+                                                                    </small>
+                                                                </div>
+                                                            </button>
+                                                            <p v-if="item.observacion" class="mb-0 mt-2 text-break small">{{ item.observacion }}</p>
+                                                        </div>
+                                                        <time class="bitacora-obra-msg__hora">{{ formatearFecha(item.fecha) }}</time>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    v-if="!modalMaterialesSoloLectura"
+                                                    type="button"
+                                                    class="mat-hist-msg__delete"
+                                                    title="Eliminar"
+                                                    :disabled="eliminandoMaterialReclamoId === item.id"
+                                                    @click.stop="eliminarMaterialObra(item)"
+                                                >
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
                                             </div>
-                                            <p class="mt-2 text-muted">Cargando materiales...</p>
-                                        </div>
-                                        
-                                        <div v-else-if="historialMateriales.length === 0" class="text-center py-4">
-                                            <i class="bi bi-box text-muted" style="font-size: 2rem;"></i>
-                                            <p class="text-muted mt-2">No hay materiales registrados para este reclamo.</p>
-                                        </div>
-                                        
-                                        <div v-else class="table-responsive">
-                                            <table class="table table-sm table-hover">
-                                                <thead class="table-light">
-                                                    <tr>
-                                                        <th>Material</th>
-                                                        <th>Cantidad</th>
-                                                        <th>Fecha</th>
-                                                        <th>Usuario</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <tr v-for="item in historialMateriales" :key="item.id">
-                                                        <td>
-                                                            <a href="#" class="text-primary text-decoration-none" @click.prevent="verDetalleMaterial(item.id)">
-                                                                <i class="bi bi-info-circle me-1"></i>{{ item.material_nombre || 'N/A' }}
-                                                            </a>
-                                                        </td>
-                                                        <td>{{ item.cantidad || 'No especificada' }}</td>
-                                                        <td>{{ formatearFecha(item.fecha) }}</td>
-                                                        <td>{{ item.usuario_nombre || 'Sistema' }}</td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                        </article>
                                     </div>
                                 </div>
                             </div>
@@ -1163,6 +1205,117 @@
         </div>
     </div>
 
+    <!-- Prompt materiales antes de completar -->
+    <div
+        class="modal fade"
+        id="modalPromptMateriales"
+        tabindex="-1"
+        data-bs-backdrop="static"
+        data-bs-keyboard="false"
+        @hidden.bs.modal="onPromptMaterialesOculto"
+    >
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rutas-modal tareas-modal mat-prompt-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-box-seam"></i></span>
+                        <h5>Materiales</h5>
+                    </div>
+                    <button
+                        type="button"
+                        class="rutas-modal__close"
+                        aria-label="Cerrar"
+                        @click="resolverPromptMateriales('cancelar')"
+                    >
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body mat-prompt-modal__body">
+                    <p class="mat-prompt-modal__title">¿Registraste materiales?</p>
+                    <p class="mat-prompt-modal__detalle">{{ promptMaterialesDetalle }}</p>
+                    <p class="mat-prompt-modal__hint">Podés cargarlos ahora o completar sin registrar.</p>
+                </div>
+                <div class="mat-prompt-modal__actions">
+                    <button
+                        type="button"
+                        class="tareas-btn mat-prompt-modal__btn"
+                        @click="resolverPromptMateriales('registrar')"
+                    >
+                        <i class="bi bi-box-seam"></i>
+                        Registrar ahora
+                    </button>
+                    <button
+                        type="button"
+                        class="tareas-btn tareas-btn--outline mat-prompt-modal__btn"
+                        @click="resolverPromptMateriales('omitir')"
+                    >
+                        Continuar sin materiales
+                    </button>
+                    <button
+                        type="button"
+                        class="mat-prompt-modal__cancel"
+                        @click="resolverPromptMateriales('cancelar')"
+                    >
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmar eliminar material -->
+    <div
+        class="modal fade"
+        id="modalConfirmarEliminarMaterial"
+        tabindex="-1"
+        data-bs-backdrop="static"
+        data-bs-keyboard="false"
+        @hidden.bs.modal="onConfirmarEliminarMaterialOculto"
+    >
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content rutas-modal tareas-modal mat-prompt-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-trash"></i></span>
+                        <h5>Eliminar material</h5>
+                    </div>
+                    <button
+                        type="button"
+                        class="rutas-modal__close"
+                        aria-label="Cerrar"
+                        @click="resolverConfirmarEliminarMaterial(false)"
+                    >
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body mat-prompt-modal__body">
+                    <p class="mat-prompt-modal__title">¿Eliminar este registro?</p>
+                    <p class="mat-prompt-modal__detalle">
+                        Se va a quitar “{{ confirmarEliminarMaterialNombre }}” de esta intervención.
+                    </p>
+                    <p class="mat-prompt-modal__hint">Si hace falta, después podés registrarlo de nuevo.</p>
+                </div>
+                <div class="mat-prompt-modal__actions">
+                    <button
+                        type="button"
+                        class="tareas-btn mat-prompt-modal__btn mat-prompt-modal__btn--danger"
+                        @click="resolverConfirmarEliminarMaterial(true)"
+                    >
+                        <i class="bi bi-trash"></i>
+                        Eliminar
+                    </button>
+                    <button
+                        type="button"
+                        class="tareas-btn tareas-btn--outline mat-prompt-modal__btn"
+                        @click="resolverConfirmarEliminarMaterial(false)"
+                    >
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Añadir Reclamos a Hoja de Ruta -->
     <div class="modal fade" id="modalAñadirReclamos" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-xl">
@@ -1171,8 +1324,8 @@
                     <div class="rutas-modal__title">
                         <span class="rutas-modal__icon"><i class="bi bi-plus-lg"></i></span>
                         <h5>
-                            Añadir Reclamos a Mi Hoja de Ruta
-                            <span class="badge bg-success ms-2">{{ reclamosRecibidosFiltrados.length }} reclamo(s) recibido(s)</span>
+                            Añadir paradas
+                            <span v-if="rutaSeleccionada" class="text-muted fw-normal">· {{ rutaSeleccionada.nombre }}</span>
                         </h5>
                     </div>
                     <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" @click="cerrarModalAñadirReclamos" aria-label="Cerrar">
@@ -1189,71 +1342,119 @@
                                 </span>
                                 <input type="text" 
                                        class="form-control" 
-                                       placeholder="Buscar por ID, motivo, domicilio o prioridad..." 
+                                       placeholder="Buscar por ID, domicilio o descripción..." 
                                        v-model="filtroBusquedaReclamos"
                                        @input="filtrarReclamosRecibidos">
                             </div>
                         </div>
                     </div>
 
-                    <!-- Lista de reclamos recibidos -->
-                    <div class="row" v-if="reclamosRecibidosFiltrados.length > 0">
-                        <div class="col-12 col-sm-6 col-md-4 col-lg-3 col-xl-2 mb-2" 
-                             v-for="reclamo in reclamosRecibidosFiltrados" 
-                             :key="reclamo.id">
-                            <div class="card h-100 reclamo-card border-secondary" 
-                                 @click="verDetallesReclamoRecibido(reclamo)">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-start mb-1">
-                                        <h6 class="card-title mb-0 text-primary fw-bold">
-                                            {{ reclamo.municipalidad_id }}
-                                        </h6>
-                                        <span class="badge bg-secondary">
-                                            {{ reclamo.municipalidad_estado }}
-                                        </span>
-                                    </div>
-                                    
-                                    <div class="mb-1">
-                                        <small class="text-dark">
-                                            <i class="bi bi-geo-alt me-1"></i>
-                                            {{ reclamo.municipalidad_domicilio }} {{ reclamo.municipalidad_numeroDomicilio }}
-                                        </small>
-                                    </div>
-                                    
-                                    <div class="mb-1">
-                                        <small class="text-dark">
-                                            <i class="bi bi-tag me-1"></i>
-                                            {{ reclamo.municipalidad_motivo }}
-                                        </small>
-                                    </div>
+                    <!-- Lista vertical agrupada por domicilio -->
+                    <div class="añadir-paradas-lista" v-if="paradasReclamosAñadir.length > 0">
+                        <article
+                            v-for="parada in paradasReclamosAñadir"
+                            :key="'add-parada-' + parada.clave"
+                            class="añadir-parada-item"
+                            @click="verDetallesReclamoRecibido(reclamoActivoEnParadaAñadir(parada))"
+                        >
+                            <span class="añadir-parada-item__icon-wrap">
+                                <button
+                                    v-if="parada.reclamos.length > 1"
+                                    type="button"
+                                    class="ruta-secuencia-grupo-badge"
+                                    :style="{ backgroundColor: getColorEstado(reclamoActivoEnParadaAñadir(parada).municipalidad_estado) }"
+                                    :title="parada.reclamos.length + ' reclamos en este domicilio'"
+                                    @click.stop="navegarReclamoEnParadaAñadir(parada, 1)"
+                                >
+                                    {{ parada.reclamos.length }}
+                                </button>
+                                <span
+                                    v-else
+                                    class="ruta-secuencia-motivo-icon"
+                                    :style="{ backgroundColor: getColorEstado(parada.reclamos[0].municipalidad_estado) }"
+                                    :title="parada.reclamos[0].municipalidad_motivo || 'Motivo'"
+                                >
+                                    {{ iconoMotivoReclamo(parada.reclamos[0].municipalidad_motivo) }}
+                                </span>
+                                <span
+                                    v-if="marcadorGrupoTienePrioridadAlta(parada.reclamos)"
+                                    class="mapa-prioridad-alta-badge ruta-secuencia-prioridad-badge"
+                                    aria-label="Prioridad alta"
+                                    title="Prioridad alta"
+                                >!</span>
+                            </span>
 
-                                    <div class="mb-1" v-if="reclamo.prioridad">
-                                        <small class="text-dark">
-                                            <i class="bi bi-exclamation-triangle me-1"></i>
-                                            Prioridad: <strong>{{ reclamo.prioridad }}</strong>
-                                        </small>
-                                    </div>
+                            <div class="añadir-parada-item__main">
+                                <div class="añadir-parada-item__id-row">
+                                    <span class="añadir-parada-item__id">
+                                        #{{ reclamoActivoEnParadaAñadir(parada).municipalidad_id }}
+                                    </span>
+                                    <span
+                                        v-if="parada.reclamos.length > 1"
+                                        class="añadir-parada-item__count-chip"
+                                        :title="parada.reclamos.length + ' reclamos en este domicilio'"
+                                    >
+                                        ×{{ parada.reclamos.length }}
+                                    </span>
                                 </div>
-                                
-                                <!-- Botón para añadir a la ruta -->
-                                <div class="card-footer bg-transparent">
-                                    <button class="btn btn-sm btn-success w-100" 
-                                            @click.stop="añadirReclamoARuta(reclamo)" 
-                                            :disabled="añadiendoReclamo === reclamo.id"
-                                            title="Añadir a mi hoja de ruta">
-                                        <span v-if="añadiendoReclamo === reclamo.id" class="spinner-border spinner-border-sm me-1" role="status"></span>
-                                        <i v-else class="bi bi-plus-circle text-white"></i> 
-                                        {{ añadiendoReclamo === reclamo.id ? 'Añadiendo...' : 'Añadir' }}
+
+                                <div class="añadir-parada-item__domicilio">
+                                    <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                                    {{ reclamoActivoEnParadaAñadir(parada).municipalidad_domicilio }}
+                                    {{ reclamoActivoEnParadaAñadir(parada).municipalidad_numeroDomicilio }}
+                                </div>
+
+                                <div class="añadir-parada-item__descripcion" :title="reclamoActivoEnParadaAñadir(parada).municipalidad_descripcion || ''">
+                                    {{ reclamoActivoEnParadaAñadir(parada).municipalidad_descripcion || 'Sin descripción' }}
+                                </div>
+
+                                <div
+                                    v-if="parada.reclamos.length > 1"
+                                    class="ruta-secuencia-grupo-nav añadir-parada-item__nav"
+                                    @click.stop
+                                >
+                                    <button
+                                        type="button"
+                                        class="mapa-popup-nav mapa-popup-nav-prev"
+                                        @click="navegarReclamoEnParadaAñadir(parada, -1)"
+                                        aria-label="Reclamo anterior"
+                                    >
+                                        <i class="bi bi-chevron-left"></i>
+                                    </button>
+                                    <span class="ruta-secuencia-grupo-contador">
+                                        {{ indiceReclamoEnParadaAñadir(parada) + 1 }} de {{ parada.reclamos.length }}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        class="mapa-popup-nav mapa-popup-nav-next"
+                                        @click="navegarReclamoEnParadaAñadir(parada, 1)"
+                                        aria-label="Siguiente reclamo"
+                                    >
+                                        <i class="bi bi-chevron-right"></i>
                                     </button>
                                 </div>
                             </div>
-                        </div>
+
+                            <div class="añadir-parada-item__accion" @click.stop>
+                                <button
+                                    type="button"
+                                    class="tareas-btn tareas-btn--success tareas-btn--sm"
+                                    @click="añadirParadaARuta(parada)"
+                                    :disabled="añadiendoParadaClave === parada.clave"
+                                    :title="parada.reclamos.length > 1 ? 'Añadir los ' + parada.reclamos.length + ' reclamos de esta parada' : 'Añadir a mi hoja de ruta'"
+                                >
+                                    <span v-if="añadiendoParadaClave === parada.clave" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                                    <i v-else class="bi bi-plus-circle"></i>
+                                    {{ añadiendoParadaClave === parada.clave ? 'Añadiendo…' : 'Añadir' }}
+                                </button>
+                            </div>
+                        </article>
                     </div>
 
                     <!-- Mensaje cuando no hay reclamos -->
-                    <div v-else class="text-center py-5">
+                    <div v-else class="text-center py-5 añadir-paradas-empty">
                         <i class="bi bi-clipboard-x text-muted" style="font-size: 3rem;"></i>
-                        <h4 class="text-muted mt-3">No hay reclamos recibidos</h4>
+                        <h4 class="text-muted mt-3">No hay paradas disponibles</h4>
                         <p class="text-muted" v-if="filtroBusquedaReclamos">
                             No se encontraron reclamos que coincidan con la búsqueda "{{ filtroBusquedaReclamos }}".
                         </p>
@@ -1354,10 +1555,10 @@
                     </div>
                 </div>
                 <div class="tareas-modal__footer tareas-modal__footer--end">
-                    <button type="button" class="tareas-btn tareas-btn--success" @click="añadirReclamoARuta(reclamoRecibidoSeleccionado)" :disabled="añadiendoReclamo === reclamoRecibidoSeleccionado.id">
-                        <span v-if="añadiendoReclamo === reclamoRecibidoSeleccionado.id" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <button type="button" class="tareas-btn tareas-btn--success" @click="añadirReclamoARuta(reclamoRecibidoSeleccionado)" :disabled="!!añadiendoParadaClave">
+                        <span v-if="añadiendoParadaClave" class="spinner-border spinner-border-sm me-1" role="status"></span>
                         <i v-else class="bi bi-plus-circle"></i>
-                        {{ añadiendoReclamo === reclamoRecibidoSeleccionado.id ? 'Añadiendo...' : 'Añadir a Mi Hoja de Ruta' }}
+                        {{ añadiendoParadaClave ? 'Añadiendo…' : 'Añadir parada a mi hoja' }}
                     </button>
                     <button type="button" class="tareas-btn tareas-btn--outline" data-bs-dismiss="modal" @click="cerrarModalDetallesReclamoRecibido">
                         Cerrar
@@ -1388,6 +1589,9 @@
                         <p class="mt-2 text-muted">Cargando detalle...</p>
                     </div>
                     <div v-else-if="detalleMaterial">
+                        <div class="mat-obra-detalle-foto" v-if="detalleMaterial.material_foto">
+                            <img :src="urlFotoMaterialCatalogo(detalleMaterial.material_foto)" :alt="detalleMaterial.material_nombre">
+                        </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -1408,17 +1612,34 @@
                                 </div>
                             </div>
                             <div class="col-md-6">
-                                <!--div class="mb-3">
-                                    <label class="fw-bold">Stock Disponible:</label>
-                                    <p>{{ detalleMaterial.material_cantidad_stock || 'N/A' }}</p>
-                                </div-->
                                 <div class="mb-3">
                                     <label class="fw-bold">Fecha de Registro:</label>
                                     <p>{{ formatearFecha(detalleMaterial.fecha) }}</p>
                                 </div>
                                 <div class="mb-3">
                                     <label class="fw-bold">Usuario:</label>
-                                    <p>{{ detalleMaterial.usuario_nombre || 'Sistema' }}</p>
+                                    <div class="mat-hist-msg__usuario-detalle">
+                                        <img
+                                            v-if="detalleMaterial.usuario_foto_perfil"
+                                            class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--img"
+                                            :src="urlFotoOperario(detalleMaterial.usuario_foto_perfil)"
+                                            :alt="detalleMaterial.usuario_nombre || 'Usuario'"
+                                        >
+                                        <span
+                                            v-else
+                                            class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--iniciales"
+                                            :style="{ backgroundColor: colorAvatarOperario(detalleMaterial.usuario_nombre) }"
+                                        >{{ inicialesOperario(detalleMaterial.usuario_nombre) }}</span>
+                                        <p class="mb-0">{{ detalleMaterial.usuario_nombre || 'Sistema' }}</p>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="fw-bold">Hoja de ruta:</label>
+                                    <p v-if="detalleMaterial.ruta_nombre" class="mat-obra-hist-item__ruta mb-0" :style="{ color: detalleMaterial.ruta_color || '#6c757d' }">
+                                        <svg class="mat-obra-hist-item__ruta-ico" viewBox="0 0 20 12" aria-hidden="true" focusable="false"><path d="M1 9.5 H6 V2.5 H14 V9.5 H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        <span>{{ detalleMaterial.ruta_nombre }}</span>
+                                    </p>
+                                    <p v-else class="text-muted mb-0">Sin ruta asociada</p>
                                 </div>
                             </div>
                         </div>

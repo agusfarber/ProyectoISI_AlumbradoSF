@@ -170,11 +170,17 @@
 }
 
 .rutas-page #tabla_rutas_wrapper .dt-layout-table {
+    display: block;
     background: var(--color-white);
     border: 1px solid var(--color-light-gray);
     border-radius: 12px;
     box-shadow: var(--shadow-light);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.rutas-page #tabla_rutas_wrapper #tabla_rutas {
+    min-width: 680px;
 }
 
 .rutas-page #tabla_rutas_wrapper .dt-layout-table .dt-layout-cell {
@@ -284,7 +290,12 @@
     border: 1px solid var(--color-light-gray);
     border-radius: 12px;
     box-shadow: var(--shadow-light);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.rutas-historial-table {
+    min-width: 900px;
 }
 
 /* ---------- Badges ---------- */
@@ -659,14 +670,62 @@
 }
 
 .crear-ruta-color {
-    display: inline-flex;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 0.55rem 0.85rem;
+    gap: 0.85rem;
+    padding: 0.65rem 0.85rem;
     border: 1px solid var(--color-light-gray);
     border-radius: 10px;
     background: #fbfbfd;
+}
+
+.crear-ruta-color__swatches {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.crear-ruta-color__swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.crear-ruta-color__swatch:hover {
+    transform: scale(1.08);
+}
+
+.crear-ruta-color__swatch.is-selected {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-purple-medium, #3a3972);
+}
+
+.crear-ruta-color__custom {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px dashed var(--color-medium-gray);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-purple-dark);
+    background: var(--color-white);
+    margin: 0;
+}
+
+.crear-ruta-color__custom:hover {
+    border-color: var(--color-purple-medium);
+    background: rgba(58, 57, 114, 0.05);
 }
 
 .crear-ruta-color__preview {
@@ -686,14 +745,9 @@
     background-size: 14px 14px;
     border: 1px solid rgba(6, 4, 75, 0.08);
     box-shadow: inset 0 1px 2px rgba(6, 4, 75, 0.04);
-    cursor: pointer;
     overflow: hidden;
-    transition: box-shadow 0.15s ease, border-color 0.15s ease;
-}
-
-.crear-ruta-color__preview:hover {
-    border-color: rgba(110, 109, 153, 0.28);
-    box-shadow: inset 0 1px 2px rgba(6, 4, 75, 0.04), 0 0 0 3px rgba(110, 109, 153, 0.1);
+    flex-shrink: 0;
+    pointer-events: none;
 }
 
 .crear-ruta-color__trazo {
@@ -836,14 +890,17 @@
 #mapaDetalleSupervisor a[href*="maps.google.com/maps"],
 #mapaDetalleSupervisor a[href*="google.com/maps"],
 #mapaVisualizarRutas a[href*="maps.google.com/maps"],
-#mapaVisualizarRutas a[href*="google.com/maps"] {
+#mapaVisualizarRutas a[href*="google.com/maps"],
+#mapaHistorialEjecucion a[href*="maps.google.com/maps"],
+#mapaHistorialEjecucion a[href*="google.com/maps"] {
     display: none !important;
 }
 
 #mapaCrearRutaMapbox .mapboxgl-ctrl-logo,
 #mapaVerRutaMapbox .mapboxgl-ctrl-logo,
 #mapaDetalleSupervisorMapbox .mapboxgl-ctrl-logo,
-#mapaVisualizarRutasMapbox .mapboxgl-ctrl-logo {
+#mapaVisualizarRutasMapbox .mapboxgl-ctrl-logo,
+#mapaHistorialEjecucionMapbox .mapboxgl-ctrl-logo {
     display: none !important;
 }
 
@@ -1272,6 +1329,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    text-align: left;
 }
 
 .supervisor-ruta-card__estado-inline {
@@ -1288,7 +1346,18 @@
 
 .supervisor-ruta-card__estado-inline .badge {
     font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.3em 0.65em;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
     white-space: nowrap;
+    text-transform: uppercase;
+}
+
+.supervisor-ruta-card__estado-inline .badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #1a1a1a !important;
 }
 
 .supervisor-ruta-card__cuadrilla-fila {
@@ -1705,9 +1774,9 @@
 }
 
 .supervisor-detalle-secuencia.ruta-secuencia-container {
-    max-width: min(620px, 97%);
+    max-width: min(640px, 100%);
     margin: 0.75rem auto 0;
-    padding: 0;
+    padding: 0 0.25rem;
 }
 
 .supervisor-detalle-secuencia .reclamo-card-secuencia {
@@ -1717,27 +1786,28 @@
 }
 
 .supervisor-detalle-secuencia .reclamo-card-secuencia .card-body {
-    padding: 0.35rem 0.5rem !important;
+    padding: 0.55rem 0.65rem !important;
 }
 
 .supervisor-detalle-secuencia .ruta-secuencia-fila {
     display: flex;
     flex-direction: row;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
     width: 100%;
     min-width: 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
 }
 
 .supervisor-detalle-secuencia .ruta-secuencia-main {
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.45rem;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     cursor: pointer;
 }
 
@@ -1745,7 +1815,7 @@
     flex: 0 0 auto;
     font-weight: 700;
     font-size: 0.88rem;
-    color: var(--color-purple-medium);
+    color: var(--color-purple-dark, #3a3972);
     font-variant-numeric: tabular-nums;
 }
 
@@ -1809,16 +1879,17 @@
 }
 
 .supervisor-detalle-secuencia .ruta-secuencia-domicilio {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     max-width: 100%;
 }
 
 .supervisor-detalle-secuencia .ruta-secuencia-calle {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
     font-size: 0.8rem;
     line-height: 1.25;
@@ -1826,6 +1897,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
 }
 
 .supervisor-detalle-secuencia .ruta-secuencia-calle-ico {
@@ -1834,19 +1906,87 @@
     font-size: 0.75rem;
 }
 
+.supervisor-detalle-secuencia .ruta-secuencia-descripcion {
+    display: block;
+    font-size: 0.72rem;
+    color: #6c757d;
+    line-height: 1.25;
+    margin-top: 0.12rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .supervisor-detalle-secuencia .ruta-secuencia-toolbar {
-    flex: 0 0 auto;
+    flex: 1 1 100%;
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 0.35rem;
+    margin-left: 0;
+    max-width: 100%;
+    min-width: 0;
+    padding-top: 0.4rem;
+    margin-top: 0.15rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.supervisor-detalle-secuencia .ruta-secuencia-toolbar__inicio,
+.supervisor-detalle-secuencia .ruta-secuencia-toolbar__paneles {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.supervisor-detalle-secuencia .ruta-secuencia-toolbar__inicio {
+    margin-right: auto;
+}
+
+.supervisor-detalle-secuencia .ruta-secuencia-toolbar__paneles {
     margin-left: auto;
-    max-width: 58%;
 }
 
 .map-detalle-iw-acciones .btn {
     padding: 0.2rem 0.45rem;
+}
+
+.map-detalle-iw-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem;
+}
+
+.map-detalle-iw-acciones__inicio,
+.map-detalle-iw-acciones__paneles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.map-detalle-iw-historial__acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+}
+
+.map-detalle-iw-historial__inicio,
+.map-detalle-iw-historial__paneles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
 }
 
 .map-detalle-iw-crono {
@@ -2360,14 +2500,18 @@
 .crear-ruta-cuadrilla-card__team {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.35rem;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    min-width: 0;
+    width: 100%;
 }
 
 .crear-ruta-cuadrilla-card__avatars {
     display: flex;
     align-items: center;
     min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
 }
 
 .crc-avatar {
@@ -2414,10 +2558,19 @@
 
 .crear-ruta-cuadrilla-card__count {
     flex: 0 0 auto;
+    margin-left: auto;
     font-size: 0.65rem;
     font-weight: 600;
     color: var(--color-medium-gray);
     white-space: nowrap;
+    position: relative;
+    z-index: 1;
+    padding-left: 0.35rem;
+    background: var(--color-white);
+}
+
+.crear-ruta-cuadrilla-card--ocupada .crear-ruta-cuadrilla-card__count {
+    background: #fafafa;
 }
 
 .crear-ruta-cuadrilla-card__empty-team {
@@ -2946,4 +3099,145 @@
 .marker-mapbox-ruta svg,
 .marker-mapbox-reclamo svg {
     display: block;
+}
+
+/* ---------- Materiales supervisor (consulta) ---------- */
+.mat-sup-historial {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.mat-sup-historial__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.mat-sup-historial__count {
+    margin-left: auto;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: var(--color-purple-medium);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mat-sup-historial__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.mat-sup-historial__list.bitacora-obra-feed {
+    gap: 0;
+    padding: 0.65rem 0.55rem;
+}
+
+.mat-sup-hist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.65rem 0.7rem;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.mat-sup-hist-item__foto {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #f3f4f8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    color: var(--color-medium-gray);
+    font-size: 1.15rem;
+}
+
+.mat-sup-hist-item__foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mat-sup-hist-item__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+}
+
+.mat-sup-hist-item__body strong {
+    font-size: 0.88rem;
+    color: var(--color-purple-dark);
+    line-height: 1.25;
+}
+
+.mat-sup-hist-item__body small {
+    font-size: 0.74rem;
+    color: var(--color-medium-gray);
+}
+
+.mat-sup-hist-item__user {
+    font-weight: 600;
+}
+
+.mat-sup-hist-item__ruta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 600;
+}
+
+.mat-sup-hist-item__ruta-ico {
+    width: 0.95rem;
+    height: 0.6rem;
+    flex-shrink: 0;
+}
+
+.mat-sup-hist-item__obs {
+    margin: 0.35rem 0 0;
+    padding: 0.4rem 0.5rem;
+    border-radius: 8px;
+    background: #f7f7fb;
+    font-size: 0.78rem;
+    color: var(--color-purple-dark);
+    line-height: 1.35;
+    white-space: pre-wrap;
+}
+
+/* Popups Mapbox en rutas: scroll interno (como InfoWindow de Google) */
+.rutas-page .mapboxgl-popup-content {
+    max-height: min(55vh, 400px);
+    max-width: 320px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rutas-page .mapboxgl-popup-content .mapa-popup-reclamo,
+.rutas-page .mapboxgl-popup-content .map-detalle-iw,
+.rutas-page .mapboxgl-popup-content .map-detalle-iw-historial {
+    max-width: 100%;
+    overflow-x: hidden;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
+
+.rutas-page .mapboxgl-popup-close-button {
+    z-index: 2;
 }

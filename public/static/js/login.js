@@ -26,9 +26,9 @@ const loginApp = Vue.createApp({
               } else if (userRole == 2) {
                 window.location.replace(BASE_URL+'cuadrillas');
               } else if (userRole == 3) {
-                window.location.replace(BASE_URL+'materiales');
+                window.location.replace(BASE_URL+'tareas');
               } else {
-                window.location.replace(BASE_URL+'cuadrillas');
+                window.location.replace(BASE_URL+'perfil');
               }
             }
           })

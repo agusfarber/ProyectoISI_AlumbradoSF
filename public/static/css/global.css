@@ -141,11 +141,50 @@
 .reclamos-btn--danger,
 .rutas-btn--danger {
   background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: var(--color-white);
 }
 
 .reclamos-btn--danger i,
 .rutas-btn--danger i {
   color: var(--color-white);
+}
+
+.reclamos-btn--danger:hover:not(:disabled),
+.rutas-btn--danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #c82333 0%, #a71d2a 100%);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.reclamos-btn--danger:hover:not(:disabled) i,
+.rutas-btn--danger:hover:not(:disabled) i {
+  color: var(--color-white);
+}
+
+/* Outline + danger: no heredar el hover blanco del outline */
+.reclamos-btn--outline.reclamos-btn--danger,
+.rutas-btn--outline.rutas-btn--danger {
+  background: var(--color-white);
+  color: #c82333;
+  border: 1px solid rgba(220, 53, 69, 0.35);
+  box-shadow: none;
+}
+
+.reclamos-btn--outline.reclamos-btn--danger i,
+.rutas-btn--outline.rutas-btn--danger i {
+  color: #c82333;
+}
+
+.reclamos-btn--outline.reclamos-btn--danger:hover:not(:disabled),
+.rutas-btn--outline.rutas-btn--danger:hover:not(:disabled) {
+  background: #fdecec;
+  border-color: rgba(220, 53, 69, 0.5);
+  color: #b02a37;
+}
+
+.reclamos-btn--outline.reclamos-btn--danger:hover:not(:disabled) i,
+.rutas-btn--outline.rutas-btn--danger:hover:not(:disabled) i {
+  color: #b02a37;
 }
 
 /* Peligro suave (eliminar en footer de modal) */
@@ -403,6 +442,34 @@
 }
 
 .table-responsive::-webkit-scrollbar-thumb:hover {
+  background: var(--color-purple-medium);
+}
+
+/* Barra horizontal de las tablas que scrollean cuando no entran las columnas */
+.dt-layout-table,
+.rutas-table-wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-purple-light) transparent;
+}
+
+.dt-layout-table::-webkit-scrollbar,
+.rutas-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+
+.dt-layout-table::-webkit-scrollbar-track,
+.rutas-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dt-layout-table::-webkit-scrollbar-thumb,
+.rutas-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--color-purple-light);
+  border-radius: 4px;
+}
+
+.dt-layout-table::-webkit-scrollbar-thumb:hover,
+.rutas-table-wrap::-webkit-scrollbar-thumb:hover {
   background: var(--color-purple-medium);
 }
 
@@ -865,6 +932,17 @@ body #app.tareas-page .reclamo-card .badge.bg-success {
 }
 
 /* ========================================
+   RECLAMO EN OBRA (secuencia de ruta en ejecución)
+   ======================================== */
+
+.card.reclamo-card.reclamo-card-secuencia--en-obra {
+  border-color: #f0a202;
+  border-left-color: #f0a202 !important;
+  background: linear-gradient(0deg, rgba(240, 162, 2, 0.09), rgba(240, 162, 2, 0.09)), var(--color-white);
+  box-shadow: 0 4px 14px rgba(240, 162, 2, 0.3);
+}
+
+/* ========================================
    ESTILOS PARA SOMBRAS
    ======================================== */
 
@@ -1277,6 +1355,13 @@ body.bitacora-foto-obra-lightbox-open {
 .bitacora-obra-feed .list-group-item {
     background: transparent;
     border: none;
+    transition: none;
+}
+
+.bitacora-obra-feed .list-group-item:hover {
+    background: transparent;
+    transform: none;
+    box-shadow: none;
 }
 
 .bitacora-obra-composer .btn.disabled {
@@ -1312,6 +1397,36 @@ body.bitacora-foto-obra-lightbox-open {
 .bitacora-obra-feed .badge.bg-secondary .bi,
 .historial-mapa-tipo-badge .bi {
     color: #fff;
+}
+
+/* Registro en obra — modal: chat abajo + composer fijo */
+.bitacora-obra-modal-dialog {
+    max-height: calc(100vh - 1.5rem);
+}
+
+.bitacora-obra-modal {
+    max-height: calc(100vh - 1.5rem);
+}
+
+.bitacora-obra-modal__body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: min(70vh, 34rem);
+    overflow: hidden;
+    padding-bottom: 0.75rem;
+}
+
+.bitacora-obra-modal__feed {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.bitacora-obra-composer {
+    flex: 0 0 auto;
+    background: #fff;
 }
 
 /* Registro en obra — mensajes estilo chat */
@@ -1471,6 +1586,102 @@ body.bitacora-foto-obra-lightbox-open {
     font-size: 0.72rem;
 }
 
+/* Materiales registrados — reutiliza bitácora; solo extras del contenido material */
+.mat-hist-msg .bitacora-obra-msg__stack {
+    max-width: min(88%, 28rem);
+}
+
+.mat-hist-msg__main {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+
+.mat-hist-msg__main--static {
+    cursor: default;
+}
+
+.mat-hist-msg__foto {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.45rem;
+    background: #f3f4f8;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    color: var(--color-medium-gray, #6c757d);
+    font-size: 1rem;
+}
+
+.mat-hist-msg__foto img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mat-hist-msg__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+}
+
+.mat-hist-msg__body strong {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.35;
+}
+
+.mat-hist-msg__body small {
+    color: #6c757d;
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+
+.mat-hist-msg__delete {
+    align-self: flex-end;
+    flex: 0 0 auto;
+    width: 1.65rem;
+    height: 1.65rem;
+    margin-bottom: 0.15rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #adb5bd;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+}
+
+.mat-hist-msg__delete:hover {
+    color: #dc3545;
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.mat-hist-msg__delete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.mat-hist-msg__usuario-detalle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 /* Cambio de estado — evento alineado a la derecha (saliente) */
 .bitacora-obra-evento-estado {
     list-style: none;
@@ -1602,6 +1813,45 @@ body.bitacora-foto-obra-lightbox-open {
     width: 1rem;
     height: 1rem;
     font-size: 0.58rem;
+}
+
+/* ========================================
+   TÍTULO DE PÁGINA (supervisor / vistas con sidebar)
+   ======================================== */
+
+.app-page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 1.05rem;
+}
+
+.app-page-title__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--gradient-primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+  box-shadow: var(--shadow-light);
+}
+
+.app-page-title__icon i {
+  color: #fff;
+  line-height: 1;
+}
+
+.app-page-title__text {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 700;
+  color: var(--color-purple-dark);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
 }
 
 /* Estilos de mapa: ver public/static/css/mapa.css */

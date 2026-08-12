@@ -38,7 +38,10 @@ $colorAvatar = $paleta[abs($hash) % count($paleta)];
 
 <div class="perfil-page" data-user-id="<?= esc($userId, 'attr') ?>">
 
-    <div class="perfil-page-title">Mi Perfil</div>
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-person"></i></span>
+        <h1 class="app-page-title__text">Mi Perfil</h1>
+    </div>
 
     <div class="perfil-card">
         <!-- Cabecera con avatar -->

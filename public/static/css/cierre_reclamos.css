@@ -213,6 +213,11 @@
     color: var(--color-white) !important;
 }
 
+.cierre-page .reclamo-estado--cerrado {
+    background: #000000 !important;
+    color: #fff !important;
+}
+
 /* DataTables: controles fuera del recuadro, solo la tabla adentro */
 .cierre-page #tabla_cierre_reclamos_wrapper,
 .cierre-page #tabla_reclamos_cerrados_wrapper {
@@ -234,11 +239,18 @@
 
 .cierre-page #tabla_cierre_reclamos_wrapper .dt-layout-table,
 .cierre-page #tabla_reclamos_cerrados_wrapper .dt-layout-table {
+    display: block;
     background: var(--color-white);
     border: 1px solid var(--color-light-gray);
     border-radius: 12px;
     box-shadow: var(--shadow-light);
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.cierre-page #tabla_cierre_reclamos,
+.cierre-page #tabla_reclamos_cerrados {
+    min-width: 880px;
 }
 
 .cierre-page #tabla_cierre_reclamos_wrapper .dt-layout-table .dt-layout-cell,

@@ -6,7 +6,7 @@ const app = Vue.createApp({
             cuadrilla: {
                 nombre: '',
                 descripcion: '',
-                jefeOperarioId: ''
+                operarios: []
             },
             cuadrillaSeleccionada: '',
             operariosDisponiblesParaEdicion: [],
@@ -102,10 +102,23 @@ const app = Vue.createApp({
             return paleta[Math.abs(hash) % paleta.length];
         },
 
-        // Devuelve el operario jefe de una cuadrilla (o null)
-        jefeDe(cuadrilla) {
-            if (!cuadrilla.operarios) return null;
-            return cuadrilla.operarios.find(op => Number(op.es_jefe) === 1) || null;
+        // Operarios con permisos de gestión en una cuadrilla
+        operariosConGestion(cuadrilla) {
+            if (!cuadrilla?.operarios) return [];
+            return cuadrilla.operarios.filter(op => Number(op.es_jefe) === 1);
+        },
+
+        etiquetaGestionCuadrilla(cuadrilla) {
+            const conGestion = this.operariosConGestion(cuadrilla);
+            if (!conGestion.length) return '';
+            if (conGestion.length === 1) return conGestion[0].nombre;
+            return conGestion.length + ' con gestión';
+        },
+
+        idsOperariosConPermiso() {
+            return (this.cuadrilla.operarios || [])
+                .filter(op => Number(op.es_jefe) === 1)
+                .map(op => op.id);
         },
         
 
@@ -114,7 +127,6 @@ const app = Vue.createApp({
             this.cuadrilla = {
                 nombre: '',
                 descripcion: '',
-                jefeOperarioId: '',
                 operarios: []
             };
             this.filtroDisponibles = '';
@@ -132,8 +144,6 @@ const app = Vue.createApp({
             }
 
             this.cuadrilla = { ...cuadrilla, operarios: (cuadrilla.operarios || []).map(op => ({ ...op })) };
-            const jefeActual = (this.cuadrilla.operarios || []).find(op => Number(op.es_jefe) === 1);
-            this.cuadrilla.jefeOperarioId = jefeActual ? jefeActual.id : '';
             this.filtroDisponibles = '';
             
             // Cargar operarios disponibles para edición (excluyendo los ya asignados)
@@ -156,12 +166,13 @@ const app = Vue.createApp({
                     return;
                 }
 
-                // Si se seleccionaron operarios, debe haber un jefe (aplica a nuevo y edición)
+                // Si hay operarios, al menos uno con permisos de gestión
                 const operariosSeleccionados = (this.cuadrilla.operarios || [])
                     .map(op => op.id)
                     .filter(id => id !== undefined && id !== null);
-                if (operariosSeleccionados.length > 0 && !this.cuadrilla.jefeOperarioId) {
-                    this.mostrarMensaje('Debe seleccionar un jefe de cuadrilla', 'warning');
+                const operariosConPermiso = this.idsOperariosConPermiso();
+                if (operariosSeleccionados.length > 0 && operariosConPermiso.length === 0) {
+                    this.mostrarMensaje('Otorgá permisos de gestión a al menos un operario', 'warning');
                     return;
                 }
                 
@@ -237,7 +248,7 @@ const app = Vue.createApp({
                     await axios.post(BASE_URL + 'api/cuadrillas/asignar', {
                         cuadrillaId: cuadrillaId,
                         operarios: operariosSeleccionados,
-                        jefeOperarioId: this.cuadrilla.jefeOperarioId || null
+                        operariosConPermiso: operariosConPermiso
                     });
                 }
                 
@@ -245,7 +256,7 @@ const app = Vue.createApp({
                 bootstrap.Modal.getInstance(document.getElementById('modalCuadrilla')).hide();
                 
                 // Limpiar formulario
-                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '', operarios: [] };
+                this.cuadrilla = { nombre: '', descripcion: '', operarios: [] };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
                 this.filtroDisponibles = '';
@@ -340,7 +351,7 @@ const app = Vue.createApp({
                 await this.obtenerCuadrillas();
                 
                 // Limpiar formulario
-                this.cuadrilla = { nombre: '', descripcion: '', jefeOperarioId: '' };
+                this.cuadrilla = { nombre: '', descripcion: '', operarios: [] };
                 this.operariosDisponiblesParaEdicion = [];
                 this.operariosSeleccionadosEdicion = [];
                 
@@ -446,9 +457,6 @@ const app = Vue.createApp({
 
         // Quitar operario de la cuadrilla
         quitarOperario(operarioId) {
-            if (Number(this.cuadrilla.jefeOperarioId) === Number(operarioId)) {
-                this.cuadrilla.jefeOperarioId = '';
-            }
             // Eliminar operario del array local directamente sin confirmación
             this.cuadrilla.operarios = this.cuadrilla.operarios.filter(op => op.id !== operarioId);
             // Recargar operarios disponibles para mostrar el operario removido
@@ -456,20 +464,24 @@ const app = Vue.createApp({
             this.mostrarMensaje('Operario removido correctamente', 'success');
         },
 
-        // Asignar/Quitar jefe de cuadrilla desde la fila del operario
+        // Otorgar / quitar permisos de gestión (pueden tenerlos varios)
         toggleJefeOperario(operarioId) {
-            if (Number(this.cuadrilla.jefeOperarioId) === Number(operarioId)) {
-                this.cuadrilla.jefeOperarioId = '';
-                this.mostrarMensaje('Jefe de cuadrilla removido', 'warning');
+            const operario = (this.cuadrilla.operarios || []).find(op => Number(op.id) === Number(operarioId));
+            if (!operario) return;
+
+            if (Number(operario.es_jefe) === 1) {
+                operario.es_jefe = 0;
+                this.mostrarMensaje('Permisos de gestión removidos', 'warning');
                 return;
             }
 
-            this.cuadrilla.jefeOperarioId = operarioId;
-            this.mostrarMensaje('Jefe de cuadrilla asignado correctamente', 'success');
+            operario.es_jefe = 1;
+            this.mostrarMensaje('Permisos de gestión otorgados', 'success');
         },
 
         esJefeOperario(operarioId) {
-            return Number(this.cuadrilla.jefeOperarioId) === Number(operarioId);
+            const operario = (this.cuadrilla.operarios || []).find(op => Number(op.id) === Number(operarioId));
+            return Number(operario?.es_jefe) === 1;
         },
 
         /**
@@ -542,9 +554,9 @@ const app = Vue.createApp({
                               tipo === 'warning' ? 'alert-warning' : 'alert-danger';
             
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
             

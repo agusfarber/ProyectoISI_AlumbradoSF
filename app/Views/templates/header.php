@@ -48,10 +48,12 @@
     // Pasar el rol del usuario al JavaScript
     $session = \Config\Services::session();
     $userRole = $session->get('role');
+    $userId = $session->get('user_id');
     ?>
     <script>
-        // Variable global con el rol del usuario
+        // Variables globales de sesión
         window.USER_ROLE = '<?= $userRole ?>';
+        window.USER_ID = <?= $userId !== null && $userId !== '' ? (int) $userId : 'null' ?>;
     </script>
 </head>
 

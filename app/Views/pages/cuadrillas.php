@@ -1,7 +1,10 @@
 <div id="app" class="cuadrillas-page">
 
     <!-- Título -->
-    <div class="cuadrillas-page-title">Cuadrillas</div>
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-people-fill"></i></span>
+        <h1 class="app-page-title__text">Cuadrillas</h1>
+    </div>
 
     <!-- Acciones: botón a la izquierda, buscador a la derecha -->
     <div class="cuadrillas-toolbar">
@@ -56,13 +59,13 @@
                             :class="{ 'avatar--jefe': Number(op.es_jefe) === 1 }"
                             :src="urlFoto(op.foto_perfil)"
                             :alt="op.nombre"
-                            :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Jefe)' : '')">
+                            :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Gestión)' : '')">
                         <span
                             v-else
                             class="avatar"
                             :class="{ 'avatar--jefe': Number(op.es_jefe) === 1 }"
                             :style="{ backgroundColor: colorAvatar(op.nombre) }"
-                            :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Jefe)' : '')">
+                            :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Gestión)' : '')">
                             {{ iniciales(op.nombre) }}
                         </span>
                     </template>
@@ -70,8 +73,8 @@
                         +{{ c.operarios.length - 5 }}
                     </span>
                 </div>
-                <span v-if="jefeDe(c)" class="jefe-line">
-                    <i class="bi bi-person-badge-fill"></i> {{ jefeDe(c).nombre }}
+                <span v-if="operariosConGestion(c).length" class="jefe-line" :title="operariosConGestion(c).map(op => op.nombre).join(', ')">
+                    <i class="bi bi-person-badge-fill"></i> {{ etiquetaGestionCuadrilla(c) }}
                 </span>
             </div>
             <div class="cuadrilla-card__footer cuadrilla-card__footer--empty" v-else>
@@ -121,7 +124,7 @@
                             <div class="ce-seleccionados">
                                 <div class="ce-seleccionados__head">
                                     <span class="ce-panel__title"><i class="bi bi-people-fill"></i> Seleccionados</span>
-                                    <span class="ce-seleccionados__hint" v-if="cuadrilla.operarios && cuadrilla.operarios.length">Tocá un operario para marcarlo como jefe</span>
+                                    <span class="ce-seleccionados__hint" v-if="cuadrilla.operarios && cuadrilla.operarios.length">Tocá uno o más operarios para darles permisos de gestión</span>
                                 </div>
                                 <div class="ce-chips" v-if="cuadrilla.operarios && cuadrilla.operarios.length">
                                     <div
@@ -129,7 +132,7 @@
                                         :key="operario.id"
                                         class="ce-chip"
                                         :class="{ 'ce-chip--jefe': esJefeOperario(operario.id) }"
-                                        :title="esJefeOperario(operario.id) ? operario.nombre + ' (Jefe)' : 'Marcar a ' + operario.nombre + ' como jefe'"
+                                        :title="esJefeOperario(operario.id) ? operario.nombre + ' (Gestión)' : 'Otorgar permisos de gestión a ' + operario.nombre"
                                         @click="toggleJefeOperario(operario.id)">
                                         <img v-if="operario.foto_perfil" class="ce-chip__avatar ce-avatar--img" :src="urlFoto(operario.foto_perfil)" :alt="operario.nombre">
                                         <span v-else class="ce-chip__avatar" :style="{ backgroundColor: colorAvatar(operario.nombre) }">{{ iniciales(operario.nombre) }}</span>
@@ -244,7 +247,7 @@
                                 <span class="detalle-operario__sub">{{ op.email || op.legajo }}</span>
                             </div>
                             <span v-if="Number(op.es_jefe) === 1" class="detalle-operario__jefe">
-                                <i class="bi bi-person-badge-fill"></i> Jefe
+                                <i class="bi bi-person-badge-fill"></i> Gestión
                             </span>
                         </li>
                     </ul>
