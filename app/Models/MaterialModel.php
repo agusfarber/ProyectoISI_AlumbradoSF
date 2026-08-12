@@ -11,7 +11,7 @@ class MaterialModel extends Model
     protected $useAutoIncrement = true;
 
     // Se agrega 'idTipo' a los campos permitidos
-    protected $allowedFields = ['nombre','idTipo','cantidad'];
+    protected $allowedFields = ['nombre', 'idTipo', 'foto'];
 
     /**
      * Obtiene todos los materiales y el nombre de su tipo asociado.

@@ -195,6 +195,35 @@ class CreateTestTables extends Migration
                 'type' => 'DATETIME',
                 'null' => true,
             ],
+            'ficha_editada' => [
+                'type' => 'TINYINT',
+                'constraint' => 1,
+                'unsigned' => true,
+                'default' => 0,
+                'null' => false,
+            ],
+            'excluido_local' => [
+                'type' => 'TINYINT',
+                'constraint' => 1,
+                'unsigned' => true,
+                'default' => 0,
+                'null' => false,
+            ],
+            'excluido_at' => [
+                'type' => 'DATETIME',
+                'null' => true,
+            ],
+            'excluido_observacion' => [
+                'type' => 'VARCHAR',
+                'constraint' => 500,
+                'null' => true,
+            ],
+            'origen' => [
+                'type' => 'VARCHAR',
+                'constraint' => 20,
+                'default' => '103',
+                'null' => false,
+            ],
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('reclamo');
@@ -353,6 +382,18 @@ class CreateTestTables extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 100,
             ],
+            'icono' => [
+                'type' => 'VARCHAR',
+                'constraint' => 80,
+                'null' => true,
+                'default' => null,
+            ],
+            'color' => [
+                'type' => 'VARCHAR',
+                'constraint' => 20,
+                'null' => true,
+                'default' => null,
+            ],
         ]);
         $this->forge->addKey('id', true);
         $this->forge->createTable('tipo_material');
@@ -375,10 +416,11 @@ class CreateTestTables extends Migration
                 'unsigned' => true,
                 'null' => true,
             ],
-            'cantidad' => [
-                'type' => 'INT',
-                'constraint' => 11,
-                'default' => 0,
+            'foto' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+                'null' => true,
+                'default' => null,
             ],
         ]);
         $this->forge->addKey('id', true);
@@ -397,6 +439,13 @@ class CreateTestTables extends Migration
                 'type' => 'INT',
                 'constraint' => 11,
                 'unsigned' => true,
+            ],
+            'ruta_ejecucion_id' => [
+                'type' => 'INT',
+                'constraint' => 11,
+                'unsigned' => true,
+                'null' => true,
+                'default' => null,
             ],
             'material_id' => [
                 'type' => 'INT',
@@ -484,7 +533,7 @@ class CreateTestTables extends Migration
         $this->forge->addForeignKey('reclamo_id', 'reclamo', 'id', 'CASCADE', 'CASCADE');
         $this->forge->createTable('ruta_ejecucion_reclamo_observacion');
 
-        // Crear tabla token103 para credenciales de API externa
+        // Crear tabla token103 para token de API externa
         $this->forge->addField([
             'id' => [
                 'type' => 'INT',
@@ -492,13 +541,20 @@ class CreateTestTables extends Migration
                 'unsigned' => true,
                 'auto_increment' => true,
             ],
+            'api_token' => [
+                'type' => 'VARCHAR',
+                'constraint' => 255,
+                'null' => true,
+            ],
             'username' => [
                 'type' => 'VARCHAR',
                 'constraint' => 255,
+                'null' => true,
             ],
             'password' => [
                 'type' => 'VARCHAR',
                 'constraint' => 255,
+                'null' => true,
             ],
             'created_at' => [
                 'type' => 'DATETIME',

@@ -66,7 +66,7 @@ class RutasApiTest extends CIUnitTestCase
         $this->assertArrayHasKey('color', $rutaData);
         
         // Verificar datos específicos (nombre asignado automáticamente)
-        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $rutaData['nombre']);
+        $this->assertMatchesRegularExpression('/^R\d+$/i', $rutaData['nombre']);
         $this->assertEquals('#FF6B35', $rutaData['color']);
         $this->assertEquals(2, $rutaData['cantidadReclamos']);
         $this->assertEquals(0, $rutaData['asignada']); // Debe estar no asignada
@@ -383,12 +383,12 @@ class RutasApiTest extends CIUnitTestCase
         $result1 = $this->withBodyFormat('json')->post('/api/rutas/generar', $datosBase);
         $result1->assertStatus(201);
         $ruta1 = json_decode($result1->response()->getBody(), true)['ruta'];
-        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $ruta1['nombre']);
+        $this->assertMatchesRegularExpression('/^R\d+$/i', $ruta1['nombre']);
 
         $result2 = $this->withBodyFormat('json')->post('/api/rutas/generar', $datosBase);
         $result2->assertStatus(201);
         $ruta2 = json_decode($result2->response()->getBody(), true)['ruta'];
-        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $ruta2['nombre']);
+        $this->assertMatchesRegularExpression('/^R\d+$/i', $ruta2['nombre']);
         $this->assertNotEquals($ruta1['nombre'], $ruta2['nombre']);
     }
 
@@ -995,6 +995,7 @@ class RutasApiTest extends CIUnitTestCase
         );
         
         // Verificar que los reclamos aún existen (no se eliminan, solo se liberan)
+        // y que los que estaban Asignados volvieron a Recibido
         foreach ($reclamosCreados as $reclamo) {
             $reclamoExiste = $this->db->table('reclamo')
                 ->where('id', $reclamo['id'])
@@ -1003,6 +1004,11 @@ class RutasApiTest extends CIUnitTestCase
             $this->assertNotNull(
                 $reclamoExiste,
                 "El reclamo {$reclamo['id']} debe seguir existiendo"
+            );
+            $this->assertSame(
+                'Recibido',
+                $reclamoExiste['municipalidad_estado'] ?? null,
+                "El reclamo {$reclamo['id']} debe quedar en estado Recibido al eliminar la hoja"
             );
         }
     }
@@ -1040,7 +1046,7 @@ class RutasApiTest extends CIUnitTestCase
         $reclamosCreados = $responseCrear['reclamos'];
         $rutaId = $rutaCreada['id'];
         
-        $this->assertMatchesRegularExpression('/^Hoja de Ruta \d+$/iu', $rutaCreada['nombre']);
+        $this->assertMatchesRegularExpression('/^R\d+$/i', $rutaCreada['nombre']);
         $this->assertEquals(4, $rutaCreada['cantidadReclamos']);
         $this->assertCount(4, $reclamosCreados, 'Debe tener 4 reclamos');
         

@@ -37,6 +37,7 @@ $routes->get('api/reclamos/(:num)/historial', 'Api\\Reclamos::historial/$1');
 $routes->get('api/reclamos/materiales/por-tipo', 'Api\\Reclamos::getMaterialesPorTipo');
 $routes->post('api/reclamos/(:num)/materiales', 'Api\\Reclamos::guardarMaterialReclamo/$1');
 $routes->get('api/reclamos/(:num)/materiales', 'Api\\Reclamos::getMaterialesReclamo/$1');
+$routes->delete('api/reclamos/materiales/(:num)', 'Api\\Reclamos::eliminarMaterialReclamo/$1');
 $routes->get('api/reclamos/materiales/(:num)/detalle', 'Api\\Reclamos::getDetalleMaterialReclamo/$1');
 $routes->get('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::getTiempoReparacion/$1');
 $routes->post('api/reclamos/(:num)/tiempo-reparacion', 'Api\\Reclamos::guardarTiempoReparacionEndpoint/$1');
@@ -44,18 +45,20 @@ $routes->get('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::getE
 $routes->post('api/reclamos/(:num)/ejecucion-observaciones', 'Api\\Reclamos::guardarEjecucionObservacionReclamo/$1');
 $routes->post('api/reclamos/(:num)/ejecucion-observaciones/foto', 'Api\\Reclamos::guardarEjecucionFotoReclamo/$1');
 $routes->get('api/reclamos/tiempos-promedio', 'Api\\Reclamos::getTiemposPromedio');
+$routes->put('api/reclamos/(:num)/ficha', 'Api\\Reclamos::actualizarFicha/$1');
 $routes->resource('api/reclamos');
 // Endpoints para Tipos de Materiales
 $routes->get('api/materiales/tipos', 'Api\\Materiales::getTipos');
 $routes->post('api/materiales/tipos', 'Api\\Materiales::createTipo');
+$routes->put('api/materiales/tipos/(:num)', 'Api\\Materiales::updateTipo/$1');
 $routes->delete('api/materiales/tipos/(:num)', 'Api\\Materiales::deleteTipo/$1');
 // Endpoint Materiales
+$routes->post('api/materiales/(:num)/foto', 'Api\\Materiales::subirFoto/$1');
 $routes->post('api/materiales/import', 'Api\\Materiales::import');
 $routes->get('api/materiales/verificar', 'Api\\Materiales::verificarExistencia');
 $routes->resource('api/materiales');
 // Endpoint Token103
 $routes->resource('api/token103');
-$routes->post('api/token103/generar-externo', 'Api\\Token103::generarTokenExterno');
 // Endpoint Sincronización de Reclamos (proxy para evitar CORS)
 $routes->get('api/sincronizacion/reclamos/pendientes', 'Api\\ReclamosSincronizacion::sincronizarHoy');
 $routes->post('api/sincronizacion/reclamos/procesar-uno', 'Api\\ReclamosSincronizacion::procesarUno');
@@ -72,6 +75,7 @@ $routes->get('api/operarios', 'Api\\Usuarios::operarios');
 // Endpoint Rutas
 $routes->post('api/rutas/generar', 'Api\\Rutas::generarRuta');
 $routes->post('api/rutas/vista-previa', 'Api\\Rutas::vistaPreviaRuta');
+$routes->get('api/rutas/domicilios-disponibles', 'Api\\Rutas::getDomiciliosDisponibles');
 $routes->get('api/rutas/(:num)/reclamos', 'Api\\Rutas::getReclamosRuta/$1');
 $routes->post('api/rutas/asignar', 'Api\\Rutas::asignarACuadrilla');
 $routes->post('api/rutas/desasignar/(:num)', 'Api\\Rutas::desasignarDeCuadrilla/$1');
@@ -95,6 +99,7 @@ $routes->get('api/analisis/reclamos-por-estado', 'Api\\Analisis::getReclamosPorE
 $routes->get('api/analisis/reclamos-por-motivo', 'Api\\Analisis::getReclamosPorMotivo');
 $routes->get('api/analisis/kpi-resumen', 'Api\\Analisis::getKpiResumen');
 $routes->get('api/analisis/evolucion-temporal', 'Api\\Analisis::getEvolucionTemporal');
+$routes->get('api/analisis/antiguedad-abiertos', 'Api\\Analisis::getAntiguedadAbiertos');
 $routes->get('api/analisis/tiempo-promedio-por-motivo', 'Api\\Analisis::getTiempoPromedioPorMotivo');
 $routes->get('api/analisis/evolucion-tiempo-promedio', 'Api\\Analisis::getEvolucionTiempoPromedio');
 $routes->get('api/analisis/mapa-calor-zonas', 'Api\\Analisis::getMapaCalorZonas');
@@ -103,6 +108,8 @@ $routes->get('api/analisis/consumo-materiales', 'Api\\Analisis::getConsumoMateri
 $routes->get('api/analisis/reclamos-cerrados-abiertos', 'Api\\Analisis::getReclamosCerradosAbiertos');
 $routes->get('api/analisis/tasa-cierre', 'Api\\Analisis::getTasaCierre');
 
+// Endpoint Notas (supervisor — módulo aislado)
+$routes->resource('api/notas', ['controller' => 'Api\\Notas', 'only' => ['index', 'create', 'update', 'delete']]);
 
 // Autenticación y configuración de páginas
 $routes->get('(:any)', 'Pages::view/$1');

@@ -10,6 +10,6 @@ class Material_reclamoModel extends Model
 
   protected $useAutoIncrement = true;
 
-  protected $allowedFields = ['reclamo_id','material_id','observacion','cantidad','fecha','usuario_id'];
+  protected $allowedFields = ['reclamo_id','ruta_ejecucion_id','material_id','observacion','cantidad','fecha','usuario_id'];
 
 }

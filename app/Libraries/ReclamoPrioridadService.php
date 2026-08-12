@@ -7,7 +7,13 @@ namespace App\Libraries;
  */
 class ReclamoPrioridadService
 {
+    /** @deprecated Usar MOTIVOS_PRIORIDAD_ALTA */
     public const MOTIVO_PRIORIDAD_ALTA = 'Postes, cables caídos o por caer (Telecom, Epec, Monet)';
+
+    public const MOTIVOS_PRIORIDAD_ALTA = [
+        'Postes, cables caídos o por caer (Telecom, Epec, Monet)',
+        'Semáforos - Arreglo y sincronización',
+    ];
 
     public const DIAS_SIN_ATENDER_PARA_ALTA = 10;
 
@@ -22,7 +28,12 @@ class ReclamoPrioridadService
 
     public static function motivoRequierePrioridadAlta(?string $motivo): bool
     {
-        return trim((string) $motivo) === self::MOTIVO_PRIORIDAD_ALTA;
+        $motivo = trim((string) $motivo);
+        if ($motivo === '') {
+            return false;
+        }
+
+        return in_array($motivo, self::MOTIVOS_PRIORIDAD_ALTA, true);
     }
 
     public static function estadoRequierePrioridadAlta(?string $estado): bool
@@ -94,9 +105,14 @@ class ReclamoPrioridadService
      */
     public static function sincronizarPrioridadesMasivas(): void
     {
-        $db     = \Config\Database::connect();
-        $motivo = $db->escape(self::MOTIVO_PRIORIDAD_ALTA);
-        $dias   = (int) self::DIAS_SIN_ATENDER_PARA_ALTA;
+        $db   = \Config\Database::connect();
+        $dias = (int) self::DIAS_SIN_ATENDER_PARA_ALTA;
+
+        $motivosEscapados = array_map(
+            static fn(string $motivo): string => $db->escape($motivo),
+            self::MOTIVOS_PRIORIDAD_ALTA
+        );
+        $motivosIn = implode(', ', $motivosEscapados);
 
         $db->query(
             "UPDATE reclamo SET prioridad = NULL
@@ -105,7 +121,7 @@ class ReclamoPrioridadService
 
         $db->query(
             "UPDATE reclamo SET prioridad = 'Alta'
-             WHERE municipalidad_motivo = {$motivo}
+             WHERE municipalidad_motivo IN ({$motivosIn})
                AND municipalidad_estado != 'Completado'
                AND (cerrado IS NULL OR cerrado = 0)"
         );

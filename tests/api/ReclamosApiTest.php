@@ -17,6 +17,14 @@ class ReclamosApiTest extends CIUnitTestCase
     protected $namespace   = 'Tests\Support';
     protected $seed        = 'Tests\Support\Database\Seeds\TestSeeder';
 
+    private function withSessionSupervisor()
+    {
+        return $this->withSession([
+            'user_id' => 1,
+            'role' => '2',
+        ]);
+    }
+
     /**
      * HU-008: Test de guardado exitoso completo de un reclamo
      * Tipo: API - CRUD - Creación
@@ -26,15 +34,11 @@ class ReclamosApiTest extends CIUnitTestCase
      */
     public function testGuardadoExitosoCompleto()
     {
-        // Datos completos de un reclamo válido
+        // Datos de ficha (el ID visible se genera como L{id} y origen=local)
         $datosReclamo = [
-            'municipalidad_id' => '10001', // Número de 5 dígitos
-            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
             'municipalidad_motivo' => 'Luminaria apagada',
             'municipalidad_fechaInicio' => '2025-11-12 10:00:00',
-            'municipalidad_fechaModificacion' => '2025-11-12 10:00:00',
-            'municipalidad_recepcion' => 'Web',
-            'municipalidad_estado' => 'Recibido',
+            'municipalidad_recepcion' => 'web',
             'municipalidad_telefono' => '3564123456',
             'municipalidad_domicilio' => 'Av. Libertador',
             'municipalidad_numeroDomicilio' => '1234',
@@ -42,11 +46,11 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_entreCalleDos' => 'Calle 2',
             'municipalidad_ciudadano' => 'Juan Pérez',
             'municipalidad_descripcion' => 'Luminaria de poste apagada, no enciende desde hace 3 días',
-            'prioridad' => 'Media'
         ];
 
         // Realizar la petición POST para crear el reclamo
-        $result = $this->withBodyFormat('json')
+        $result = $this->withSessionSupervisor()
+                       ->withBodyFormat('json')
                        ->post('api/reclamos', $datosReclamo);
 
         // Verificar que la respuesta es 201 Created
@@ -63,6 +67,7 @@ class ReclamosApiTest extends CIUnitTestCase
 
         // Guardar el ID generado para verificaciones posteriores
         $idGenerado = $responseData['id'];
+        $codigoLocal = 'L' . $idGenerado;
 
         // Verificar que el reclamo existe en la base de datos
         $reclamoEnBD = $this->db->table('reclamo')
@@ -73,13 +78,13 @@ class ReclamosApiTest extends CIUnitTestCase
         $this->assertNotNull($reclamoEnBD, 'El reclamo debe existir en la base de datos');
 
         // Verificar que todos los datos se guardaron correctamente
-        $this->assertEquals($datosReclamo['municipalidad_id'], $reclamoEnBD['municipalidad_id']);
-        $this->assertEquals($datosReclamo['municipalidad_tipo'], $reclamoEnBD['municipalidad_tipo']);
+        $this->assertEquals($codigoLocal, $reclamoEnBD['municipalidad_id']);
+        $this->assertEquals('local', $reclamoEnBD['origen']);
+        $this->assertEquals('ALUMBRADO PÚBLICO', $reclamoEnBD['municipalidad_tipo']);
         $this->assertEquals($datosReclamo['municipalidad_motivo'], $reclamoEnBD['municipalidad_motivo']);
         $this->assertEquals($datosReclamo['municipalidad_fechaInicio'], $reclamoEnBD['municipalidad_fechaInicio']);
-        $this->assertEquals($datosReclamo['municipalidad_fechaModificacion'], $reclamoEnBD['municipalidad_fechaModificacion']);
         $this->assertEquals($datosReclamo['municipalidad_recepcion'], $reclamoEnBD['municipalidad_recepcion']);
-        $this->assertEquals($datosReclamo['municipalidad_estado'], $reclamoEnBD['municipalidad_estado']);
+        $this->assertEquals('Recibido', $reclamoEnBD['municipalidad_estado']);
         $this->assertEquals($datosReclamo['municipalidad_telefono'], $reclamoEnBD['municipalidad_telefono']);
         $this->assertEquals($datosReclamo['municipalidad_domicilio'], $reclamoEnBD['municipalidad_domicilio']);
         $this->assertEquals($datosReclamo['municipalidad_numeroDomicilio'], $reclamoEnBD['municipalidad_numeroDomicilio']);
@@ -87,7 +92,6 @@ class ReclamosApiTest extends CIUnitTestCase
         $this->assertEquals($datosReclamo['municipalidad_entreCalleDos'], $reclamoEnBD['municipalidad_entreCalleDos']);
         $this->assertEquals($datosReclamo['municipalidad_ciudadano'], $reclamoEnBD['municipalidad_ciudadano']);
         $this->assertEquals($datosReclamo['municipalidad_descripcion'], $reclamoEnBD['municipalidad_descripcion']);
-        $this->assertEquals($datosReclamo['prioridad'], $reclamoEnBD['prioridad']);
 
         // Verificar que el reclamo puede ser recuperado mediante la API (GET individual)
         // NOTA: Si el endpoint GET /api/reclamos/{id} no está implementado, esta parte fallará
@@ -98,7 +102,7 @@ class ReclamosApiTest extends CIUnitTestCase
                 $reclamoRecuperado = json_decode($resultGet->getJSON(), true);
                 $this->assertIsArray($reclamoRecuperado, 'El reclamo recuperado debe ser un array');
                 $this->assertEquals($idGenerado, $reclamoRecuperado['id'], 'El ID debe coincidir');
-                $this->assertEquals($datosReclamo['municipalidad_id'], $reclamoRecuperado['municipalidad_id']);
+                $this->assertEquals($codigoLocal, $reclamoRecuperado['municipalidad_id']);
                 $this->assertEquals($datosReclamo['municipalidad_motivo'], $reclamoRecuperado['municipalidad_motivo']);
                 $this->assertEquals($datosReclamo['municipalidad_ciudadano'], $reclamoRecuperado['municipalidad_ciudadano']);
             } else {
@@ -122,13 +126,9 @@ class ReclamosApiTest extends CIUnitTestCase
     {
         // Datos con valores específicos para verificar integridad
         $datosReclamo = [
-            'municipalidad_id' => '99999', // Número máximo de 5 dígitos
-            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
             'municipalidad_motivo' => 'Lámpara con parpadeo intermitente', // Con acento
             'municipalidad_fechaInicio' => '2025-11-12 23:59:59', // Fecha con hora límite
-            'municipalidad_fechaModificacion' => '2025-11-12 23:59:59',
             'municipalidad_recepcion' => 'Teléfono',
-            'municipalidad_estado' => 'En plan',
             'municipalidad_telefono' => '0800-555-1234', // Con formato especial
             'municipalidad_domicilio' => 'Av. San Martín', // Con acento
             'municipalidad_numeroDomicilio' => '1234-B', // Con letra
@@ -136,11 +136,11 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_entreCalleDos' => 'Sarmiento & Mitre', // Con &
             'municipalidad_ciudadano' => 'José María González', // Con acentos y espacios
             'municipalidad_descripcion' => 'Reclamo urgente: La luminaria presenta fallas intermitentes desde hace 1 semana. Afecta seguridad del barrio.', // Descripción larga con puntuación
-            'prioridad' => 'Alta'
         ];
 
         // Crear el reclamo
-        $result = $this->withBodyFormat('json')
+        $result = $this->withSessionSupervisor()
+                       ->withBodyFormat('json')
                        ->post('api/reclamos', $datosReclamo);
 
         // Verificar que se creó correctamente
@@ -151,6 +151,7 @@ class ReclamosApiTest extends CIUnitTestCase
         $this->assertArrayHasKey('id', $responseData, 'Debe contener ID');
         
         $idGenerado = $responseData['id'];
+        $codigoLocal = 'L' . $idGenerado;
 
         // Recuperar el reclamo directamente de la base de datos
         $reclamoRecuperado = $this->db->table('reclamo')
@@ -162,18 +163,19 @@ class ReclamosApiTest extends CIUnitTestCase
 
         // VERIFICACIÓN EXHAUSTIVA CAMPO POR CAMPO
         
-        // 1. municipalidad_id
+        // 1. municipalidad_id (código local L{id})
         $this->assertEquals(
-            $datosReclamo['municipalidad_id'], 
+            $codigoLocal, 
             $reclamoRecuperado['municipalidad_id'],
-            'municipalidad_id debe coincidir exactamente'
+            'municipalidad_id local debe ser L{id}'
         );
+        $this->assertEquals('local', $reclamoRecuperado['origen']);
 
         // 2. municipalidad_tipo
         $this->assertEquals(
-            $datosReclamo['municipalidad_tipo'], 
+            'ALUMBRADO PÚBLICO', 
             $reclamoRecuperado['municipalidad_tipo'],
-            'municipalidad_tipo debe coincidir exactamente'
+            'municipalidad_tipo debe ser fijo'
         );
 
         // 3. municipalidad_motivo (con acentos)
@@ -190,25 +192,18 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_fechaInicio debe coincidir exactamente'
         );
 
-        // 5. municipalidad_fechaModificacion
-        $this->assertEquals(
-            $datosReclamo['municipalidad_fechaModificacion'], 
-            $reclamoRecuperado['municipalidad_fechaModificacion'],
-            'municipalidad_fechaModificacion debe coincidir exactamente'
-        );
-
-        // 6. municipalidad_recepcion
+        // 5. municipalidad_recepcion
         $this->assertEquals(
             $datosReclamo['municipalidad_recepcion'], 
             $reclamoRecuperado['municipalidad_recepcion'],
             'municipalidad_recepcion debe coincidir exactamente'
         );
 
-        // 7. municipalidad_estado
+        // 6. municipalidad_estado (siempre Recibido en alta local)
         $this->assertEquals(
-            $datosReclamo['municipalidad_estado'], 
+            'Recibido', 
             $reclamoRecuperado['municipalidad_estado'],
-            'municipalidad_estado debe coincidir exactamente'
+            'municipalidad_estado inicial debe ser Recibido'
         );
 
         // 8. municipalidad_telefono (con formato especial)
@@ -260,11 +255,11 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_descripcion debe mantener toda la puntuación y longitud'
         );
 
-        // 15. prioridad
-        $this->assertEquals(
-            $datosReclamo['prioridad'], 
+        // 15. prioridad (calculada automáticamente; no se toma del cliente)
+        $this->assertContains(
             $reclamoRecuperado['prioridad'],
-            'prioridad debe coincidir exactamente'
+            ['Alta', 'Baja', null],
+            'prioridad debe ser un valor válido del servicio'
         );
 
         // Verificaciones adicionales de integridad
@@ -315,13 +310,9 @@ class ReclamosApiTest extends CIUnitTestCase
     {
         // PASO 1: Crear un reclamo inicial
         $datosIniciales = [
-            'municipalidad_id' => '20001',
-            'municipalidad_tipo' => 'ALUMBRADO PÚBLICO',
             'municipalidad_motivo' => 'Luminaria apagada',
             'municipalidad_fechaInicio' => '2025-11-12 10:00:00',
-            'municipalidad_fechaModificacion' => '2025-11-12 10:00:00',
-            'municipalidad_recepcion' => 'Web',
-            'municipalidad_estado' => 'Recibido',
+            'municipalidad_recepcion' => 'web',
             'municipalidad_telefono' => '3564111111',
             'municipalidad_domicilio' => 'Calle Inicial',
             'municipalidad_numeroDomicilio' => '100',
@@ -329,10 +320,10 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_entreCalleDos' => 'Calle B',
             'municipalidad_ciudadano' => 'Pedro García',
             'municipalidad_descripcion' => 'Descripción inicial del reclamo',
-            'prioridad' => 'Baja'
         ];
 
-        $resultCreacion = $this->withBodyFormat('json')
+        $resultCreacion = $this->withSessionSupervisor()
+                               ->withBodyFormat('json')
                                ->post('api/reclamos', $datosIniciales);
 
         // Verificar que se creó correctamente
@@ -352,7 +343,7 @@ class ReclamosApiTest extends CIUnitTestCase
 
         $this->assertNotNull($reclamoInicial);
         $this->assertEquals('Recibido', $reclamoInicial['municipalidad_estado']);
-        $this->assertEquals('Baja', $reclamoInicial['prioridad']);
+        $this->assertEquals('L' . $idReclamo, $reclamoInicial['municipalidad_id']);
         $this->assertEquals('Descripción inicial del reclamo', $reclamoInicial['municipalidad_descripcion']);
 
         // PASO 2: Preparar datos para actualización (modificando varios campos)
@@ -366,7 +357,7 @@ class ReclamosApiTest extends CIUnitTestCase
             'municipalidad_motivo' => 'Luminaria apagada',
             'municipalidad_fechaInicio' => '2025-11-12 10:00:00',
             'municipalidad_fechaModificacion' => '2025-11-12 15:30:00', // Nueva fecha de modificación
-            'municipalidad_recepcion' => 'Web',
+            'municipalidad_recepcion' => 'web',
             'municipalidad_domicilio' => 'Calle Inicial',
             'municipalidad_numeroDomicilio' => '100',
             'municipalidad_entreCalleUno' => 'Calle A',
@@ -374,7 +365,8 @@ class ReclamosApiTest extends CIUnitTestCase
         ];
 
         // PASO 3: Actualizar el reclamo usando PUT
-        $resultActualizacion = $this->withBodyFormat('json')
+        $resultActualizacion = $this->withSessionSupervisor()
+                                    ->withBodyFormat('json')
                                     ->put("api/reclamos/{$idReclamo}", $datosActualizacion);
 
         // Verificar que la actualización fue exitosa
@@ -434,7 +426,7 @@ class ReclamosApiTest extends CIUnitTestCase
 
         // Verificar campos que NO cambiaron
         $this->assertEquals(
-            '20001',
+            'L' . $idReclamo,
             $reclamoActualizado['municipalidad_id'],
             'El municipalidad_id debe permanecer igual'
         );

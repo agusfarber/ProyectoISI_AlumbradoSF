@@ -1,494 +1,287 @@
-<div id="app" class="container-fluid">
-    <div>Análisis de Reclamos</div>
-
-    <!-- Tarjetas KPI de Resumen -->
-    <div class="row g-3 mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap">
-                        <h6 class="mb-0 mb-2 mb-md-0"><i class="bi bi-speedometer2"></i> Indicadores Clave</h6>
-                        <div>
-                            <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
-                                <div class="d-flex gap-2 align-items-center">
-                                    <label class="form-label text-white mb-0 small">Desde:</label>
-                                    <input type="date" class="form-control form-control-sm" style="width: 150px;" v-model="kpiFiltros.fechaDesde" @change="cargarKpiResumen">
-                                </div>
-                                <div class="d-flex gap-2 align-items-center">
-                                    <label class="form-label text-white mb-0 small">Hasta:</label>
-                                    <input type="date" class="form-control form-control-sm" style="width: 150px;" v-model="kpiFiltros.fechaHasta" @change="cargarKpiResumen">
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <button type="button" class="btn btn-sm btn-outline-light me-1" @click="setFiltroRapidoKpi('hoy')">Hoy</button>
-                                <button type="button" class="btn btn-sm btn-outline-light me-1" @click="setFiltroRapidoKpi('semana')">Últimos 7 días</button>
-                                <button type="button" class="btn btn-sm btn-outline-light me-1" @click="setFiltroRapidoKpi('mes')">Mes actual</button>
-                                <button type="button" class="btn btn-sm btn-outline-light" @click="setFiltroRapidoKpi('año')">Año actual</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <!-- Total Activos -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-info">
-                                    <i class="bi bi-lightning-charge"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">Activos</h6>
-                                    <h3 class="kpi-value text-info">{{ kpiResumen.total_activos || 0 }}</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Pendientes -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-warning">
-                                    <i class="bi bi-hourglass-split"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">Pendientes</h6>
-                                    <h3 class="kpi-value text-warning">{{ kpiResumen.total_pendientes || 0 }}</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- En Ejecución -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-primary">
-                                    <i class="bi bi-gear"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">En Ejecución</h6>
-                                    <h3 class="kpi-value text-primary">{{ kpiResumen.total_en_ejecucion || 0 }}</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Completados -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-success">
-                                    <i class="bi bi-check-circle"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">Completados</h6>
-                                    <h3 class="kpi-value text-success">{{ kpiResumen.total_completados || 0 }}</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Tasa de Resolución -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-success">
-                                    <i class="bi bi-percent"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">Tasa Resolución</h6>
-                                    <h3 class="kpi-value text-success">{{ kpiResumen.tasa_resolucion || 0 }}%</h3>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Tiempo Promedio -->
-                        <div class="col-md-4 col-lg-2">
-                            <div class="kpi-card">
-                                <div class="kpi-icon bg-danger">
-                                    <i class="bi bi-clock-history"></i>
-                                </div>
-                                <div class="kpi-content">
-                                    <h6 class="kpi-label">Tiempo Promedio</h6>
-                                    <h3 class="kpi-value text-danger">{{ kpiResumen.tiempo_promedio_dias || 0 }} días</h3>
-                                    <small class="text-muted">{{ kpiResumen.tiempo_promedio_horas || 0 }} horas</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div id="app" class="analisis-page">
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-graph-up"></i></span>
+        <h1 class="app-page-title__text">Análisis</h1>
     </div>
 
+    <!-- Filtro de período global (KPI + vistas previas) -->
+    <section class="analisis-periodo-bar">
+        <div class="analisis-periodo-bar__title">
+            <span class="analisis-periodo-bar__icon"><i class="bi bi-calendar3"></i></span>
+            <h6>Período</h6>
+        </div>
+        <div class="analisis-periodo-bar__filters">
+            <div class="analisis-periodo-bar__dates">
+                <label>Desde:</label>
+                <input type="date" class="form-control" v-model="filtrosPeriodo.fechaDesde" @change="aplicarPeriodoGlobal">
+                <label>Hasta:</label>
+                <input type="date" class="form-control" v-model="filtrosPeriodo.fechaHasta" @change="aplicarPeriodoGlobal">
+            </div>
+            <div class="analisis-periodo-bar__quick">
+                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosPeriodo, 'hoy') }" @click="setFiltroPeriodoGlobal('hoy')">Hoy</button>
+                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosPeriodo, 'semana') }" @click="setFiltroPeriodoGlobal('semana')">Últimos 7 días</button>
+                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosPeriodo, 'mes') }" @click="setFiltroPeriodoGlobal('mes')">Mes actual</button>
+                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosPeriodo, 'año') }" @click="setFiltroPeriodoGlobal('año')">Año actual</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Panel KPI -->
+    <section class="analisis-kpi-panel">
+        <div class="analisis-kpi-body">
+            <div class="analisis-kpi-grid analisis-kpi-grid--estados">
+                <div class="kpi-card kpi-card--estado" title="Ingresados al sistema, sin asignar a cuadrilla">
+                    <div class="kpi-icon kpi-icon--recibido">
+                        <i class="bi bi-inbox"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Recibidos</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--recibido">{{ kpiResumen.total_recibidos || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_recibidos) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--estado" title="En hoja de ruta asignada a una cuadrilla">
+                    <div class="kpi-icon kpi-icon--asignado">
+                        <i class="bi bi-people"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Asignados</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--asignado">{{ kpiResumen.total_asignados || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_asignados) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--estado" title="Obra pausada / para otro día">
+                    <div class="kpi-icon kpi-icon--pendiente">
+                        <i class="bi bi-pause-circle"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Pendientes</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--pendiente">{{ kpiResumen.total_pendientes || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_pendientes) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--estado" title="Trabajo activo en obra">
+                    <div class="kpi-icon kpi-icon--ejecucion">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">En ejecución</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--ejecucion">{{ kpiResumen.total_en_ejecucion || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_en_ejecucion) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--estado" title="Trabajo terminado en campo (aún sin cierre formal)">
+                    <div class="kpi-icon kpi-icon--completado">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Completados</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--completado">{{ kpiResumen.total_completados || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_completados) }}%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--estado" title="Cierre formal del reclamo">
+                    <div class="kpi-icon kpi-icon--cerrado">
+                        <i class="bi bi-check2-all"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Cerrados</h6>
+                        <div class="kpi-card__nums">
+                            <h3 class="kpi-value kpi-value--cerrado">{{ kpiResumen.total_cerrados || 0 }}</h3>
+                            <span class="kpi-pct">{{ porcentajeSobreTotal(kpiResumen.total_cerrados) }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analisis-kpi-grid analisis-kpi-grid--metricas">
+                <div class="kpi-card kpi-card--metric" title="Cerrado / total del período">
+                    <div class="kpi-icon kpi-icon--tasa">
+                        <i class="bi bi-percent"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Tasa de cierre</h6>
+                        <h3 class="kpi-value kpi-value--completado">{{ kpiResumen.tasa_resolucion || 0 }}%</h3>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-card--metric" title="Promedio desde el ingreso del reclamo hasta el cierre formal">
+                    <div class="kpi-icon kpi-icon--tiempo">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="kpi-content">
+                        <h6 class="kpi-label">Tiempo promedio de cierre</h6>
+                        <h3 class="kpi-value kpi-value--tiempo">{{ kpiResumen.tiempo_promedio_dias || 0 }} días</h3>
+                        <small class="text-muted">{{ kpiResumen.tiempo_promedio_horas || 0 }} horas</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Grid de Gráficos -->
-    <div class="row g-4">
-        <!-- Gráfico 1: Distribución de Reclamos por Estado (Torta/Pie) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('estado')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-pie-chart-fill text-primary"></i>
-                        Distribución de Reclamos por Estado
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Vista rápida del estado general del sistema de reclamos
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 200 200" width="180" height="180">
-                            <circle cx="100" cy="100" r="80" fill="#e9ecef"/>
-                            <path d="M100,100 L100,20 A80,80 0 0,1 172,140 Z" fill="#0d6efd"/>
-                            <path d="M100,100 L172,140 A80,80 0 0,1 60,168 Z" fill="#198754"/>
-                            <path d="M100,100 L60,168 A80,80 0 0,1 28,60 Z" fill="#ffc107"/>
-                            <path d="M100,100 L28,60 A80,80 0 0,1 100,20 Z" fill="#dc3545"/>
-                            <circle cx="100" cy="100" r="40" fill="#fff"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+    <div class="analisis-charts-grid">
+        <article class="analisis-chart-card" @click="abrirModalGrafico('estado')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-pie-chart-fill"></i></div>
+                <h5 class="analisis-chart-card__title">Distribución de Reclamos por Estado</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Distribución por estado operativo, incluyendo cierre formal</p>
+            <div class="chart-preview-container">
+                <div id="previewChartEstado"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 2: Reclamos por Motivo (Barras Horizontales) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('motivo')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-bar-chart-fill text-success"></i>
-                        Reclamos por Motivo
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Identifica los tipos de problemas más frecuentes
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 180" width="220" height="180">
-                            <rect x="10" y="20" width="160" height="24" rx="4" fill="#0d6efd"/>
-                            <rect x="10" y="54" width="130" height="24" rx="4" fill="#198754"/>
-                            <rect x="10" y="88" width="100" height="24" rx="4" fill="#ffc107"/>
-                            <rect x="10" y="122" width="70" height="24" rx="4" fill="#dc3545"/>
-                            <rect x="10" y="156" width="45" height="24" rx="4" fill="#6f42c1"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('motivo')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-bar-chart-fill"></i></div>
+                <h5 class="analisis-chart-card__title">Reclamos por Motivo</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Identifica los tipos de problemas más frecuentes</p>
+            <div class="chart-preview-container">
+                <div id="previewChartMotivo"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 3: Evolución Temporal (Líneas múltiples) -->
-        <div class="col-lg-12 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('evolucion')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-graph-up-arrow text-info"></i>
-                        Evolución Temporal de Reclamos
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Analiza tendencias y patrones temporales de los reclamos
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 300 150" width="300" height="150">
-                            <line x1="30" y1="130" x2="280" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="20" x2="30" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <polyline points="30,100 70,80 110,90 150,60 190,70 230,40 270,50" fill="none" stroke="#0d6efd" stroke-width="3"/>
-                            <polyline points="30,110 70,95 110,100 150,85 190,90 230,75 270,80" fill="none" stroke="#198754" stroke-width="3"/>
-                            <polyline points="30,90 70,110 110,85 150,95 190,65 230,85 270,60" fill="none" stroke="#ffc107" stroke-width="3"/>
-                            <circle cx="270" cy="50" r="4" fill="#0d6efd"/>
-                            <circle cx="270" cy="80" r="4" fill="#198754"/>
-                            <circle cx="270" cy="60" r="4" fill="#ffc107"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card analisis-chart-card--wide" @click="abrirModalGrafico('evolucion')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-graph-up-arrow"></i></div>
+                <h5 class="analisis-chart-card__title">Ingresos vs Cierres</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Ingresos vs cierres a lo largo del tiempo</p>
+            <div class="chart-preview-container">
+                <div id="previewChartEvolucion"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 4: Tiempo Promedio de Resolución por Motivo (Barras Horizontales) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('tiempoPromedio')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-clock-history text-warning"></i>
-                        Tiempo Promedio de Resolución por Motivo
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Identifica qué tipos de reclamos toman más tiempo resolver
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 180" width="220" height="180">
-                            <rect x="10" y="20" width="180" height="24" rx="4" fill="#fd7e14"/>
-                            <rect x="10" y="54" width="140" height="24" rx="4" fill="#ffc107"/>
-                            <rect x="10" y="88" width="110" height="24" rx="4" fill="#20c997"/>
-                            <rect x="10" y="122" width="80" height="24" rx="4" fill="#0dcaf0"/>
-                            <rect x="10" y="156" width="50" height="24" rx="4" fill="#6c757d"/>
-                            <text x="195" y="37" font-size="12" fill="#333">48h</text>
-                            <text x="155" y="71" font-size="12" fill="#333">36h</text>
-                            <text x="125" y="105" font-size="12" fill="#333">24h</text>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('tiempoPromedio')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-clock-history"></i></div>
+                <h5 class="analisis-chart-card__title">Tiempo promedio de reparación por motivo</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Minutos de obra (cronómetro) promedio según el motivo</p>
+            <div class="chart-preview-container chart-preview-container--tiempo">
+                <div id="previewChartTiempoPromedio"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 5: Evolución del Tiempo Promedio de Resolución (Líneas) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('evolucionTiempo')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-graph-up-arrow text-success"></i>
-                        Evolución del Tiempo Promedio de Resolución
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Monitorea si los tiempos mejoran o empeoran
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 150" width="220" height="150">
-                            <line x1="30" y1="130" x2="200" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="20" x2="30" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <polyline points="30,40 60,50 90,45 120,65 150,55 180,70" fill="none" stroke="#198754" stroke-width="3"/>
-                            <polyline points="30,60 60,70 90,55 120,75 150,65 180,80" fill="none" stroke="#0d6efd" stroke-width="3"/>
-                            <circle cx="180" cy="70" r="4" fill="#198754"/>
-                            <circle cx="180" cy="80" r="4" fill="#0d6efd"/>
-                            <text x="40" y="145" font-size="10" fill="#6c757d">Ene</text>
-                            <text x="90" y="145" font-size="10" fill="#6c757d">Mar</text>
-                            <text x="140" y="145" font-size="10" fill="#6c757d">May</text>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('evolucionTiempo')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-graph-up-arrow"></i></div>
+                <h5 class="analisis-chart-card__title">Evolución del tiempo promedio de reparación</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Cómo cambian los minutos de obra por motivo en el tiempo</p>
+            <div class="chart-preview-container chart-preview-container--tiempo">
+                <div id="previewChartEvolucionTiempo"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 7: Evolución de Reclamos de Alta Prioridad (Línea con tendencia) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('altaPrioridad')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
-                        Evolución de Reclamos de Alta Prioridad
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Asegura que los reclamos críticos se resuelven rápidamente
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 150" width="220" height="150">
-                            <line x1="30" y1="130" x2="200" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="20" x2="30" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="90" x2="200" y2="90" stroke="#198754" stroke-width="2" stroke-dasharray="5,5"/>
-                            <polyline points="30,50 60,70 90,45 120,80 150,60 180,75" fill="none" stroke="#dc3545" stroke-width="3"/>
-                            <polyline points="30,55 60,60 90,58 120,65 150,68 180,72" fill="none" stroke="#6c757d" stroke-width="2" stroke-dasharray="3,3"/>
-                            <circle cx="180" cy="75" r="4" fill="#dc3545"/>
-                            <text x="185" y="93" font-size="9" fill="#198754">Meta</text>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('antiguedad')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-hourglass-split"></i></div>
+                <h5 class="analisis-chart-card__title">Antigüedad de abiertos</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Backlog sin cierre formal por rango de días</p>
+            <div class="chart-preview-container">
+                <div id="previewChartAntiguedad"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 8: Consumo de Materiales por Período (Líneas múltiples) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('consumoMateriales')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-box-seam text-primary"></i>
-                        Consumo de Materiales por Período
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Predice necesidades futuras de materiales
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 150" width="220" height="150">
-                            <line x1="30" y1="130" x2="200" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="20" x2="30" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <polyline points="30,90 60,70 90,85 120,50 150,65 180,40" fill="none" stroke="#0d6efd" stroke-width="3"/>
-                            <polyline points="30,100 60,95 90,80 120,90 150,75 180,85" fill="none" stroke="#fd7e14" stroke-width="3"/>
-                            <polyline points="30,110 60,100 90,105 120,95 150,100 180,90" fill="none" stroke="#198754" stroke-width="3"/>
-                            <circle cx="180" cy="40" r="4" fill="#0d6efd"/>
-                            <circle cx="180" cy="85" r="4" fill="#fd7e14"/>
-                            <circle cx="180" cy="90" r="4" fill="#198754"/>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('mapaCalor')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-geo-alt-fill"></i></div>
+                <h5 class="analisis-chart-card__title">Mapa de calor de zonas</h5>
             </div>
-        </div>
+            <p class="analisis-chart-card__desc">Dónde se concentran los reclamos en San Francisco</p>
+            <div class="chart-preview-container chart-preview-container--mapa">
+                <div id="previewMapaCalor" class="analisis-mapa-calor analisis-mapa-calor--preview" @click.stop="abrirModalGrafico('mapaCalor')"></div>
+            </div>
+        </article>
 
-        <!-- Gráfico 9: Reclamos Cerrados vs Abiertos (Barras agrupadas) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('cerradosAbiertos')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-bar-chart-fill text-success"></i>
-                        Reclamos Cerrados vs Abiertos
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Monitorea el proceso de cierre formal de reclamos
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 150" width="220" height="150">
-                            <line x1="30" y1="130" x2="200" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <rect x="35" y="50" width="20" height="80" rx="2" fill="#198754"/>
-                            <rect x="58" y="70" width="20" height="60" rx="2" fill="#dc3545"/>
-                            <rect x="95" y="40" width="20" height="90" rx="2" fill="#198754"/>
-                            <rect x="118" y="85" width="20" height="45" rx="2" fill="#dc3545"/>
-                            <rect x="155" y="55" width="20" height="75" rx="2" fill="#198754"/>
-                            <rect x="178" y="95" width="20" height="35" rx="2" fill="#dc3545"/>
-                            <text x="45" y="145" font-size="9" fill="#6c757d">Ene</text>
-                            <text x="105" y="145" font-size="9" fill="#6c757d">Feb</text>
-                            <text x="165" y="145" font-size="9" fill="#6c757d">Mar</text>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+        <article class="analisis-chart-card" @click="abrirModalGrafico('consumoMateriales')">
+            <div class="analisis-chart-card__top">
+                <div class="analisis-chart-card__icon"><i class="bi bi-box-seam"></i></div>
+                <h5 class="analisis-chart-card__title">Consumo de Materiales por Período</h5>
             </div>
-        </div>
-
-        <!-- Gráfico 10: Tasa de Cierre de Reclamos (Línea con meta) -->
-        <div class="col-lg-6 col-md-12">
-            <div class="card h-100 chart-card" @click="abrirModalGrafico('tasaCierre')">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="bi bi-percent text-info"></i>
-                        Tasa de Cierre de Reclamos
-                    </h5>
-                    <p class="card-text text-muted small">
-                        Asegura que los reclamos se cierran correctamente
-                    </p>
-                    <div class="chart-illustration">
-                        <svg viewBox="0 0 220 150" width="220" height="150">
-                            <line x1="30" y1="130" x2="200" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="20" x2="30" y2="130" stroke="#dee2e6" stroke-width="2"/>
-                            <line x1="30" y1="35" x2="200" y2="35" stroke="#198754" stroke-width="2" stroke-dasharray="5,5"/>
-                            <polyline points="30,80 50,70 70,60 90,55 110,50 130,45 150,40 170,42 190,38" fill="none" stroke="#0d6efd" stroke-width="3"/>
-                            <circle cx="190" cy="38" r="4" fill="#0d6efd"/>
-                            <text x="185" y="30" font-size="9" fill="#198754">95%</text>
-                            <text x="15" y="35" font-size="8" fill="#6c757d">100%</text>
-                            <text x="15" y="80" font-size="8" fill="#6c757d">50%</text>
-                            <text x="15" y="130" font-size="8" fill="#6c757d">0%</text>
-                        </svg>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent">
-                    <small class="text-muted">
-                        <i class="bi bi-eye"></i> Haga clic para ver en detalle
-                    </small>
-                </div>
+            <p class="analisis-chart-card__desc">Cantidades registradas en obra por período</p>
+            <div class="chart-preview-container">
+                <div id="previewChartConsumoMateriales"></div>
             </div>
-        </div>
+        </article>
     </div>
 
     <!-- Modal para Gráfico de Estado -->
     <div class="modal fade" id="modalGraficoEstado" tabindex="-1" aria-labelledby="modalGraficoEstadoLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalGraficoEstadoLabel">
-                        <i class="bi bi-pie-chart-fill"></i>
-                        Distribución de Reclamos por Estado
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Descripción -->
-                    <div class="alert alert-info mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-2">Este gráfico de torta muestra la distribución porcentual de los reclamos según su estado actual (Recibido, Asignado, En ejecución, Completado, En plan, Error de datos).</p>
-                        <p class="mb-0"><strong>Utilidad:</strong> Permite evaluar rápidamente el estado general del sistema, identificar cuellos de botella y priorizar acciones según la cantidad de reclamos en cada estado.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-pie-chart-fill"></i></span>
+                        <h5 id="modalGraficoEstadoLabel">Distribución de Reclamos por Estado</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Distribución por estado operativo: Recibido (ingreso), Asignado (en hoja de ruta), Pendiente (obra pausada), En ejecución (trabajo activo), Completado (terminado en campo) y Cerrado (cierre formal).</p><p>Utilidad: ver el estado general del sistema e identificar cuellos de botella.</p>
+                            </span>
+                        </span>
                     </div>
-
-                    <!-- Filtros -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label for="filtroFechaDesdeEstado" class="form-label">Fecha Desde</label>
-                                    <input type="date" id="filtroFechaDesdeEstado" class="form-control" v-model="filtrosEstado.fechaDesde" @change="cargarGraficoEstado">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroFechaHastaEstado" class="form-label">Fecha Hasta</label>
-                                    <input type="date" id="filtroFechaHastaEstado" class="form-control" v-model="filtrosEstado.fechaHasta" @change="cargarGraficoEstado">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroPrioridadEstado" class="form-label">Prioridad</label>
-                                    <select id="filtroPrioridadEstado" class="form-select" v-model="filtrosEstado.prioridad" @change="cargarGraficoEstado">
-                                        <option value="">Todas</option>
-                                        <option value="Alta">Alta</option>
-                                        <option value="Baja">Baja</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEstado('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEstado('30dias')">Últimos 30 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEstado('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoEstado('año')">Año actual</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gráfico -->
-                    <div class="chart-container">
-                        <div id="chartEstado"></div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Total de Reclamos</h6>
-                                        <h3 class="text-primary">{{ datosEstado.total || 0 }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Período</h6>
-                                        <p class="mb-0">{{ datosEstado.periodo || '-' }}</p>
-                                        <small class="text-muted" v-if="datosEstado.filtros_aplicados">
-                                            Desde: {{ datosEstado.filtros_aplicados.fecha_desde || 'Sin filtro' }} | 
-                                            Hasta: {{ datosEstado.filtros_aplicados.fecha_hasta || 'Sin filtro' }}
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoEstado">
-                        <i class="bi bi-download"></i> Exportar como Imagen
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEstado, '7dias') }" @click="setFiltroRapidoEstado('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEstado, '30dias') }" @click="setFiltroRapidoEstado('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEstado, 'mes') }" @click="setFiltroRapidoEstado('mes')">Mes actual</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEstado, 'año') }" @click="setFiltroRapidoEstado('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaDesdeEstado" class="form-label">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeEstado" class="form-control" v-model="filtrosEstado.fechaDesde" @change="cargarGraficoEstado">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaHastaEstado" class="form-label">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaEstado" class="form-control" v-model="filtrosEstado.fechaHasta" @change="cargarGraficoEstado">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroPrioridadEstado" class="form-label">Prioridad</label>
+                                            <select id="filtroPrioridadEstado" class="form-select" v-model="filtrosEstado.prioridad" @change="cargarGraficoEstado">
+                                                <option value="">Todas</option>
+                                                <option value="Alta">Alta</option>
+                                                <option value="Baja">Baja</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="chart-container">
+                            <div id="chartEstado"></div>
+                        </div>
+                        </div>
+                </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoEstado">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+
             </div>
         </div>
     </div>
@@ -496,106 +289,104 @@
     <!-- Modal para Gráfico de Motivo -->
     <div class="modal fade" id="modalGraficoMotivo" tabindex="-1" aria-labelledby="modalGraficoMotivoLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalGraficoMotivoLabel">
-                        <i class="bi bi-bar-chart-fill"></i>
-                        Reclamos por Motivo
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Descripción -->
-                    <div class="alert alert-info mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-2">Este gráfico de barras muestra la cantidad de reclamos agrupados por motivo, ordenados de mayor a menor frecuencia.</p>
-                        <p class="mb-0"><strong>Utilidad:</strong> Permite identificar los tipos de problemas más frecuentes, facilitando la planificación de recursos, la asignación de cuadrillas y la toma de decisiones estratégicas para mejorar el servicio de alumbrado público.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-bar-chart-fill"></i></span>
+                        <h5 id="modalGraficoMotivoLabel">Reclamos por Motivo</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Este gráfico de barras muestra la cantidad de reclamos agrupados por motivo, ordenados de mayor a menor frecuencia.</p><p>Utilidad: Permite identificar los tipos de problemas más frecuentes, facilitando la planificación de recursos, la asignación de cuadrillas y la toma de decisiones estratégicas para mejorar el servicio de alumbrado público.</p><p>Podés activar <strong>Comparar con otro período</strong> para ver un gráfico por cada ventana de fechas.</p>
+                            </span>
+                        </span>
                     </div>
-
-                    <!-- Filtros -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label for="filtroFechaDesdeMotivo" class="form-label">Fecha Desde</label>
-                                    <input type="date" id="filtroFechaDesdeMotivo" class="form-control" v-model="filtrosMotivo.fechaDesde" @change="cargarGraficoMotivo">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroFechaHastaMotivo" class="form-label">Fecha Hasta</label>
-                                    <input type="date" id="filtroFechaHastaMotivo" class="form-control" v-model="filtrosMotivo.fechaHasta" @change="cargarGraficoMotivo">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroEstadoMotivo" class="form-label">Estado</label>
-                                    <select id="filtroEstadoMotivo" class="form-select" v-model="filtrosMotivo.estado" @change="cargarGraficoMotivo">
-                                        <option value="">Todos</option>
-                                        <option value="Recibido">Recibido</option>
-                                        <option value="Asignado">Asignado</option>
-                                        <option value="En ejecución">En ejecución</option>
-                                        <option value="Completado">Completado</option>
-                                        <option value="En plan">En plan</option>
-                                        <option value="Error de datos">Error de datos</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroPrioridadMotivo" class="form-label">Prioridad</label>
-                                    <select id="filtroPrioridadMotivo" class="form-select" v-model="filtrosMotivo.prioridad" @change="cargarGraficoMotivo">
-                                        <option value="">Todas</option>
-                                        <option value="Alta">Alta</option>
-                                        <option value="Baja">Baja</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoMotivo('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoMotivo('30dias')">Últimos 30 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoMotivo('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoMotivo('año')">Año actual</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gráfico -->
-                    <div class="chart-container">
-                        <div id="chartMotivo"></div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Total de Reclamos</h6>
-                                        <h3 class="text-success">{{ datosMotivo.total || 0 }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Período</h6>
-                                        <p class="mb-0">{{ datosMotivo.periodo || '-' }}</p>
-                                        <small class="text-muted" v-if="datosMotivo.filtros_aplicados">
-                                            Estado: {{ datosMotivo.filtros_aplicados.estado || 'Todos' }} | 
-                                            Prioridad: {{ datosMotivo.filtros_aplicados.prioridad || 'Todas' }}
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoMotivo">
-                        <i class="bi bi-download"></i> Exportar como Imagen
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMotivo, '7dias') }" @click="setFiltroRapidoMotivo('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMotivo, '30dias') }" @click="setFiltroRapidoMotivo('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMotivo, 'mes') }" @click="setFiltroRapidoMotivo('mes')">Mes actual</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMotivo, 'año') }" @click="setFiltroRapidoMotivo('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label for="filtroFechaDesdeMotivo" class="form-label">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeMotivo" class="form-control" v-model="filtrosMotivo.fechaDesde" @change="cargarGraficoMotivo">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="filtroFechaHastaMotivo" class="form-label">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaMotivo" class="form-control" v-model="filtrosMotivo.fechaHasta" @change="cargarGraficoMotivo">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="filtroEstadoMotivo" class="form-label">Estado</label>
+                                            <select id="filtroEstadoMotivo" class="form-select" v-model="filtrosMotivo.estado" @change="cargarGraficoMotivo">
+                                                <option value="">Todos</option>
+                                                <option value="Recibido">Recibido</option>
+                                                <option value="Asignado">Asignado</option>
+                                                <option value="Pendiente">Pendiente</option>
+                                                <option value="En ejecución">En ejecución</option>
+                                                <option value="Completado">Completado</option>
+                                                <option value="Cerrado">Cerrado</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="analisis-comparacion mt-3">
+                                        <label class="analisis-comparacion__toggle">
+                                            <input type="checkbox" v-model="filtrosMotivo.comparar" @change="onToggleComparacion(filtrosMotivo, () => cargarGraficoMotivo())">
+                                            <span>Comparar con otro período</span>
+                                        </label>
+                                        <div v-if="filtrosMotivo.comparar" class="analisis-comparacion__body">
+                                            <button type="button" class="analisis-chip analisis-chip--soft" @click="usarPeriodoAnteriorComparacion(filtrosMotivo, () => cargarGraficoMotivo())">Vs período anterior</button>
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-6">
+                                                    <label class="form-label">Desde (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosMotivo.fechaDesdeB" @change="cargarGraficoMotivo">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label">Hasta (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosMotivo.fechaHastaB" @change="cargarGraficoMotivo">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="analisis-charts-compare" :class="{ 'is-dual': periodoComparacionActivo(filtrosMotivo) }">
+                            <div class="analisis-charts-compare__pane">
+                                <h6 v-if="periodoComparacionActivo(filtrosMotivo)" class="analisis-charts-compare__title">
+                                    Período A · {{ etiquetaRangoFechas(filtrosMotivo.fechaDesde, filtrosMotivo.fechaHasta) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartMotivo"></div>
+                                </div>
+                            </div>
+                            <div v-if="periodoComparacionActivo(filtrosMotivo)" class="analisis-charts-compare__pane">
+                                <h6 class="analisis-charts-compare__title analisis-charts-compare__title--b">
+                                    Período B · {{ etiquetaRangoFechas(filtrosMotivo.fechaDesdeB, filtrosMotivo.fechaHastaB) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartMotivoB"></div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoMotivo">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+
             </div>
         </div>
     </div>
@@ -603,340 +394,387 @@
     <!-- Modal para Gráfico de Evolución Temporal -->
     <div class="modal fade" id="modalGraficoEvolucion" tabindex="-1" aria-labelledby="modalGraficoEvolucionLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalGraficoEvolucionLabel">
-                        <i class="bi bi-graph-up-arrow"></i>
-                        Evolución Temporal de Reclamos
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Descripción -->
-                    <div class="alert alert-info mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-2">Este gráfico de líneas muestra la evolución temporal de los reclamos con múltiples series: Recibidos, Pendientes, En Ejecución y Completados, permitiendo analizar tendencias y patrones temporales.</p>
-                        <p class="mb-0"><strong>Utilidad:</strong> Permite identificar tendencias, picos de actividad, patrones estacionales y la eficiencia del sistema a lo largo del tiempo, facilitando la planificación de recursos y la toma de decisiones estratégicas.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <h5 id="modalGraficoEvolucionLabel">Ingresos vs Cierres</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Dos series: <strong>Ingresos</strong> (por fecha de alta) y <strong>Cierres</strong> (por fecha de cierre formal). Compara cuántos reclamos entran y cuántos se cierran en cada período.</p><p>Utilidad: detectar picos de demanda, retrasos de cierre y si el flujo de salida acompaña al de entrada.</p>
+                            </span>
+                        </span>
                     </div>
-
-                    <!-- Filtros -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3">
-                                <div class="col-md-4">
-                                    <label for="filtroFechaDesdeEvolucion" class="form-label">Fecha Desde</label>
-                                    <input type="date" id="filtroFechaDesdeEvolucion" class="form-control" v-model="filtrosEvolucion.fechaDesde" @change="cargarGraficoEvolucion">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroFechaHastaEvolucion" class="form-label">Fecha Hasta</label>
-                                    <input type="date" id="filtroFechaHastaEvolucion" class="form-control" v-model="filtrosEvolucion.fechaHasta" @change="cargarGraficoEvolucion">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroGranularidadEvolucion" class="form-label">Granularidad</label>
-                                    <select id="filtroGranularidadEvolucion" class="form-select" v-model="filtrosEvolucion.granularidad" @change="cargarGraficoEvolucion">
-                                        <option value="diario">Diario</option>
-                                        <option value="semanal">Semanal</option>
-                                        <option value="mensual">Mensual</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucion('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucion('30dias')">Últimos 30 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucion('3meses')">3 meses</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucion('6meses')">6 meses</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoEvolucion('año')">Año actual</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gráfico -->
-                    <div class="chart-container">
-                        <div id="chartEvolucion"></div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Período</h6>
-                                        <p class="mb-0">{{ datosEvolucion.periodo || '-' }}</p>
-                                        <small class="text-muted" v-if="datosEvolucion.filtros_aplicados">
-                                            Granularidad: {{ datosEvolucion.filtros_aplicados.granularidad || 'Diario' }}
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Rango de Fechas</h6>
-                                        <p class="mb-0" v-if="datosEvolucion.filtros_aplicados">
-                                            Desde: {{ datosEvolucion.filtros_aplicados.fecha_desde || 'Sin filtro' }}<br>
-                                            Hasta: {{ datosEvolucion.filtros_aplicados.fecha_hasta || 'Sin filtro' }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoEvolucion">
-                        <i class="bi bi-download"></i> Exportar como Imagen
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucion, '7dias') }" @click="setFiltroRapidoEvolucion('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucion, '30dias') }" @click="setFiltroRapidoEvolucion('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucion, '3meses') }" @click="setFiltroRapidoEvolucion('3meses')">3 meses</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucion, '6meses') }" @click="setFiltroRapidoEvolucion('6meses')">6 meses</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucion, 'año') }" @click="setFiltroRapidoEvolucion('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaDesdeEvolucion" class="form-label">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeEvolucion" class="form-control" v-model="filtrosEvolucion.fechaDesde" @change="cargarGraficoEvolucion">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaHastaEvolucion" class="form-label">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaEvolucion" class="form-control" v-model="filtrosEvolucion.fechaHasta" @change="cargarGraficoEvolucion">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroGranularidadEvolucion" class="form-label">Granularidad</label>
+                                            <select id="filtroGranularidadEvolucion" class="form-select" v-model="filtrosEvolucion.granularidad" @change="cargarGraficoEvolucion">
+                                                <option value="diario">Diario</option>
+                                                <option value="semanal">Semanal</option>
+                                                <option value="mensual">Mensual</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="chart-container">
+                            <div id="chartEvolucion"></div>
+                        </div>
+                        </div>
+                </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoEvolucion">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+
             </div>
         </div>
     </div>
 
-    <!-- Modal para Tiempo Promedio de Resolución por Motivo -->
+    <!-- Modal: tiempo promedio de reparación por motivo -->
     <div class="modal fade" id="modalGraficoTiempoPromedio" tabindex="-1" aria-labelledby="modalGraficoTiempoPromedioLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalGraficoTiempoPromedioLabel">
-                        <i class="bi bi-clock-history"></i>
-                        Tiempo Promedio de Resolución por Motivo
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Descripción -->
-                    <div class="alert alert-warning mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Muestra el tiempo promedio (en horas o minutos) que toma resolver cada tipo de reclamo. Permite identificar qué motivos requieren más tiempo de resolución, lo que ayuda a planificar recursos y mejorar la eficiencia del servicio.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-clock-history"></i></span>
+                        <h5 id="modalGraficoTiempoPromedioLabel">Tiempo promedio de reparación por motivo</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Promedio de minutos de trabajo en obra (cronómetro) por motivo. No es la demora hasta el cierre del reclamo, sino el tiempo de reparación en campo. Se muestran todos los motivos del catálogo.</p><p>Con <strong>Comparar con otro período</strong> se muestra un gráfico por cada ventana de fechas.</p>
+                            </span>
+                        </span>
                     </div>
-
-                    <!-- Filtros -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label for="filtroFechaDesdeTiempo" class="form-label">Fecha Desde</label>
-                                    <input type="date" id="filtroFechaDesdeTiempo" class="form-control" v-model="filtrosTiempo.fechaDesde" @change="cargarGraficoTiempoPromedio">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroFechaHastaTiempo" class="form-label">Fecha Hasta</label>
-                                    <input type="date" id="filtroFechaHastaTiempo" class="form-control" v-model="filtrosTiempo.fechaHasta" @change="cargarGraficoTiempoPromedio">
-                                </div>
-                                <div class="col-md-4">
-                                    <label for="filtroMotivoTiempo" class="form-label">Motivo</label>
-                                    <select id="filtroMotivoTiempo" class="form-select" v-model="filtrosTiempo.motivo" @change="cargarGraficoTiempoPromedio">
-                                        <option value="Todos">Todos</option>
-                                        <option v-for="motivo in motivosDisponibles" :key="motivo" :value="motivo">{{ motivo }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoTiempoPromedio('hoy')">Hoy</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoTiempoPromedio('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoTiempoPromedio('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoTiempoPromedio('año')">Año actual</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gráfico -->
-                    <div class="chart-container">
-                        <div id="chartTiempoPromedio"></div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Total de Registros</h6>
-                                        <p class="mb-0">{{ datosTiempo.total || 0 }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Rango de Fechas</h6>
-                                        <p class="mb-0" v-if="datosTiempo.filtros_aplicados">
-                                            Desde: {{ datosTiempo.filtros_aplicados.fecha_desde || 'Sin filtro' }}<br>
-                                            Hasta: {{ datosTiempo.filtros_aplicados.fecha_hasta || 'Sin filtro' }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoTiempoPromedio">
-                        <i class="bi bi-download"></i> Exportar como Imagen
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
                 </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosTiempo, 'hoy') }" @click="setFiltroRapidoTiempoPromedio('hoy')">Hoy</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosTiempo, '7dias') }" @click="setFiltroRapidoTiempoPromedio('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosTiempo, '30dias') }" @click="setFiltroRapidoTiempoPromedio('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosTiempo, 'mes') }" @click="setFiltroRapidoTiempoPromedio('mes')">Mes actual</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosTiempo, 'año') }" @click="setFiltroRapidoTiempoPromedio('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaDesdeTiempo" class="form-label">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeTiempo" class="form-control" v-model="filtrosTiempo.fechaDesde" @change="cargarGraficoTiempoPromedio">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroFechaHastaTiempo" class="form-label">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaTiempo" class="form-control" v-model="filtrosTiempo.fechaHasta" @change="cargarGraficoTiempoPromedio">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="filtroMotivoTiempo" class="form-label">Motivo</label>
+                                            <select id="filtroMotivoTiempo" class="form-select" v-model="filtrosTiempo.motivo" @change="cargarGraficoTiempoPromedio">
+                                                <option value="Todos">Todos</option>
+                                                <option v-for="motivo in motivosDisponibles" :key="motivo" :value="motivo">{{ motivo }}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="analisis-comparacion mt-3">
+                                        <label class="analisis-comparacion__toggle">
+                                            <input type="checkbox" v-model="filtrosTiempo.comparar" @change="onToggleComparacion(filtrosTiempo, () => cargarGraficoTiempoPromedio())">
+                                            <span>Comparar con otro período</span>
+                                        </label>
+                                        <div v-if="filtrosTiempo.comparar" class="analisis-comparacion__body">
+                                            <button type="button" class="analisis-chip analisis-chip--soft" @click="usarPeriodoAnteriorComparacion(filtrosTiempo, () => cargarGraficoTiempoPromedio())">Vs período anterior</button>
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-6">
+                                                    <label class="form-label">Desde (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosTiempo.fechaDesdeB" @change="cargarGraficoTiempoPromedio">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label">Hasta (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosTiempo.fechaHastaB" @change="cargarGraficoTiempoPromedio">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="analisis-charts-compare" :class="{ 'is-dual': periodoComparacionActivo(filtrosTiempo) }">
+                            <div class="analisis-charts-compare__pane">
+                                <h6 v-if="periodoComparacionActivo(filtrosTiempo)" class="analisis-charts-compare__title">
+                                    Período A · {{ etiquetaRangoFechas(filtrosTiempo.fechaDesde, filtrosTiempo.fechaHasta) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartTiempoPromedio"></div>
+                                </div>
+                            </div>
+                            <div v-if="periodoComparacionActivo(filtrosTiempo)" class="analisis-charts-compare__pane">
+                                <h6 class="analisis-charts-compare__title analisis-charts-compare__title--b">
+                                    Período B · {{ etiquetaRangoFechas(filtrosTiempo.fechaDesdeB, filtrosTiempo.fechaHastaB) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartTiempoPromedioB"></div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoTiempoPromedio">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+
             </div>
         </div>
     </div>
 
-    <!-- Modal para Evolución del Tiempo Promedio -->
+    <!-- Modal: evolución del tiempo promedio de reparación -->
     <div class="modal fade" id="modalGraficoEvolucionTiempo" tabindex="-1" aria-labelledby="modalGraficoEvolucionTiempoLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalGraficoEvolucionTiempoLabel">
-                        <i class="bi bi-graph-up-arrow"></i>
-                        Evolución del Tiempo Promedio de Resolución
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Descripción -->
-                    <div class="alert alert-success mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Muestra la evolución del tiempo promedio de resolución a lo largo del tiempo. Permite monitorear si los tiempos de resolución mejoran o empeoran, y comparar el rendimiento entre diferentes motivos de reclamos (top 5).</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-graph-up-arrow"></i></span>
+                        <h5 id="modalGraficoEvolucionTiempoLabel">Evolución del tiempo promedio de reparación</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Evolución diaria, semanal o mensual del promedio de minutos de obra (cronómetro) por motivo. Incluye todos los motivos del catálogo; al pasar el mouse se ve el nombre completo y el valor en minutos.</p>
+                            </span>
+                        </span>
                     </div>
-
-                    <!-- Filtros -->
-                    <div class="card mb-3">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6>
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucionTiempo, 'hoy') }" @click="setFiltroRapidoEvolucionTiempo('hoy')">Hoy</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucionTiempo, '7dias') }" @click="setFiltroRapidoEvolucionTiempo('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucionTiempo, '30dias') }" @click="setFiltroRapidoEvolucionTiempo('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucionTiempo, 'mes') }" @click="setFiltroRapidoEvolucionTiempo('mes')">Mes actual</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosEvolucionTiempo, 'año') }" @click="setFiltroRapidoEvolucionTiempo('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label for="filtroFechaDesdeEvolucionTiempo" class="form-label">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeEvolucionTiempo" class="form-control" v-model="filtrosEvolucionTiempo.fechaDesde" @change="cargarGraficoEvolucionTiempo">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="filtroFechaHastaEvolucionTiempo" class="form-label">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaEvolucionTiempo" class="form-control" v-model="filtrosEvolucionTiempo.fechaHasta" @change="cargarGraficoEvolucionTiempo">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="filtroGranularidadEvolucionTiempo" class="form-label">Granularidad</label>
+                                            <select id="filtroGranularidadEvolucionTiempo" class="form-select" v-model="filtrosEvolucionTiempo.granularidad" @change="cargarGraficoEvolucionTiempo">
+                                                <option value="diario">Diario</option>
+                                                <option value="semanal">Semanal</option>
+                                                <option value="mensual">Mensual</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="filtroMotivoEvolucionTiempo" class="form-label">Motivo</label>
+                                            <select id="filtroMotivoEvolucionTiempo" class="form-select" v-model="filtrosEvolucionTiempo.motivo" @change="cargarGraficoEvolucionTiempo">
+                                                <option value="Todos">Todos</option>
+                                                <option v-for="motivo in motivosDisponibles" :key="motivo" :value="motivo">{{ motivo }}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="chart-container">
+                            <div id="chartEvolucionTiempo"></div>
                         </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <label for="filtroFechaDesdeEvolucionTiempo" class="form-label">Fecha Desde</label>
-                                    <input type="date" id="filtroFechaDesdeEvolucionTiempo" class="form-control" v-model="filtrosEvolucionTiempo.fechaDesde" @change="cargarGraficoEvolucionTiempo">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroFechaHastaEvolucionTiempo" class="form-label">Fecha Hasta</label>
-                                    <input type="date" id="filtroFechaHastaEvolucionTiempo" class="form-control" v-model="filtrosEvolucionTiempo.fechaHasta" @change="cargarGraficoEvolucionTiempo">
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroGranularidadEvolucionTiempo" class="form-label">Granularidad</label>
-                                    <select id="filtroGranularidadEvolucionTiempo" class="form-select" v-model="filtrosEvolucionTiempo.granularidad" @change="cargarGraficoEvolucionTiempo">
-                                        <option value="semanal">Semanal</option>
-                                        <option value="mensual">Mensual</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="filtroMotivoEvolucionTiempo" class="form-label">Motivo</label>
-                                    <select id="filtroMotivoEvolucionTiempo" class="form-select" v-model="filtrosEvolucionTiempo.motivo" @change="cargarGraficoEvolucionTiempo">
-                                        <option value="Todos">Todos</option>
-                                        <option v-for="motivo in motivosDisponibles" :key="motivo" :value="motivo">{{ motivo }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
+                        </div>
+                </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoEvolucionTiempo">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Gráfico de Antigüedad de Abiertos -->
+    <div class="modal fade" id="modalGraficoAntiguedad" tabindex="-1" aria-labelledby="modalGraficoAntiguedadLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-hourglass-split"></i></span>
+                        <h5 id="modalGraficoAntiguedadLabel">Antigüedad de abiertos</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Foto actual del backlog sin cierre formal, agrupado por antigüedad desde la fecha de alta: 0–3, 4–7, 8–15 y +15 días.</p><p>No usa el período global: incluye todos los abiertos para no ocultar los más viejos. Podés filtrar por prioridad.</p>
+                            </span>
+                        </span>
+                    </div>
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="row g-3">
                                 <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucionTiempo('hoy')">Hoy</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucionTiempo('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoEvolucionTiempo('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoEvolucionTiempo('año')">Año actual</button>
+                                    <label for="filtroPrioridadAntiguedad" class="form-label">Prioridad</label>
+                                    <select id="filtroPrioridadAntiguedad" class="form-select" v-model="filtrosAntiguedad.prioridad" @change="cargarGraficoAntiguedad">
+                                        <option value="">Todas</option>
+                                        <option value="Alta">Alta</option>
+                                        <option value="Baja">Baja</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <p class="text-muted small mb-0">Total abiertos: <strong>{{ datosAntiguedad.total || 0 }}</strong></p>
                                 </div>
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Gráfico -->
-                    <div class="chart-container">
-                        <div id="chartEvolucionTiempo"></div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Granularidad</h6>
-                                        <p class="mb-0">{{ datosEvolucionTiempo.granularidad || 'Semanal' }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <h6 class="card-title">Rango de Fechas</h6>
-                                        <p class="mb-0" v-if="datosEvolucionTiempo.filtros_aplicados">
-                                            Desde: {{ datosEvolucionTiempo.filtros_aplicados.fecha_desde || 'Sin filtro' }}<br>
-                                            Hasta: {{ datosEvolucionTiempo.filtros_aplicados.fecha_hasta || 'Sin filtro' }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="chart-container">
+                            <div id="chartAntiguedad"></div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoEvolucionTiempo">
+                <div class="analisis-modal-actions">
+                    <button type="button" class="rutas-btn" @click="exportarGraficoAntiguedad">
                         <i class="bi bi-download"></i> Exportar como Imagen
                     </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal para Gráfico de Alta Prioridad -->
-    <div class="modal fade" id="modalGraficoAltaPrioridad" tabindex="-1" aria-hidden="true">
+    <!-- Modal Mapa de calor de zonas -->
+    <div class="modal fade" id="modalGraficoMapaCalor" tabindex="-1" aria-labelledby="modalGraficoMapaCalorLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill text-danger"></i> Evolución de Reclamos de Alta Prioridad</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-danger mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Muestra la evolución de reclamos de alta prioridad con línea de tendencia y meta objetivo. Permite asegurar que los reclamos críticos se resuelven rápidamente.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-geo-alt-fill"></i></span>
+                        <h5 id="modalGraficoMapaCalorLabel">Mapa de calor de zonas</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Concentración de reclamos en San Francisco (Córdoba) según domicilio geocodificado. Usa reclamos + coordenadas de la tabla direcciones.</p>
+                            </span>
+                        </span>
                     </div>
-                    <div class="card mb-3">
-                        <div class="card-header"><h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6></div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMapaCalor, '7dias') }" @click="setFiltroRapidoMapaCalor('7dias')">Últimos 7 días</button>
+                                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMapaCalor, '30dias') }" @click="setFiltroRapidoMapaCalor('30dias')">Últimos 30 días</button>
+                                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMapaCalor, 'mes') }" @click="setFiltroRapidoMapaCalor('mes')">Mes actual</button>
+                                <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosMapaCalor, 'año') }" @click="setFiltroRapidoMapaCalor('año')">Año actual</button>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-12">
                                     <label class="form-label">Fecha Desde</label>
-                                    <input type="date" class="form-control" v-model="filtrosAltaPrioridad.fechaDesde" @change="cargarGraficoAltaPrioridad">
+                                    <input type="date" class="form-control" v-model="filtrosMapaCalor.fechaDesde" @change="cargarGraficoMapaCalor">
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-12">
                                     <label class="form-label">Fecha Hasta</label>
-                                    <input type="date" class="form-control" v-model="filtrosAltaPrioridad.fechaHasta" @change="cargarGraficoAltaPrioridad">
+                                    <input type="date" class="form-control" v-model="filtrosMapaCalor.fechaHasta" @change="cargarGraficoMapaCalor">
                                 </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Granularidad</label>
-                                    <select class="form-select" v-model="filtrosAltaPrioridad.granularidad" @change="cargarGraficoAltaPrioridad">
-                                        <option value="diario">Diario</option>
-                                        <option value="semanal">Semanal</option>
+                                <div class="col-12">
+                                    <label class="form-label">Estado</label>
+                                    <select class="form-select" v-model="filtrosMapaCalor.estado" @change="cargarGraficoMapaCalor">
+                                        <option value="">Todos</option>
+                                        <option value="Recibido">Recibido</option>
+                                        <option value="Asignado">Asignado</option>
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="En ejecución">En ejecución</option>
+                                        <option value="Completado">Completado</option>
+                                        <option value="Cerrado">Cerrado</option>
                                     </select>
                                 </div>
-                            </div>
-                            <div class="row mt-3">
                                 <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoAltaPrioridad('hoy')">Hoy</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoAltaPrioridad('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoAltaPrioridad('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoAltaPrioridad('año')">Año actual</button>
+                                    <label class="form-label">Prioridad</label>
+                                    <select class="form-select" v-model="filtrosMapaCalor.prioridad" @change="cargarGraficoMapaCalor">
+                                        <option value="">Todas</option>
+                                        <option value="Alta">Alta</option>
+                                        <option value="Baja">Baja</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Motivo</label>
+                                    <select class="form-select" v-model="filtrosMapaCalor.motivo" @change="cargarGraficoMapaCalor">
+                                        <option value="">Todos</option>
+                                        <option v-for="motivo in motivosDisponibles" :key="'mc-' + motivo" :value="motivo">{{ motivo }}</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <p class="text-muted small mb-1">Puntos en mapa: <strong>{{ datosMapaCalor.puntos || 0 }}</strong></p>
+                                    <p class="text-muted small mb-1">Con coordenadas: <strong>{{ datosMapaCalor.con_coordenadas || 0 }}</strong></p>
+                                    <p class="text-muted small mb-0">Sin coordenadas: <strong>{{ datosMapaCalor.sin_coordenadas || 0 }}</strong></p>
                                 </div>
                             </div>
                         </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="analisis-mapa-calor-wrap">
+                            <div id="mapaCalorMapbox" class="analisis-mapa-calor"></div>
+                        </div>
                     </div>
-                    <div class="chart-container"><div id="chartAltaPrioridad"></div></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoAltaPrioridad"><i class="bi bi-download"></i> Exportar</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <div class="analisis-modal-actions">
+                    <button type="button" class="rutas-btn" @click="exportarMapaCalor">
+                        <i class="bi bi-download"></i> Exportar como Imagen
+                    </button>
+                    <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -945,164 +783,121 @@
     <!-- Modal para Gráfico de Consumo de Materiales -->
     <div class="modal fade" id="modalGraficoConsumoMateriales" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-box-seam text-primary"></i> Consumo de Materiales por Período</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-primary mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Muestra el consumo de los 5 materiales más utilizados por mes. Permite predecir necesidades futuras de materiales y planificar compras.</p>
+            <div class="modal-content rutas-modal analisis-modal">
+                <div class="rutas-modal__header">
+                    <div class="rutas-modal__title">
+                        <span class="rutas-modal__icon"><i class="bi bi-box-seam"></i></span>
+                        <h5>Consumo de Materiales por Período</h5>
+                        <span class="analisis-info-tip" tabindex="0" aria-label="Explicación del gráfico">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span class="analisis-info-tip__popup" role="tooltip">
+                                <strong>¿Qué muestra este gráfico?</strong>
+                                <p>Evolución del consumo real registrado en obra (suma de cantidades). Se puede acotar por categoría y/o material. Sin material específico muestra el Top 5 del recorte actual. La granularidad (día, semana o mes) define el eje temporal.</p><p>En modo comparación se muestran <strong>dos gráficos</strong>, uno por período.</p>
+                            </span>
+                        </span>
                     </div>
-                    <div class="card mb-3">
-                        <div class="card-header"><h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6></div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Desde</label>
-                                    <input type="date" class="form-control" v-model="filtrosConsumoMateriales.fechaDesde" @change="cargarGraficoConsumoMateriales">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Hasta</label>
-                                    <input type="date" class="form-control" v-model="filtrosConsumoMateriales.fechaHasta" @change="cargarGraficoConsumoMateriales">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Material</label>
-                                    <select class="form-select" v-model="filtrosConsumoMateriales.material" @change="cargarGraficoConsumoMateriales">
-                                        <option value="Todos">Todos (Top 5)</option>
-                                        <option v-for="mat in datosConsumoMateriales.materiales_disponibles" :key="mat" :value="mat">{{ mat }}</option>
-                                    </select>
+                    <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <div class="modal-body analisis-modal-body--split">
+                    <aside class="analisis-filtros-side">
+                        <h6 class="analisis-filtros-side__title"><i class="bi bi-funnel"></i> Filtros</h6>
+                        <div class="analisis-filtros-side__body">
+                            <div class="analisis-filtros__quick">
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosConsumoMateriales, 'hoy') }" @click="setFiltroRapidoConsumoMateriales('hoy')">Hoy</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosConsumoMateriales, '7dias') }" @click="setFiltroRapidoConsumoMateriales('7dias')">Últimos 7 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosConsumoMateriales, '30dias') }" @click="setFiltroRapidoConsumoMateriales('30dias')">Últimos 30 días</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosConsumoMateriales, 'mes') }" @click="setFiltroRapidoConsumoMateriales('mes')">Mes actual</button>
+                                        <button type="button" class="analisis-chip" :class="{ active: periodoActivo(filtrosConsumoMateriales, 'año') }" @click="setFiltroRapidoConsumoMateriales('año')">Año actual</button>
+                                    </div>
+                        <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="filtroFechaDesdeConsumoMat">Fecha Desde</label>
+                                            <input type="date" id="filtroFechaDesdeConsumoMat" class="form-control" v-model="filtrosConsumoMateriales.fechaDesde" @change="cargarGraficoConsumoMateriales">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="filtroFechaHastaConsumoMat">Fecha Hasta</label>
+                                            <input type="date" id="filtroFechaHastaConsumoMat" class="form-control" v-model="filtrosConsumoMateriales.fechaHasta" @change="cargarGraficoConsumoMateriales">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="filtroGranularidadConsumoMat">Granularidad</label>
+                                            <select id="filtroGranularidadConsumoMat" class="form-select" v-model="filtrosConsumoMateriales.granularidad" @change="cargarGraficoConsumoMateriales">
+                                                <option value="diario">Diario</option>
+                                                <option value="semanal">Semanal</option>
+                                                <option value="mensual">Mensual</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label" for="filtroCategoriaConsumoMat">Categoría</label>
+                                            <select id="filtroCategoriaConsumoMat" class="form-select" v-model="filtrosConsumoMateriales.categoria" @change="onCambioCategoriaConsumoMateriales">
+                                                <option value="Todas">Todas</option>
+                                                <option v-for="cat in datosConsumoMateriales.categorias_disponibles" :key="cat" :value="cat">{{ cat }}</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label" for="filtroMaterialConsumoMat">Material</label>
+                                            <select id="filtroMaterialConsumoMat" class="form-select" v-model="filtrosConsumoMateriales.material" @change="cargarGraficoConsumoMateriales">
+                                                <option value="Todos">Todos (Top 5)</option>
+                                                <option v-for="mat in datosConsumoMateriales.materiales_disponibles" :key="mat" :value="mat">{{ mat }}</option>
+                                            </select>
+                                            <small class="text-muted d-block mt-1" v-if="datosConsumoMateriales.materiales_disponibles && datosConsumoMateriales.materiales_disponibles.length">
+                                                {{ datosConsumoMateriales.materiales_disponibles.length }} con consumo
+                                                <span v-if="filtrosConsumoMateriales.categoria !== 'Todas'"> en {{ filtrosConsumoMateriales.categoria }}</span>
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="analisis-comparacion mt-3">
+                                        <label class="analisis-comparacion__toggle">
+                                            <input type="checkbox" v-model="filtrosConsumoMateriales.comparar" @change="onToggleComparacion(filtrosConsumoMateriales, () => cargarGraficoConsumoMateriales())">
+                                            <span>Comparar con otro período</span>
+                                        </label>
+                                        <div v-if="filtrosConsumoMateriales.comparar" class="analisis-comparacion__body">
+                                            <p class="analisis-comparacion__hint mb-1">Se muestran dos gráficos: uno por cada período.</p>
+                                            <button type="button" class="analisis-chip analisis-chip--soft" @click="usarPeriodoAnteriorComparacion(filtrosConsumoMateriales, () => cargarGraficoConsumoMateriales())">Vs período anterior</button>
+                                            <div class="row g-2 mt-1">
+                                                <div class="col-6">
+                                                    <label class="form-label">Desde (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosConsumoMateriales.fechaDesdeB" @change="cargarGraficoConsumoMateriales">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="form-label">Hasta (B)</label>
+                                                    <input type="date" class="form-control" v-model="filtrosConsumoMateriales.fechaHastaB" @change="cargarGraficoConsumoMateriales">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    </div>
+                    </aside>
+                    <div class="analisis-modal-main">
+                        <div class="analisis-charts-compare" :class="{ 'is-dual': periodoComparacionActivo(filtrosConsumoMateriales) }">
+                            <div class="analisis-charts-compare__pane">
+                                <h6 v-if="periodoComparacionActivo(filtrosConsumoMateriales)" class="analisis-charts-compare__title">
+                                    Período A · {{ etiquetaRangoFechas(filtrosConsumoMateriales.fechaDesde, filtrosConsumoMateriales.fechaHasta) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartConsumoMateriales"></div>
                                 </div>
                             </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoConsumoMateriales('hoy')">Hoy</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoConsumoMateriales('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoConsumoMateriales('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoConsumoMateriales('año')">Año actual</button>
+                            <div v-if="periodoComparacionActivo(filtrosConsumoMateriales)" class="analisis-charts-compare__pane">
+                                <h6 class="analisis-charts-compare__title analisis-charts-compare__title--b">
+                                    Período B · {{ etiquetaRangoFechas(filtrosConsumoMateriales.fechaDesdeB, filtrosConsumoMateriales.fechaHastaB) }}
+                                </h6>
+                                <div class="chart-container">
+                                    <div id="chartConsumoMaterialesB"></div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="chart-container"><div id="chartConsumoMateriales"></div></div>
+                        </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoConsumoMateriales"><i class="bi bi-download"></i> Exportar</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
+                <div class="analisis-modal-actions">
+                            <button type="button" class="rutas-btn" @click="exportarGraficoConsumoMateriales">
+                                <i class="bi bi-download"></i> Exportar como Imagen
+                            </button>
+                            <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
+                        </div>
 
-    <!-- Modal para Gráfico de Cerrados vs Abiertos -->
-    <div class="modal fade" id="modalGraficoCerradosAbiertos" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-bar-chart-fill text-success"></i> Reclamos Cerrados vs Abiertos</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-success mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Compara la cantidad de reclamos cerrados (cerrado=1) vs abiertos (cerrado=0) por período. Permite monitorear el proceso de cierre formal de reclamos.</p>
-                    </div>
-                    <div class="card mb-3">
-                        <div class="card-header"><h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6></div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Desde</label>
-                                    <input type="date" class="form-control" v-model="filtrosCerradosAbiertos.fechaDesde" @change="cargarGraficoCerradosAbiertos">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Hasta</label>
-                                    <input type="date" class="form-control" v-model="filtrosCerradosAbiertos.fechaHasta" @change="cargarGraficoCerradosAbiertos">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Granularidad</label>
-                                    <select class="form-select" v-model="filtrosCerradosAbiertos.granularidad" @change="cargarGraficoCerradosAbiertos">
-                                        <option value="semanal">Semanal</option>
-                                        <option value="mensual">Mensual</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="row mt-3">
-                                <div class="col-12">
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoCerradosAbiertos('hoy')">Hoy</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoCerradosAbiertos('7dias')">Últimos 7 días</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary me-1" @click="setFiltroRapidoCerradosAbiertos('mes')">Mes actual</button>
-                                    <button type="button" class="btn btn-sm btn-outline-primary" @click="setFiltroRapidoCerradosAbiertos('año')">Año actual</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chart-container"><div id="chartCerradosAbiertos"></div></div>
-                    <div class="mt-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <h6>Tasas de Cierre por Período</h6>
-                                <div class="d-flex flex-wrap gap-2">
-                                    <span v-for="(tasa, idx) in datosCerradosAbiertos.tasas" :key="idx" class="badge" :class="tasa >= 50 ? 'bg-success' : 'bg-warning'">
-                                        {{ datosCerradosAbiertos.labels[idx] }}: {{ tasa }}%
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoCerradosAbiertos"><i class="bi bi-download"></i> Exportar</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal para Gráfico de Tasa de Cierre -->
-    <div class="modal fade" id="modalGraficoTasaCierre" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-percent text-info"></i> Tasa de Cierre de Reclamos</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info mb-3">
-                        <h6><i class="bi bi-info-circle"></i> ¿Qué muestra este gráfico?</h6>
-                        <p class="mb-0">Muestra el porcentaje de reclamos cerrados sobre el total por período, con una meta objetivo del 95%. Permite asegurar que los reclamos se cierran correctamente.</p>
-                    </div>
-                    <div class="card mb-3">
-                        <div class="card-header"><h6 class="mb-0"><i class="bi bi-funnel"></i> Filtros</h6></div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Desde</label>
-                                    <input type="date" class="form-control" v-model="filtrosTasaCierre.fechaDesde" @change="cargarGraficoTasaCierre">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Fecha Hasta</label>
-                                    <input type="date" class="form-control" v-model="filtrosTasaCierre.fechaHasta" @change="cargarGraficoTasaCierre">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">Granularidad</label>
-                                    <select class="form-select" v-model="filtrosTasaCierre.granularidad" @change="cargarGraficoTasaCierre">
-                                        <option value="semanal">Semanal</option>
-                                        <option value="mensual">Mensual</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="chart-container"><div id="chartTasaCierre"></div></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" @click="exportarGraficoTasaCierre"><i class="bi bi-download"></i> Exportar</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
             </div>
         </div>
     </div>
 </div>
-

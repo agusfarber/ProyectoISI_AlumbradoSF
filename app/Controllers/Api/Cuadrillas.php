@@ -178,7 +178,17 @@ class Cuadrillas extends ResourceController
             return $this->failValidationErrors('ID de cuadrilla es obligatorio.');
         }
 
-        $jefeOperarioId = $data['jefeOperarioId'] ?? null;
+        $operariosConPermiso = $data['operariosConPermiso'] ?? null;
+
+        // Compatibilidad: un solo jefeOperarioId sigue siendo válido
+        if (!is_array($operariosConPermiso)) {
+            $operariosConPermiso = [];
+            if (!empty($data['jefeOperarioId'])) {
+                $operariosConPermiso[] = (int) $data['jefeOperarioId'];
+            }
+        } else {
+            $operariosConPermiso = array_values(array_unique(array_map('intval', $operariosConPermiso)));
+        }
         
         // Si no hay operarios, simplemente eliminar todas las asignaciones existentes
         if (empty($data['operarios']) || !is_array($data['operarios'])) {
@@ -193,14 +203,22 @@ class Cuadrillas extends ResourceController
             return $this->failValidationErrors('Solo se pueden asignar máximo 4 operarios por cuadrilla.');
         }
 
-        // Si hay operarios asignados, debe existir exactamente un jefe dentro de la cuadrilla
-        if (count($data['operarios']) > 0) {
-            if (empty($jefeOperarioId)) {
-                return $this->failValidationErrors('Debe seleccionar un jefe de cuadrilla.');
+        $operariosIds = array_map('intval', $data['operarios']);
+
+        // Si hay operarios, al menos uno debe tener permisos de gestión de tareas
+        if (count($operariosIds) > 0) {
+            if (empty($operariosConPermiso)) {
+                return $this->failValidationErrors(
+                    'Debe otorgar permisos de gestión a al menos un operario de la cuadrilla.'
+                );
             }
 
-            if (!in_array((int)$jefeOperarioId, array_map('intval', $data['operarios']), true)) {
-                return $this->failValidationErrors('El jefe seleccionado debe pertenecer a la cuadrilla.');
+            foreach ($operariosConPermiso as $idPermiso) {
+                if (!in_array($idPermiso, $operariosIds, true)) {
+                    return $this->failValidationErrors(
+                        'Los operarios con permisos de gestión deben pertenecer a la cuadrilla.'
+                    );
+                }
             }
         }
 
@@ -215,7 +233,7 @@ class Cuadrillas extends ResourceController
             $cuadrillaOperariosModel->where('cuadrilla_id', $data['cuadrillaId'])->delete();
 
             // Luego asignar los operarios a la cuadrilla
-            foreach ($data['operarios'] as $operarioId) {
+            foreach ($operariosIds as $operarioId) {
                 // CORRECCIÓN: Eliminar las asignaciones previas del operario en OTRAS cuadrillas
                 // para asegurar que un operario solo esté en una cuadrilla a la vez
                 $cuadrillaOperariosModel->where('usuario_id', $operarioId)->delete();
@@ -224,7 +242,7 @@ class Cuadrillas extends ResourceController
                 $cuadrillaOperariosModel->insert([
                     'cuadrilla_id' => $data['cuadrillaId'],
                     'usuario_id' => $operarioId,
-                    'es_jefe' => ((int)$operarioId === (int)$jefeOperarioId) ? 1 : 0
+                    'es_jefe' => in_array($operarioId, $operariosConPermiso, true) ? 1 : 0
                 ]);
             }
 

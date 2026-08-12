@@ -1,0 +1,173 @@
+/* ========================================
+   Toasts / notificaciones flotantes
+   Estilo sobrio con toque macOS (cruz arriba-izquierda)
+   ======================================== */
+
+.mensaje-notificacion.alert,
+.alert.mensaje-notificacion {
+  --toast-accent: #3a3972;
+  --toast-bg: #f7f7fb;
+  --toast-border: rgba(58, 57, 114, 0.14);
+  position: fixed !important;
+  top: 1rem;
+  right: 1rem;
+  left: auto;
+  z-index: 1090;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.55rem;
+  min-width: min(300px, calc(100vw - 2rem));
+  max-width: min(400px, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.85rem 0.95rem 0.85rem 0.7rem;
+  border: 1px solid var(--toast-border);
+  border-radius: 12px;
+  background: var(--toast-bg) !important;
+  color: #2a2a33 !important;
+  box-shadow:
+    0 1px 2px rgba(6, 4, 75, 0.04),
+    0 10px 28px rgba(6, 4, 75, 0.1);
+  font-size: 0.86rem;
+  font-weight: 450;
+  line-height: 1.45;
+  backdrop-filter: blur(8px);
+}
+
+.mensaje-notificacion.alert-success {
+  --toast-accent: #2f7a55;
+  --toast-bg: #f3faf6;
+  --toast-border: rgba(47, 122, 85, 0.18);
+}
+
+.mensaje-notificacion.alert-warning {
+  --toast-accent: #a67c1f;
+  --toast-bg: #fcf8ef;
+  --toast-border: rgba(166, 124, 31, 0.2);
+}
+
+.mensaje-notificacion.alert-danger,
+.mensaje-notificacion.alert-error {
+  --toast-accent: #a03d3d;
+  --toast-bg: #fbf4f4;
+  --toast-border: rgba(160, 61, 61, 0.18);
+}
+
+.mensaje-notificacion.alert-info {
+  --toast-accent: #3a3972;
+  --toast-bg: #f4f4fa;
+  --toast-border: rgba(58, 57, 114, 0.16);
+}
+
+/* Barrita de acento sutil a la izquierda del contenido */
+.mensaje-notificacion__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  order: 2;
+  padding: 0.05rem 0.15rem 0.05rem 0.55rem;
+  border-left: 2px solid var(--toast-accent);
+}
+
+.mensaje-notificacion__body strong {
+  font-weight: 650;
+  color: #1e1e29;
+}
+
+.mensaje-notificacion__body small,
+.mensaje-notificacion__body .text-muted {
+  color: #6c757d !important;
+}
+
+.mensaje-notificacion__body > .bi {
+  font-size: 0.95rem;
+  color: var(--toast-accent);
+  opacity: 0.85;
+  margin-right: 0.35rem !important;
+  vertical-align: -0.05em;
+}
+
+/* Cruz tipo macOS: círculo arriba a la izquierda.
+   Bootstrap .alert-dismissible .btn-close usa position:absolute;right — lo anulamos. */
+.mensaje-notificacion.alert-dismissible {
+  padding-right: 0.95rem;
+  padding-left: 0.7rem;
+}
+
+.mensaje-notificacion.alert-dismissible .btn-close,
+.mensaje-notificacion .btn-close,
+.mensaje-notificacion__close {
+  position: static !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  order: 1;
+  flex: 0 0 auto;
+  float: none !important;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin: 0.12rem 0 0;
+  padding: 0.52rem;
+  opacity: 1;
+  border-radius: 999px;
+  background-color: rgba(30, 30, 41, 0.1);
+  background-size: 0.45em;
+  box-shadow: none;
+  transition: background-color 0.15s ease, transform 0.12s ease;
+}
+
+.mensaje-notificacion .btn-close:hover,
+.mensaje-notificacion__close:hover {
+  opacity: 1;
+  background-color: rgba(30, 30, 41, 0.18);
+  transform: scale(1.06);
+}
+
+.mensaje-notificacion .btn-close:focus,
+.mensaje-notificacion__close:focus {
+  box-shadow: 0 0 0 2px rgba(58, 57, 114, 0.18);
+}
+
+/* SweetAlert2 toasts (si se usan en alguna vista) */
+.swal2-container.swal2-top-end > .swal2-popup.swal2-toast,
+.swal2-container.swal2-bottom-end > .swal2-popup.swal2-toast {
+  background: #f7f7fb !important;
+  color: #2a2a33 !important;
+  border: 1px solid rgba(58, 57, 114, 0.14) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 1px 2px rgba(6, 4, 75, 0.04),
+    0 10px 28px rgba(6, 4, 75, 0.1) !important;
+  padding: 0.75rem 0.9rem !important;
+  font-size: 0.86rem !important;
+}
+
+.swal2-popup.swal2-toast .swal2-title {
+  margin: 0 !important;
+  color: #2a2a33 !important;
+  font-size: 0.86rem !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+}
+
+.swal2-popup.swal2-toast .swal2-icon {
+  margin: 0 0.5rem 0 0 !important;
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+}
+
+.swal2-popup.swal2-toast .swal2-success-ring {
+  width: 1.35rem !important;
+  height: 1.35rem !important;
+}
+
+@media (max-width: 576px) {
+  .mensaje-notificacion.alert,
+  .alert.mensaje-notificacion {
+    top: 0.65rem;
+    right: 0.65rem;
+    left: 0.65rem;
+    max-width: none;
+    min-width: 0;
+  }
+}

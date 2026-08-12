@@ -1,6 +1,9 @@
 <div id="app" class="cierre-page">
 
-    <div class="cierre-page-title">Cierre</div>
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-lock-fill"></i></span>
+        <h1 class="app-page-title__text">Cierre</h1>
+    </div>
 
     <div class="cierre-toolbar">
         <div class="cierre-toolbar__left">
@@ -133,7 +136,7 @@
                             <div class="mb-3">
                                 <label class="fw-bold">Estado:</label>
                                 <p>
-                                    <template v-if="reclamoSeleccionado.cerrado == 1">Cerrado</template>
+                                    <span v-if="reclamoSeleccionado.cerrado == 1" class="badge reclamo-estado reclamo-estado--cerrado">Cerrado</span>
                                     <template v-else>{{ reclamoSeleccionado.municipalidad_estado || 'No especificado' }}</template>
                                 </p>
                             </div>

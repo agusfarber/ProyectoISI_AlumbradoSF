@@ -18,19 +18,21 @@ class Pages extends BaseController
     public function view(string $page = 'dashboard')
     {
         // Definir qué roles pueden acceder a qué páginas
+        // 1 = Admin (solo usuarios), 2 = Supervisor (operación), 3 = Operario (obra)
         $rolePermissions = [
             'usuarios' => ['1'],
-            'cuadrillas' => ['1', '2', '3'],
-            'reclamos' => ['1', '2', '3'],
-            'materiales' => ['1', '2', '3'],
-            'mapa_google' => ['1', '2', '3'],
-            'mapa_mapbox' => ['1', '2', '3'],
-            'rutas' => ['1', '2', '3'],
-            'ruta_google' => ['1', '2', '3'],
-            'token103' => ['1', '2', '3'],
-            'tareas' => ['1', '2', '3'],
-            'cierre_reclamos' => ['1', '2'],
+            'cuadrillas' => ['2'],
+            'reclamos' => ['2'],
+            'materiales' => ['2'],
+            'mapa_google' => ['2'],
+            'mapa_mapbox' => ['2'],
+            'rutas' => ['2'],
+            'ruta_google' => ['2'],
+            'token103' => ['2'],
+            'tareas' => ['3'],
+            'cierre_reclamos' => ['2'],
             'analisis' => ['2'],
+            'notas' => ['2'],
             'perfil' => ['1', '2', '3'],
         ];
       

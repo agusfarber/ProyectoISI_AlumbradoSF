@@ -558,7 +558,8 @@ window.app = Vue.createApp({
             try {
                 const urlReclamos = BASE_URL + 'api/reclamos';
                 const response = await axios.get(urlReclamos);
-                this.reclamos = response.data;
+                // Cerrados (cierre formal) no se muestran en el mapa, aunque estén Completados
+                this.reclamos = (response.data || []).filter((r) => Number(r.cerrado) !== 1);
                 console.log('Reclamos obtenidos:', this.reclamos);
                 return this.reclamos;
             } catch (error) {
@@ -1256,6 +1257,11 @@ window.app = Vue.createApp({
         },
 
         debeMostrarMarcador(reclamo) {
+            // Completado cerrado formalmente no se muestra; Completado sin cerrar sí
+            if (Number(reclamo?.cerrado) === 1) {
+                return false;
+            }
+
             const estadoReclamo = reclamo.municipalidad_estado || 'Recibido';
             const cumpleEstado = this.estadosSeleccionados.length === 0 || this.estadosSeleccionados.includes(estadoReclamo);
 
@@ -1665,9 +1671,9 @@ window.app = Vue.createApp({
                               tipo === 'info' ? 'alert-info' : 'alert-danger';
             
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
             

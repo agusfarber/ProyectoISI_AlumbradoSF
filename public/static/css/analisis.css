@@ -1,422 +1,1394 @@
-/* Estilos para el dashboard de análisis */
+/* ========================================
+   ANÁLISIS — alineado a rutas / cierre / cuadrillas
+   ======================================== */
 
-.chart-card {
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: 1px solid #dee2e6;
-}
-
-.chart-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-    border-color: #0d6efd;
-}
-
-.chart-preview-container {
-    position: relative;
-    height: 250px;
+.analisis-page {
+    padding: 0;
     width: 100%;
-    margin-top: 1rem;
-    min-height: 250px;
+    font-family: 'Open Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.chart-preview-container > div {
-    height: 100% !important;
-    min-height: 250px;
+.analisis-page-title {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    margin-bottom: 1rem;
 }
 
-.chart-container {
-    position: relative;
-    height: 500px;
-    width: 100%;
-    margin: 1rem 0;
-    min-height: 500px;
+/* ---------- Período global ---------- */
+.analisis-periodo-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
 }
 
-.chart-container > div {
-    height: 100% !important;
-    min-height: 500px;
+.analisis-periodo-bar__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
 }
 
-.modal-xl .chart-container {
-    height: 550px;
-    min-height: 550px;
+.analisis-periodo-bar__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
-/* Estilos para las tarjetas de información */
-.card-title {
+.analisis-periodo-bar__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.analisis-periodo-bar__title h6 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.3px;
+}
+
+.analisis-periodo-bar__filters {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.analisis-periodo-bar__dates {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+    justify-content: flex-end;
+}
+
+.analisis-periodo-bar__dates label {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+}
+
+.analisis-periodo-bar__dates .form-control {
+    width: 150px;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    padding: 0.35rem 0.55rem;
+    background: var(--color-white);
+}
+
+.analisis-periodo-bar__dates .form-control:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.analisis-periodo-bar__quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: flex-end;
+}
+
+/* ---------- Panel KPI ---------- */
+.analisis-kpi-panel {
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.analisis-kpi-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+.analisis-kpi-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.analisis-kpi-panel__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.analisis-kpi-panel__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.analisis-kpi-panel__title h6 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.3px;
+}
+
+.analisis-kpi-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.75rem 0.9rem;
+}
+
+.analisis-kpi-grid {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.analisis-kpi-grid--estados {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.analisis-kpi-grid--metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.analisis-page .kpi-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+    padding: 0.65rem 0.75rem;
+    background: #fbfbfd;
+    border-radius: 10px;
+    border: 1px solid var(--color-light-gray);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    height: 100%;
+    min-width: 0;
+}
+
+.analisis-page .kpi-card--estado {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    min-height: 0;
+}
+
+.analisis-page .kpi-card--estado .kpi-content {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+}
+
+.analisis-page .kpi-card__nums {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.analisis-page .kpi-card--estado .kpi-label {
+    margin: 0 0 0.1rem;
+    font-size: 0.62rem;
+    align-self: auto;
+}
+
+.analisis-page .kpi-card--estado .kpi-value {
+    font-size: 1.2rem;
+    line-height: 1.1;
+    margin: 0;
+}
+
+.analisis-page .kpi-pct {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-medium-gray);
+    opacity: 0;
+    transform: translateX(-2px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    white-space: nowrap;
+}
+
+.analisis-page .kpi-card--estado:hover .kpi-pct {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.analisis-page .kpi-card--metric {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    background: #f6f7fb;
+    border-color: #e4e6ef;
+}
+
+.analisis-page .kpi-card:hover {
+    box-shadow: var(--shadow-light);
+    border-color: var(--color-purple-light);
+    transform: translateY(-1px);
+}
+
+.analisis-page .kpi-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.analisis-page .kpi-card--metric .kpi-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+}
+
+/* Colores de icono KPI = estados del mapa */
+.analisis-page .kpi-icon.kpi-icon--recibido {
+    background: #808080 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--asignado {
+    background: #0DCAF0 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--pendiente {
+    background: #FF0000 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--ejecucion {
+    background: #FFD700 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--completado,
+.analisis-page .kpi-icon.kpi-icon--tasa {
+    background: #198754 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--cerrado {
+    background: #000000 !important;
+}
+
+.analisis-page .kpi-icon.kpi-icon--tiempo {
+    background: #6c757d !important;
+}
+
+.analisis-page .kpi-icon i {
+    font-size: 0.95rem;
+    color: var(--color-white);
+}
+
+.analisis-page .kpi-card--metric .kpi-icon i {
     font-size: 1.1rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
 }
 
-.card-title i {
-    margin-right: 0.5rem;
+.analisis-page .kpi-icon.kpi-icon--ejecucion i {
+    color: #212529;
 }
 
-.card-text {
-    font-size: 0.9rem;
+.analisis-page .kpi-value.kpi-value--recibido { color: #808080; }
+.analisis-page .kpi-value.kpi-value--asignado { color: #0DCAF0; }
+.analisis-page .kpi-value.kpi-value--pendiente { color: #FF0000; }
+.analisis-page .kpi-value.kpi-value--ejecucion { color: #c9a600; }
+.analisis-page .kpi-value.kpi-value--completado { color: #198754; }
+.analisis-page .kpi-value.kpi-value--cerrado { color: #000000; }
+.analisis-page .kpi-value.kpi-value--tiempo { color: #6c757d; }
+
+.analisis-page .kpi-content {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
 }
 
-/* Estilos para los filtros */
-.btn-group .btn {
-    margin-right: 0.25rem;
-    margin-bottom: 0.25rem;
+.analisis-page .kpi-label {
+    font-size: 0.65rem;
+    color: var(--color-medium-gray);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
+    white-space: normal;
 }
 
-/* Ajustes para los inputs de filtros */
-.form-label {
-    font-weight: 500;
-    font-size: 0.9rem;
-    margin-bottom: 0.25rem;
-}
-
-/* Mejoras visuales para los modales */
-.modal-xl {
-    max-width: 95%;
-}
-
-.modal-fullscreen-lg-down {
-    max-width: 95%;
-}
-
-@media (max-width: 1200px) {
-    .modal-xl {
-        max-width: 98%;
-    }
-    
-    .modal-fullscreen-lg-down {
-        max-width: 98%;
-    }
-}
-
-.modal-body {
-    max-height: 85vh;
-    overflow-y: auto;
-    padding: 1.5rem;
-}
-
-@media (max-width: 768px) {
-    .modal-xl {
-        max-width: 100%;
-        margin: 0;
-    }
-    
-    .modal-fullscreen-lg-down {
-        max-width: 100%;
-        margin: 0;
-    }
-    
-    .modal-body {
-        max-height: 75vh;
-        padding: 1rem;
-    }
-}
-
-/* Estilos para los cards de información en los modales */
-.card-body h6 {
-    color: #6c757d;
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-}
-
-.card-body h3 {
-    font-size: 2rem;
-    font-weight: bold;
+.analisis-page .kpi-value {
+    font-size: 1.25rem;
+    font-weight: 700;
     margin-bottom: 0;
+    line-height: 1.15;
 }
 
-/* Ajustes responsive */
-@media (max-width: 768px) {
-    .chart-preview-container {
-        height: 200px;
-        min-height: 200px;
-    }
-
-    .chart-container {
-        height: 400px;
-        min-height: 400px;
-    }
-
-    .modal-xl .chart-container {
-        height: 450px;
-        min-height: 450px;
-    }
-
-    .card-title {
-        font-size: 1rem;
-    }
-
-    .card-text {
-        font-size: 0.85rem;
-    }
+.analisis-page .kpi-card--metric .kpi-value {
+    font-size: 1.4rem;
 }
 
-/* Estilos para las alertas informativas */
-.alert-info {
-    background-color: #e7f3ff;
-    border-color: #b8daff;
-    color: #004085;
+.analisis-page .kpi-card--metric .kpi-label {
+    font-size: 0.7rem;
 }
 
-.alert-info h6 {
-    color: #004085;
+.analisis-page .kpi-card--metric small {
+    display: block;
+    margin-top: 0.1rem;
+    font-size: 0.75rem;
+}
+
+.analisis-page .kpi-value.text-info {
+    color: #0aa2c0 !important;
+}
+
+.analisis-page .kpi-value.text-warning {
+    color: #cc9a06 !important;
+}
+
+.analisis-page .kpi-value.text-primary {
+    color: var(--color-purple-medium) !important;
+}
+
+.analisis-page .kpi-value.text-success {
+    color: #198754 !important;
+}
+
+.analisis-page .kpi-value.text-danger {
+    color: #dc3545 !important;
+}
+
+.analisis-page .kpi-content small {
+    font-size: 0.7rem;
+    display: block;
+    margin-top: 0.15rem;
+    color: var(--color-medium-gray);
+}
+
+/* ---------- Chips / botones rápidos ---------- */
+.analisis-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-light-gray);
+    border-radius: 10px;
+    background: var(--color-white);
+    color: var(--color-purple-dark);
+    font-weight: 600;
+    font-size: 0.76rem;
+    padding: 0.35rem 0.75rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.analisis-chip:hover {
+    background: #f7f7fb;
+    border-color: var(--color-purple-light);
+    color: var(--color-purple-dark);
+}
+
+.analisis-chip.is-active,
+.analisis-chip.active {
+    background: var(--gradient-primary);
+    border-color: transparent;
+    color: var(--color-white);
+    box-shadow: var(--shadow-light);
+    pointer-events: auto;
+}
+
+.analisis-chip.is-active:hover,
+.analisis-chip.active:hover {
+    background: var(--gradient-primary);
+    color: var(--color-white);
+    border-color: transparent;
+    filter: brightness(1.05);
+}
+
+/* ---------- Grid de gráficos ---------- */
+.analisis-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.analisis-chart-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--color-white);
+    border: 1px solid var(--color-light-gray);
+    border-radius: 12px;
+    box-shadow: var(--shadow-light);
+    padding: 0.8rem 0.9rem 0.6rem;
+    cursor: pointer;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    min-height: 100%;
+}
+
+.analisis-chart-card:hover {
+    border-color: var(--color-purple-light);
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+}
+
+.analisis-chart-card--wide {
+    grid-column: 1 / -1;
+}
+
+.analisis-chart-card__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin-bottom: 0.25rem;
+}
+
+.analisis-chart-card__icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.analisis-chart-card__icon i {
+    color: var(--color-white);
+    font-size: 0.85rem;
+}
+
+.analisis-chart-card__title {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.3px;
+    line-height: 1.25;
+}
+
+.analisis-chart-card__desc {
+    margin: 0.2rem 0 0.45rem;
+    font-size: 0.75rem;
+    color: var(--color-medium-gray);
+    line-height: 1.35;
+}
+
+.analisis-chart-card .chart-preview-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    height: 220px;
+    min-height: 220px;
+    margin: 0.2rem 0 0.4rem;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+/* Estado: misma altura útil que la card de motivos (evita donut chico con hueco vacío) */
+.analisis-chart-card .chart-preview-container:has(#previewChartEstado) {
+    height: 340px;
+    min-height: 340px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.analisis-chart-card .chart-preview-container:has(#previewChartEstado) > div {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 320px !important;
+}
+
+/* Motivo: el contenedor sigue la altura del chart (no fuerza 100% ni recorta) */
+.analisis-chart-card .chart-preview-container:has(#previewChartMotivo) {
+    height: auto !important;
+    min-height: 0;
+    overflow: visible;
+    pointer-events: auto;
+    margin-bottom: 0.15rem;
+}
+
+.analisis-chart-card .chart-preview-container:has(#previewChartMotivo) > div {
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+.analisis-chart-card:has(#previewChartMotivo) {
+    overflow: visible;
+}
+
+.analisis-chart-card--wide .chart-preview-container {
+    height: 200px;
+    min-height: 200px;
+}
+
+.analisis-chart-card .chart-preview-container > div {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 170px;
+}
+
+/* Tiempo: misma receta que antigüedad (altura fija, sin height:100%) */
+.analisis-chart-card .chart-preview-container--tiempo {
+    height: 220px !important;
+    min-height: 220px !important;
+    overflow: hidden;
+}
+
+.analisis-chart-card .chart-preview-container--tiempo > div {
+    width: 100% !important;
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: 220px !important;
+}
+
+.analisis-chart-card .chart-preview-container:has(#previewChartTiempoPromedio),
+.analisis-chart-card .chart-preview-container:has(#previewChartEvolucionTiempo) {
+    height: 220px;
+    min-height: 220px;
+    overflow: hidden;
+}
+
+.analisis-chart-card .chart-preview-container:has(#previewChartTiempoPromedio) > div,
+.analisis-chart-card .chart-preview-container:has(#previewChartEvolucionTiempo) > div {
+    height: 220px !important;
+    min-height: 220px !important;
+    max-height: 220px !important;
+}
+
+.analisis-chart-card--wide .chart-preview-container > div {
+    min-height: 200px;
+}
+
+.analisis-chart-card .apexcharts-canvas {
+    margin: 0 auto !important;
+}
+
+.analisis-preview-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 180px;
+    color: var(--color-medium-gray);
+    font-size: 0.82rem;
     font-weight: 600;
 }
 
-/* Mejoras visuales para los botones de filtros rápidos */
-.btn-group .btn-sm {
+.analisis-chart-card .chart-preview-container--mapa {
+    height: 220px;
+    min-height: 220px;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.analisis-mapa-calor {
+    width: 100%;
+    height: 100%;
+    min-height: 220px;
+    border-radius: 8px;
+    background: #e9ecef;
+}
+
+/* Ocultar logo y atribución de Mapbox en este gráfico */
+.analisis-mapa-calor .mapboxgl-ctrl-logo,
+.analisis-mapa-calor .mapboxgl-ctrl-attrib {
+    display: none !important;
+}
+
+.analisis-mapa-calor--preview {
+    pointer-events: none;
+    min-height: 220px;
+}
+
+.analisis-mapa-calor-wrap {
+    position: relative;
+    width: 100%;
+    height: min(62vh, 520px);
+    min-height: 360px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--color-light-gray);
+}
+
+.analisis-mapa-calor-wrap .analisis-mapa-calor {
+    position: absolute;
+    inset: 0;
+    min-height: 360px;
+    border-radius: 0;
+}
+
+.analisis-mapa-calor__aviso {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 8px;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+
+.analisis-motivo-tooltip {
+    padding: 0.55rem 0.75rem;
+    background: #1e1e29;
+    color: #fff;
+    border-radius: 8px;
+    box-shadow: var(--shadow-medium);
+    max-width: min(420px, 70vw);
+    white-space: normal;
+}
+
+.analisis-motivo-tooltip__titulo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-bottom: 0.25rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.analisis-motivo-tooltip__icono {
+    flex: 0 0 auto;
+    line-height: 1.35;
+}
+
+.analisis-motivo-tooltip__nombre {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.analisis-motivo-tooltip__valor {
+    font-size: 0.78rem;
+    opacity: 0.9;
+    white-space: normal;
+}
+
+.analisis-motivo-tooltip__serie {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    margin: 0.2rem 0;
+}
+
+.analisis-motivo-tooltip__punto {
+    flex: 0 0 auto;
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-top: 0.32rem;
+    border-radius: 50%;
+}
+
+/* ApexCharts suele forzar nowrap/overflow en el wrapper del tooltip custom.
+   pointer-events: none evita el parpadeo: si el tooltip queda bajo el cursor,
+   no “roba” el hover del gráfico (mostrar/ocultar en bucle). */
+.analisis-modal .apexcharts-tooltip,
+.analisis-page .apexcharts-tooltip,
+.analisis-modal .apexcharts-xaxistooltip,
+.analisis-page .apexcharts-xaxistooltip {
+    pointer-events: none !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    max-width: min(440px, 75vw) !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Evita el “rectángulo con puntito” del marker default de Apex */
+.analisis-page .apexcharts-tooltip-marker,
+.analisis-modal .apexcharts-tooltip-marker {
+    display: none !important;
+}
+
+/* Oculta la etiqueta flotante del eje X al hover (se superponía a las fechas rotadas) */
+.analisis-page .apexcharts-xaxistooltip,
+.analisis-modal .apexcharts-xaxistooltip {
+    display: none !important;
+}
+
+.analisis-modal .apexcharts-tooltip .analisis-motivo-tooltip,
+.analisis-page .apexcharts-tooltip .analisis-motivo-tooltip {
+    max-width: min(420px, 70vw);
+}
+
+.analisis-chart-card__footer {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-light-gray);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-purple-medium);
+}
+
+.analisis-chart-card__footer i {
     font-size: 0.85rem;
-    padding: 0.25rem 0.5rem;
 }
 
-/* Espaciado mejorado */
-.mb-3 {
-    margin-bottom: 1.5rem !important;
+/* Compat: clases legacy usadas por JS / resto del archivo */
+.analisis-page .chart-card {
+    cursor: pointer;
 }
 
-.mt-3 {
-    margin-top: 1.5rem !important;
+/* ---------- Modales (mismo patrón que rutas; estilos locales porque rutas.css no carga aquí) ---------- */
+.analisis-modal.rutas-modal,
+.analisis-page .analisis-modal {
+    border-radius: 14px;
+    overflow: hidden;
+    border: none;
+    box-shadow: var(--shadow-heavy);
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: calc(100vh - 2rem);
 }
 
-/* Estilos para los previews de gráficos */
-#previewChartEstado,
-#previewChartMotivo {
+.analisis-modal .rutas-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1.15rem;
+    border-bottom: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+    position: relative;
+    z-index: 5;
+    grid-column: 1 / -1;
+}
+
+.analisis-modal-body--split {
+    display: contents;
+}
+
+.analisis-filtros-side {
+    border-right: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+    padding: 0.9rem 0.85rem;
+    overflow-y: auto;
+    max-height: none;
+    min-height: 0;
+    grid-column: 1;
+    grid-row: 2 / 4;
+}
+
+.analisis-filtros-side__title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.75rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+}
+
+.analisis-filtros-side__body .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin: 0;
+}
+
+.analisis-filtros-side__body [class*="col-"] {
+    width: 100%;
     max-width: 100%;
-    max-height: 100%;
+    flex: none;
+    padding: 0;
 }
 
-/* Estilos específicos para ApexCharts */
+.analisis-filtros-side__body .form-label {
+    font-size: 0.76rem;
+    margin-bottom: 0.2rem;
+}
+
+.analisis-filtros-side__body .form-control,
+.analisis-filtros-side__body .form-select {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.5rem;
+}
+
+.analisis-filtros-side__body .analisis-filtros__quick {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0;
+    margin-bottom: 0.85rem;
+}
+
+.analisis-filtros-side__body .analisis-filtros__quick .analisis-chip {
+    width: 100%;
+    justify-content: center;
+}
+
+.analisis-comparacion {
+    border-top: 1px solid rgba(58, 57, 114, 0.12);
+    padding-top: 0.75rem;
+}
+
+.analisis-comparacion__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #3a3972;
+    cursor: pointer;
+    margin: 0;
+}
+
+.analisis-comparacion__toggle input {
+    margin: 0;
+}
+
+.analisis-comparacion__body {
+    margin-top: 0.55rem;
+}
+
+.analisis-comparacion__hint {
+    font-size: 0.7rem;
+    color: #6c757d;
+    line-height: 1.3;
+}
+
+.analisis-chip--soft {
+    background: #eef0f8;
+    color: #3a3972;
+    border: 1px solid rgba(58, 57, 114, 0.15);
+    width: auto;
+    margin-bottom: 0.25rem;
+}
+
+.analisis-chip--soft:hover {
+    background: #e2e6f4;
+}
+
+.analisis-charts-compare {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.analisis-charts-compare.is-dual {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem 1rem;
+    align-items: start;
+}
+
+.analisis-charts-compare__pane {
+    min-width: 0;
+}
+
+.analisis-charts-compare__title {
+    margin: 0 0 0.45rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #3a3972;
+    line-height: 1.3;
+}
+
+.analisis-charts-compare__title--b {
+    color: #2f6f9f;
+}
+
+@media (max-width: 992px) {
+    .analisis-charts-compare.is-dual {
+        grid-template-columns: 1fr;
+    }
+}
+
+.analisis-modal-main {
+    display: flex;
+    flex-direction: column;
+    padding: 0.85rem 1.15rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: none;
+    min-height: 0;
+    min-width: 0;
+    grid-column: 2;
+    grid-row: 2;
+}
+
+.analisis-modal-main .chart-container {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    margin: 0 !important;
+    height: auto !important;
+    min-height: 280px !important;
+    max-height: none !important;
+    overflow: hidden;
+}
+
+.analisis-modal-main .chart-container > div {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.analisis-modal-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    grid-column: 2;
+    grid-row: 3;
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0.7rem 1.15rem;
+    border-top: 1px solid var(--color-light-gray);
+    background: #fbfbfd;
+}
+
+@media (max-width: 900px) {
+    .analisis-modal.rutas-modal,
+    .analisis-page .analisis-modal {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        max-height: none;
+    }
+
+    .analisis-modal-body--split {
+        display: contents;
+    }
+
+    .analisis-filtros-side {
+        border-right: none;
+        border-bottom: 1px solid var(--color-light-gray);
+        max-height: none;
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    .analisis-filtros-side__body .analisis-filtros__quick {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .analisis-filtros-side__body .analisis-filtros__quick .analisis-chip {
+        width: auto;
+    }
+
+    .analisis-modal-main {
+        max-height: none;
+        grid-column: 1;
+        grid-row: 3;
+        padding-bottom: 0.85rem;
+    }
+
+    .analisis-modal-actions {
+        grid-column: 1;
+        grid-row: 4;
+        margin: 0;
+    }
+}
+
+.analisis-modal .rutas-modal__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.analisis-modal .rutas-modal__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.analisis-modal .rutas-modal__icon i {
+    color: var(--color-white);
+    font-size: 0.95rem;
+}
+
+.analisis-modal .rutas-modal__title h5 {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--color-purple-dark);
+    letter-spacing: -0.5px;
+}
+
+.analisis-modal .rutas-modal__close {
+    background: transparent;
+    border: none;
+    color: var(--color-medium-gray);
+    font-size: 0.85rem;
+    line-height: 0;
+    padding: 0.35rem;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.analisis-modal .rutas-modal__close:hover {
+    color: var(--color-purple-dark);
+    background-color: rgba(110, 109, 153, 0.12);
+}
+
+.analisis-modal .modal-body,
+.analisis-page .modal .modal-body {
+    padding: 1rem 1.15rem;
+    max-height: 78vh;
+    overflow-y: auto;
+}
+
+.analisis-modal .modal-body.analisis-modal-body--split {
+    display: contents;
+    padding: 0 !important;
+    max-height: none;
+    overflow: visible;
+}
+
+.analisis-page .modal-dialog.modal-xl {
+    max-width: min(1140px, calc(100vw - 1.5rem));
+    margin: 1rem auto;
+}
+
+.analisis-page .modal-dialog.modal-xl .analisis-modal {
+    max-height: calc(100vh - 2rem);
+}
+
+.analisis-modal .rutas-modal__title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.analisis-info-tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    color: var(--color-purple-medium);
+    cursor: help;
+    flex-shrink: 0;
+}
+
+.analisis-info-tip i {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.analisis-info-tip:hover,
+.analisis-info-tip:focus {
+    color: var(--color-purple-dark);
+    background: rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.analisis-info-tip__popup {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    z-index: 1080;
+    width: min(340px, 70vw);
+    padding: 0.7rem 0.85rem;
+    border-radius: 10px;
+    border: 1px solid var(--color-light-gray);
+    background: var(--color-white);
+    box-shadow: var(--shadow-medium);
+    color: var(--color-purple-dark);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    text-align: left;
+    white-space: normal;
+}
+
+.analisis-info-tip__popup strong {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    color: var(--color-purple-dark);
+}
+
+.analisis-info-tip__popup p {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--color-purple-medium);
+    font-weight: 500;
+}
+
+.analisis-info-tip__popup p + p {
+    margin-top: 0.4rem;
+}
+
+.analisis-info-tip:hover .analisis-info-tip__popup,
+.analisis-info-tip:focus .analisis-info-tip__popup,
+.analisis-info-tip:focus-within .analisis-info-tip__popup {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.analisis-filtros__quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+}
+
+.analisis-filtros label,
+.analisis-modal .form-label,
+.analisis-page .modal .form-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-purple-dark);
+    margin-bottom: 0.25rem;
+}
+
+.analisis-filtros .form-control,
+.analisis-filtros .form-select,
+.analisis-modal .form-control,
+.analisis-modal .form-select,
+.analisis-page .modal .form-control,
+.analisis-page .modal .form-select {
+    border: 1px solid var(--color-light-gray);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--color-purple-dark);
+    background: var(--color-white);
+}
+
+.analisis-filtros .form-control:focus,
+.analisis-filtros .form-select:focus,
+.analisis-modal .form-control:focus,
+.analisis-modal .form-select:focus,
+.analisis-page .modal .form-control:focus,
+.analisis-page .modal .form-select:focus {
+    border-color: var(--color-purple-medium);
+    box-shadow: 0 0 0 3px rgba(110, 109, 153, 0.12);
+    outline: none;
+}
+
+.analisis-filtros__quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.75rem;
+}
+
+/* ---------- Contenedores de gráficos ---------- */
+.analisis-page .chart-container {
+    position: relative;
+    height: 280px;
+    width: 100%;
+    margin: 0.5rem 0;
+    min-height: 240px;
+}
+
+.analisis-page .chart-container > div {
+    height: 100% !important;
+    min-height: 240px;
+}
+
+/* En modales el alto lo maneja el flex de .analisis-modal-main */
+.analisis-modal .chart-container {
+    position: relative;
+    width: 100%;
+    margin: 0;
+}
+
+.analisis-modal-main .chart-container,
+.modal-xl .analisis-modal-main .chart-container,
+.analisis-modal.modal-xl .analisis-modal-main .chart-container {
+    height: auto !important;
+    min-height: 280px !important;
+    max-height: none !important;
+    flex: 1 1 auto;
+}
+
+.analisis-modal-main .chart-container > div,
+.modal-xl .analisis-modal-main .chart-container > div {
+    height: 100% !important;
+    min-height: 0 !important;
+}
+
+.chart-container #chartTiempoPromedio,
+.chart-container #chartEvolucionTiempo {
+    min-height: 0;
+    height: 100%;
+    position: relative;
+    width: 100%;
+}
+
+.analisis-page .chart-container #chartTiempoPromedio,
+.analisis-page .chart-container #chartEvolucionTiempo {
+    min-height: 240px;
+    height: 280px;
+}
+
+.chart-container #chartTiempoPromedio canvas,
+.chart-container #chartEvolucionTiempo canvas {
+    max-width: 100% !important;
+}
+
+.modal-xl .analisis-modal-main .chart-container #chartTiempoPromedio,
+.modal-xl .analisis-modal-main .chart-container #chartEvolucionTiempo {
+    min-height: 0 !important;
+    height: 100% !important;
+}
+
 .apexcharts-canvas {
     width: 100% !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
 }
 
 .apexcharts-legend {
     padding: 10px 0 !important;
 }
 
-/* Animación para los gráficos al cargar */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
+.modal-xl {
+    max-width: 95%;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1200px) {
+    .analisis-kpi-grid--estados {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    to {
-        opacity: 1;
-        transform: scale(1);
+
+    .modal-xl {
+        max-width: 98%;
     }
-}
-
-.chart-card {
-    animation: fadeIn 0.3s ease-in;
-}
-
-/* Estilos para el título principal */
-h2 {
-    color: #212529;
-    font-weight: 600;
-}
-
-h2 i {
-    color: #0d6efd;
-    margin-right: 0.5rem;
-}
-
-
-/* Estilos para gráficos de tiempo promedio */
-.chart-container #chartTiempoPromedio,
-.chart-container #chartEvolucionTiempo {
-    min-height: 500px;
-    height: 500px;
-    position: relative;
-    width: 100%;
-}
-
-.chart-container #chartTiempoPromedio canvas,
-.chart-container #chartEvolucionTiempo canvas {
-    max-width: 100% !important;
-    height: 500px !important;
-}
-
-/* Asegurar que el contenedor del gráfico de tiempo promedio tenga altura */
-.modal-xl .chart-container #chartTiempoPromedio {
-    min-height: 500px;
-    height: 500px !important;
-}
-
-.chart-preview-container #previewChartTiempoPromedio,
-.chart-preview-container #previewChartEvolucionTiempo {
-    min-height: 250px;
-    height: 100%;
-    position: relative;
-}
-
-.chart-preview-container #previewChartTiempoPromedio canvas,
-.chart-preview-container #previewChartEvolucionTiempo canvas {
-    max-width: 100% !important;
-    height: 250px !important;
-}
-
-/* Estilos para el header de KPI */
-.card-header.bg-primary .form-control-sm {
-    font-size: 0.875rem;
-    padding: 0.25rem 0.5rem;
-    background-color: #fff;
-    color: #000;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.card-header.bg-primary .form-control-sm:focus {
-    background-color: #fff;
-    color: #000;
-    border-color: rgba(255, 255, 255, 0.6);
-    box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
-}
-
-.card-header.bg-primary .form-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    white-space: nowrap;
-    margin-bottom: 0;
-}
-
-.card-header.bg-primary .btn-group-sm .btn {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.4rem;
 }
 
 @media (max-width: 768px) {
-    .card-header.bg-primary {
-        padding: 0.75rem;
+    .analisis-periodo-bar {
+        flex-direction: column;
+        align-items: stretch;
     }
 
-    .card-header.bg-primary .form-control-sm {
-        width: 120px !important;
-        font-size: 0.8rem;
+    .analisis-periodo-bar__filters {
+        align-items: stretch;
     }
 
-    .card-header.bg-primary .form-label {
-        font-size: 0.75rem;
+    .analisis-periodo-bar__dates {
+        justify-content: flex-start;
     }
 
-    .card-header.bg-primary .d-flex.gap-2 {
-        gap: 0.5rem !important;
-        flex-wrap: wrap;
-    }
-}
-
-/* Estilos para las tarjetas KPI */
-.kpi-card {
-    display: flex;
-    align-items: center;
-    padding: 1rem;
-    background: #fff;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
-    transition: all 0.3s ease;
-    height: 100%;
-}
-
-.kpi-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-}
-
-.kpi-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 1rem;
-    flex-shrink: 0;
-}
-
-.kpi-icon i {
-    font-size: 1.5rem;
-    color: #fff;
-}
-
-.kpi-content {
-    flex: 1;
-}
-
-.kpi-label {
-    font-size: 0.75rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-    letter-spacing: 0.5px;
-}
-
-.kpi-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    margin-bottom: 0;
-    line-height: 1.2;
-}
-
-.kpi-content small {
-    font-size: 0.7rem;
-    display: block;
-    margin-top: 0.25rem;
-}
-
-/* Responsive para tarjetas KPI */
-@media (max-width: 768px) {
-    .kpi-card {
-        padding: 0.75rem;
+    .analisis-periodo-bar__dates .form-control {
+        width: 100%;
+        flex: 1 1 120px;
     }
 
-    .kpi-icon {
-        width: 40px;
-        height: 40px;
-        margin-right: 0.75rem;
+    .analisis-periodo-bar__quick {
+        justify-content: flex-start;
     }
 
-    .kpi-icon i {
+    .analisis-kpi-panel__header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analisis-kpi-body {
+        padding: 0.85rem;
+        gap: 0.6rem;
+    }
+
+    .analisis-kpi-grid--estados,
+    .analisis-kpi-grid--metricas {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+    }
+
+    .analisis-charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .analisis-page .kpi-value {
         font-size: 1.25rem;
     }
 
-    .kpi-value {
-        font-size: 1.5rem;
+    .analisis-page .kpi-card--metric .kpi-value {
+        font-size: 1.4rem;
     }
 
-    .kpi-label {
-        font-size: 0.7rem;
+    .analisis-page .chart-container {
+        height: 260px;
+        min-height: 220px;
+    }
+
+    .analisis-modal-main .chart-container,
+    .modal-xl .analisis-modal-main .chart-container,
+    .analisis-modal .chart-container {
+        height: auto !important;
+        min-height: 240px !important;
+    }
+
+    .analisis-modal .modal-body,
+    .analisis-page .modal .modal-body {
+        max-height: none;
+        padding: 0.85rem;
+    }
+
+    .analisis-modal .modal-body.analisis-modal-body--split {
+        padding: 0 !important;
+        overflow-x: hidden;
+        overflow-y: auto;
+        max-height: none;
     }
 }
 
-/* Estilos para el contenedor de KPIs */
-.card-header .btn-group .btn.active {
-    background-color: rgba(255, 255, 255, 0.3);
-    border-color: rgba(255, 255, 255, 0.5);
-    color: #fff;
-    font-weight: 600;
-}
+@media (max-width: 480px) {
+    .analisis-kpi-grid--estados,
+    .analisis-kpi-grid--metricas {
+        grid-template-columns: 1fr;
+    }
 
-/* Altura para preview de evolución */
-#previewChartEvolucion,
-#previewChartTiempoPromedio,
-#previewChartEvolucionTiempo {
-    min-height: 250px;
-    height: 100%;
-    width: 100%;
-}
-
-/* Ilustraciones de tipos de gráficos */
-.chart-illustration {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 180px;
-    opacity: 0.85;
-}
-
-.chart-illustration svg {
-    max-width: 100%;
-    max-height: 100%;
+    .analisis-page .kpi-card--metric {
+        flex-direction: row;
+    }
 }
 

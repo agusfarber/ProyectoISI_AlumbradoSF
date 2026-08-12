@@ -18,10 +18,27 @@ const app = Vue.createApp({
                 seleccionManual: false,
                 primerReclamoManual: false
             },
-            
+
+            coloresDisponiblesRuta: [
+                '#2a9d8f',
+                '#3a3972',
+                '#f0a202',
+                '#e76f51',
+                '#457b9d',
+                '#bc6c25',
+                '#118ab2',
+                '#ef476f',
+                '#06d6a0',
+                '#264653',
+                '#6c757d',
+                '#9b2226',
+                '#FF6B35',
+            ],
+
             // Reclamos seleccionados para la nueva ruta
             reclamosSeleccionados: [],
             primerReclamoSeleccionado: null,
+            idsReclamosEnRutasActivas: [],
             reclamosDisponibles: 0,
             
             // Modo de selección
@@ -109,6 +126,8 @@ const app = Vue.createApp({
             /** Intervalo de polling del panel supervisor (ms) */
             intervaloPollSupervisorActivas: 5000,
             _ultimoFingerprintMapaDetalleSupervisor: null,
+            _ultimoFingerprintMapaTodasRutas: null,
+            _refrescandoMapaTodasRutas: false,
 
             /** Cronómetro en mapa/modal ver ruta (reclamos En ejecución con sesión de obra) */
             ahoraMsVisualizacionObra: Date.now(),
@@ -141,6 +160,7 @@ const app = Vue.createApp({
             indiceReclamoListaParadaHistorial: {},
             observacionesPorReclamoHistorial: {},
             cambiosEstadoPorReclamoHistorial: {},
+            materialesPorReclamoHistorial: {},
 
             /** Panel en tarjetas (supervisor) */
             vistaSupervisorPanel: 'grid',
@@ -417,6 +437,40 @@ const app = Vue.createApp({
             this.cambiosEstadoPorReclamoHistorial = mapa;
         },
 
+        async cargarMaterialesHistorialEjecucion(reclamos) {
+            if (!reclamos?.length) {
+                this.materialesPorReclamoHistorial = {};
+                return;
+            }
+            const ejecucionId = this.historialEjecucionMapa?.ejecucion?.id;
+            const params = ejecucionId ? { ruta_ejecucion_id: ejecucionId } : {};
+            const materialesMap = {};
+            await Promise.all(reclamos.map(async (reclamo) => {
+                if (!reclamo?.id) {
+                    return;
+                }
+                try {
+                    const r = await axios.get(BASE_URL + 'api/reclamos/' + reclamo.id + '/materiales', { params });
+                    materialesMap[reclamo.id] = Array.isArray(r.data) ? r.data : [];
+                } catch (error) {
+                    console.warn('No se pudieron cargar materiales del historial', reclamo.id, error);
+                    materialesMap[reclamo.id] = [];
+                }
+            }));
+            this.materialesPorReclamoHistorial = materialesMap;
+        },
+
+        materialesReclamoHistorialEjecucion(reclamo) {
+            if (!reclamo?.id) {
+                return [];
+            }
+            return this.materialesPorReclamoHistorial[reclamo.id] || [];
+        },
+
+        cantidadMaterialesReclamoHistorial(reclamo) {
+            return this.materialesReclamoHistorialEjecucion(reclamo).length;
+        },
+
         async abrirDetalleHistorialEjecucion(id) {
             if (!id) {
                 return;
@@ -454,6 +508,7 @@ const app = Vue.createApp({
                 this.historialEjecucionMapa = detalle;
                 this.prepararObservacionesHistorialEjecucion(detalle);
                 this.prepararCambiosEstadoHistorialEjecucion(detalle);
+                await this.cargarMaterialesHistorialEjecucion(detalle?.reclamos || []);
                 this.modoVistaHistorialMapa = 'mapa';
                 this.historialMapaCargando = false;
                 await this.$nextTick();
@@ -507,6 +562,7 @@ const app = Vue.createApp({
                 this.historialEjecucionMapa = null;
                 this.observacionesPorReclamoHistorial = {};
                 this.cambiosEstadoPorReclamoHistorial = {};
+                this.materialesPorReclamoHistorial = {};
             });
         },
 
@@ -907,6 +963,7 @@ const app = Vue.createApp({
             if (btnDetalle) {
                 btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
             }
+            this.vincularAccionMaterialesPopupHistorial(reclamo);
             if (marker._grupoId) {
                 const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
                 if (btnPrev) {
@@ -934,6 +991,7 @@ const app = Vue.createApp({
             if (btnDetalle) {
                 btnDetalle.onclick = () => this.verReclamoVistaPrevia(reclamo);
             }
+            this.vincularAccionMaterialesPopupHistorial(reclamo);
             if (marker._grupoId) {
                 const btnPrev = document.querySelector(`.mapa-popup-nav-prev[data-grupo-id="${marker._grupoId}"]`);
                 if (btnPrev) {
@@ -1324,12 +1382,29 @@ const app = Vue.createApp({
         crearHtmlDetalleHistorialEjecucionPopup(reclamo) {
             const tiempo = this.textoTiempoReparacionHistorialEjecucion(reclamo);
             const linea = this.lineaTiempoActividadReclamoHistorialEjecucion(reclamo);
+            const matCount = this.cantidadMaterialesReclamoHistorial(reclamo);
+            const tituloMat = matCount > 0
+                ? `Materiales utilizados (${matCount})`
+                : 'Materiales utilizados';
+            const badgeMat = this.textoObservacionesEjecucionBadge(matCount) || '0';
+            const ocultoMat = matCount > 0 ? '' : ' btn-obs-ejecucion-count--oculto';
             let html = '<div class="map-detalle-iw-historial border-top pt-2 mt-2">';
+            html += '<div class="map-detalle-iw-historial__acciones">';
+            let htmlInicio = '';
             if (tiempo) {
                 const nivel = this.nivelDemoraObraReclamoHistorial(reclamo);
                 const claseCrono = ObraCronometroUtil.claseListaCronoObra(nivel, true);
-                html += `<p class="mb-1"><strong>Tiempo en obra:</strong> ${ObraCronometroUtil.htmlSpanCronometroBadge(`ruta-secuencia-crono-reparacion badge font-monospace ${claseCrono}`, tiempo, 'reclamo')}</p>`;
+                htmlInicio = ObraCronometroUtil.htmlSpanCronometroBadge(
+                    `ruta-secuencia-crono-reparacion badge font-monospace ${claseCrono}`,
+                    tiempo,
+                    'reclamo'
+                );
             }
+            if (htmlInicio) {
+                html += `<div class="map-detalle-iw-historial__inicio">${htmlInicio}</div>`;
+            }
+            html += `<div class="map-detalle-iw-historial__paneles"><button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-historial="materiales" data-reclamo-id="${reclamo.id}" title="${tituloMat}"><i class="bi bi-box-seam"></i><span class="btn-obs-ejecucion-count${ocultoMat}" aria-hidden="true">${badgeMat}</span></button></div>`;
+            html += '</div>';
             if (linea.length) {
                 html += '<p class="mb-1 small text-muted"><strong>Actividad en esta ejecución:</strong></p><ul class="list-unstyled mb-0 ps-0">';
                 for (const item of linea) {
@@ -1341,6 +1416,16 @@ const app = Vue.createApp({
             }
             html += '</div>';
             return html;
+        },
+
+        vincularAccionMaterialesPopupHistorial(reclamo) {
+            document.querySelectorAll(`[data-map-accion-historial="materiales"][data-reclamo-id="${reclamo.id}"]`).forEach((btn) => {
+                btn.onclick = (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.abrirModalMaterialesSupervisor(reclamo);
+                };
+            });
         },
 
         textoTipoEventoHistorial(tipo) {
@@ -1384,12 +1469,16 @@ const app = Vue.createApp({
          */
         async obtenerReclamos() {
             try {
-                const response = await axios.get(BASE_URL + 'api/reclamos');
-                this.reclamos = response.data;
-                // Contar solo reclamos no completados
-                this.reclamosDisponibles = this.contarUnidadesDomicilioDisponibles();
+                const [responseReclamos, responseDisponibles] = await Promise.all([
+                    axios.get(BASE_URL + 'api/reclamos'),
+                    axios.get(BASE_URL + 'api/rutas/domicilios-disponibles')
+                ]);
+                this.reclamos = responseReclamos.data;
+                this.idsReclamosEnRutasActivas = (responseDisponibles.data?.idsReclamosEnRutasActivas || [])
+                    .map((id) => Number(id));
+                this.reclamosDisponibles = responseDisponibles.data?.domiciliosDisponibles
+                    ?? this.contarUnidadesDomicilioDisponibles();
                 
-                // Pre-cargar todas las direcciones personalizadas
                 await this.preCargarDireccionesPersonalizadas();
             } catch (error) {
                 console.error('Error al obtener reclamos:', error);
@@ -1505,6 +1594,8 @@ const app = Vue.createApp({
                     } else {
                         this.cerrarModalDetalleSupervisor();
                     }
+                } else if (this.modalTodasHojasAbierto()) {
+                    await this.refrescarVistaTodasHojasTrasSync();
                 } else {
                     await this.actualizarPreviewsSupervisorTrasSync();
                 }
@@ -2187,6 +2278,27 @@ const app = Vue.createApp({
             return k === 'asignada' || k === 'sin asignar';
         },
 
+        /**
+         * Eliminar hoja: permitido si no está en ejecución ni finalizada
+         * (sin asignar o asignada).
+         */
+        puedeEliminarHojaRuta(ruta) {
+            if (!ruta) return false;
+            const k = this.claveEstadoEjecucionRuta(ruta);
+            return k === 'asignada' || k === 'sin asignar';
+        },
+
+        motivoNoPuedeEliminarHojaRuta(ruta) {
+            const k = this.claveEstadoEjecucionRuta(ruta);
+            if (k === 'en ejecución') {
+                return 'No se puede eliminar mientras la hoja está en ejecución.';
+            }
+            if (k === 'finalizada') {
+                return 'No se puede eliminar una hoja finalizada.';
+            }
+            return '';
+        },
+
         claveEstadoEjecucionRuta(ruta) {
             if (!ruta) return 'sin asignar';
             const fallback = Number(ruta.asignada) === 1 ? 'asignada' : 'sin asignar';
@@ -2612,6 +2724,15 @@ const app = Vue.createApp({
             return this.reparacionPorReclamoIdSupervisor[reclamo.id] || null;
         },
 
+        /** Reclamo con el cronómetro de obra corriendo: se destaca en la lista. */
+        reclamoEnObraActivaSupervisor(reclamo) {
+            const s = this.sesionReparacionReclamoSupervisor(reclamo);
+            if (s) {
+                return !!s.activo;
+            }
+            return !!reclamo?.sesion_reparacion?.activo;
+        },
+
         textoCronometroReparacionReclamoSupervisor(reclamo) {
             const s = this.sesionReparacionReclamoSupervisor(reclamo);
             if (s) {
@@ -2658,6 +2779,15 @@ const app = Vue.createApp({
                 return [];
             }
             return this.materialesPorReclamoSupervisor[reclamo.id] || [];
+        },
+
+        cantidadMaterialesReclamoSupervisor(reclamo) {
+            return this.materialesReclamoSupervisorLista(reclamo).length;
+        },
+
+        urlFotoMaterialCatalogo(nombreArchivo) {
+            if (!nombreArchivo) return '';
+            return BASE_URL + 'static/uploads/materiales/' + nombreArchivo;
         },
 
         observacionesReclamoSupervisorLista(reclamo) {
@@ -2740,6 +2870,10 @@ const app = Vue.createApp({
             }));
             this.materialesPorReclamoSupervisor = materialesMap;
             this.observacionesPorReclamoSupervisor = observacionesMap;
+            this.$nextTick(() => {
+                this.refrescarBadgesObservacionesInfoWindowMapaSupervisor();
+                this.refrescarBadgesMaterialesInfoWindowMapaSupervisor();
+            });
         },
 
         puedeVerAccionesObraSupervisorEnReclamo(reclamo) {
@@ -2774,14 +2908,28 @@ const app = Vue.createApp({
             }
             this.cargandoMaterialesSupervisor = true;
             try {
+                // Historial de ejecución: solo esa jornada (igual que bitácora del historial).
+                // Seguimiento en vivo: historial completo del reclamo.
+                const params = this.historialEjecucionMapa?.ejecucion?.id
+                    ? { ruta_ejecucion_id: this.historialEjecucionMapa.ejecucion.id }
+                    : {};
                 const r = await axios.get(
-                    BASE_URL + 'api/reclamos/' + this.reclamoSupervisorModal.id + '/materiales'
+                    BASE_URL + 'api/reclamos/' + this.reclamoSupervisorModal.id + '/materiales',
+                    { params }
                 );
                 this.historialMaterialesSupervisor = Array.isArray(r.data) ? r.data : [];
-                this.materialesPorReclamoSupervisor = {
-                    ...this.materialesPorReclamoSupervisor,
-                    [this.reclamoSupervisorModal.id]: this.historialMaterialesSupervisor
-                };
+                if (params.ruta_ejecucion_id) {
+                    this.materialesPorReclamoHistorial = {
+                        ...this.materialesPorReclamoHistorial,
+                        [this.reclamoSupervisorModal.id]: this.historialMaterialesSupervisor
+                    };
+                } else {
+                    this.materialesPorReclamoSupervisor = {
+                        ...this.materialesPorReclamoSupervisor,
+                        [this.reclamoSupervisorModal.id]: this.historialMaterialesSupervisor
+                    };
+                    this.$nextTick(() => this.refrescarBadgesMaterialesInfoWindowMapaSupervisor());
+                }
             } catch (error) {
                 console.error('Error al cargar materiales (supervisor):', error);
                 this.mostrarMensaje('No se pudo cargar el historial de materiales.', 'error');
@@ -2803,8 +2951,23 @@ const app = Vue.createApp({
             this.historialObservacionesSupervisor = [];
             const elModal = document.getElementById('modalObservacionesSupervisor');
             const modal = bootstrap.Modal.getOrCreateInstance(elModal);
+            elModal.addEventListener('shown.bs.modal', () => {
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedSupervisor');
+            }, { once: true });
             modal.show();
-            this.cargarHistorialObservacionesSupervisor();
+            void this.cargarHistorialObservacionesSupervisor();
+        },
+
+        scrollBitacoraObraAlFinal(feedId = 'bitacoraObraFeedSupervisor') {
+            this.$nextTick(() => {
+                requestAnimationFrame(() => {
+                    const feed = document.getElementById(feedId);
+                    if (!feed) {
+                        return;
+                    }
+                    feed.scrollTop = feed.scrollHeight;
+                });
+            });
         },
 
         async cargarHistorialObservacionesSupervisor() {
@@ -2824,12 +2987,14 @@ const app = Vue.createApp({
                     [this.reclamoSupervisorModal.id]: this.historialObservacionesSupervisor
                 };
                 this.refrescarBadgesObservacionesInfoWindowMapaSupervisor();
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedSupervisor');
             } catch (error) {
                 console.error('Error al cargar observaciones (supervisor):', error);
                 this.mostrarMensaje('No se pudo cargar el historial de observaciones.', 'error');
                 this.historialObservacionesSupervisor = [];
             } finally {
                 this.cargandoObservacionesSupervisor = false;
+                this.scrollBitacoraObraAlFinal('bitacoraObraFeedSupervisor');
             }
         },
 
@@ -2839,11 +3004,13 @@ const app = Vue.createApp({
             }
 
             const rid = String(reclamo.id);
-            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--supervisor d-flex flex-wrap align-items-center gap-1 border-top pt-2 mt-2">';
+            let html = '<div class="map-detalle-iw-acciones mapa-popup-acciones mapa-popup-acciones--supervisor border-top pt-2 mt-2">';
+            let htmlInicio = '';
+            let htmlPaneles = '';
 
             if (this.mostrarCronometroReparacionReclamoSupervisor(reclamo)) {
                 const claseCrono = this.claseCronometroListaObraSupervisor(reclamo);
-                html += ObraCronometroUtil.htmlSpanCronometroBadge(
+                htmlInicio += ObraCronometroUtil.htmlSpanCronometroBadge(
                     `badge font-monospace map-detalle-iw-crono ruta-secuencia-crono-reparacion ${claseCrono}`,
                     this.textoCronometroReparacionReclamoSupervisor(reclamo),
                     'reclamo',
@@ -2851,12 +3018,23 @@ const app = Vue.createApp({
                 );
             }
 
-            html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="materiales" data-reclamo-id="${rid}" title="Materiales utilizados"><i class="bi bi-box-seam"></i></button>`;
+            const matCount = this.cantidadMaterialesReclamoSupervisor(reclamo);
+            const tituloMat = matCount > 0
+                ? `Materiales utilizados (${matCount})`
+                : 'Materiales utilizados';
+            htmlPaneles += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="materiales" data-reclamo-id="${rid}" title="${tituloMat}"><i class="bi bi-box-seam"></i>${this.htmlBadgeMaterialesSupervisorConId(rid, matCount)}</button>`;
             const obsCount = this.cantidadObservacionesEjecucionReclamoSupervisor(reclamo);
             const tituloObs = obsCount > 0
                 ? `Registro en obra (${obsCount})`
                 : 'Registro en obra';
-            html += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
+            htmlPaneles += `<button type="button" class="btn btn-sm btn-outline-secondary btn-con-badge-obs" data-map-accion-supervisor="observaciones" data-reclamo-id="${rid}" title="${tituloObs}"><i class="bi bi-journal-text"></i>${this.htmlBadgeObservacionesEjecucionConId(rid, obsCount)}</button>`;
+
+            if (htmlInicio) {
+                html += `<div class="map-detalle-iw-acciones__inicio">${htmlInicio}</div>`;
+            }
+            if (htmlPaneles) {
+                html += `<div class="map-detalle-iw-acciones__paneles">${htmlPaneles}</div>`;
+            }
             html += '</div>';
             return html;
         },
@@ -2923,6 +3101,35 @@ const app = Vue.createApp({
                 ObraCronometroUtil.sincronizarClasesNivelCronoObra(el, this.claseCronometroListaObraSupervisor(r));
             });
             this.refrescarBadgesObservacionesInfoWindowMapaSupervisor();
+            this.refrescarBadgesMaterialesInfoWindowMapaSupervisor();
+        },
+
+        htmlBadgeMaterialesSupervisorConId(reclamoId, cantidad) {
+            const texto = this.textoObservacionesEjecucionBadge(cantidad) || '0';
+            const oculto = cantidad > 0 ? '' : ' btn-obs-ejecucion-count--oculto';
+            return `<span class="btn-obs-ejecucion-count${oculto}" data-map-iw-mat-count-id="${reclamoId}" aria-hidden="true">${texto}</span>`;
+        },
+
+        refrescarBadgesMaterialesInfoWindowMapaSupervisor() {
+            if (!this.rutaDetalleSupervisorId) {
+                return;
+            }
+            document.querySelectorAll('[data-map-iw-mat-count-id]').forEach((el) => {
+                const rid = parseInt(el.getAttribute('data-map-iw-mat-count-id'), 10);
+                if (Number.isNaN(rid)) {
+                    return;
+                }
+                const r = this.reclamosRutaVisualizando.find((x) => Number(x.id) === rid);
+                const count = r ? this.cantidadMaterialesReclamoSupervisor(r) : 0;
+                const texto = this.textoObservacionesEjecucionBadge(count);
+                if (!texto) {
+                    el.classList.add('btn-obs-ejecucion-count--oculto');
+                    el.textContent = '0';
+                    return;
+                }
+                el.classList.remove('btn-obs-ejecucion-count--oculto');
+                el.textContent = texto;
+            });
         },
 
         refrescarBadgesObservacionesInfoWindowMapaSupervisor() {
@@ -3275,6 +3482,33 @@ const app = Vue.createApp({
             return `La cuadrilla ya tiene asignada la hoja de ruta "${nombreHoja}". Desasígnela antes de asignar otra.`;
         },
 
+        cuadrillaTieneOperarios(cuadrilla) {
+            return !!(cuadrilla?.operarios && cuadrilla.operarios.length > 0);
+        },
+
+        cuadrillaTieneGestion(cuadrilla) {
+            return (cuadrilla?.operarios || []).some((op) => Number(op.es_jefe) === 1);
+        },
+
+        cuadrillaEsAsignable(cuadrilla, excluirRutaId = null) {
+            if (!cuadrilla) return false;
+            if (this.cuadrillaTieneOtraHojaAsignada(cuadrilla.id, excluirRutaId)) return false;
+            return this.cuadrillaTieneOperarios(cuadrilla) && this.cuadrillaTieneGestion(cuadrilla);
+        },
+
+        mensajeCuadrillaNoAsignable(cuadrilla, excluirRutaId = null) {
+            if (!cuadrilla) return 'Cuadrilla no válida';
+            const ocupada = this.mensajeCuadrillaOcupada(cuadrilla.id, excluirRutaId);
+            if (ocupada) return ocupada;
+            if (!this.cuadrillaTieneOperarios(cuadrilla)) {
+                return 'La cuadrilla no tiene operarios asignados';
+            }
+            if (!this.cuadrillaTieneGestion(cuadrilla)) {
+                return 'La cuadrilla debe tener al menos un operario con permisos de gestión';
+            }
+            return '';
+        },
+
         extraerMensajeErrorApi(error) {
             const data = error?.response?.data;
             if (!data) {
@@ -3297,7 +3531,10 @@ const app = Vue.createApp({
         },
 
         seleccionarCuadrillaCrearRuta(cuadrillaId) {
-            const msg = this.mensajeCuadrillaOcupada(cuadrillaId);
+            const cuadrilla = this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(cuadrillaId)
+            );
+            const msg = this.mensajeCuadrillaNoAsignable(cuadrilla);
             if (msg) {
                 this.mostrarMensaje(msg, 'warning');
                 return;
@@ -3307,11 +3544,12 @@ const app = Vue.createApp({
 
         seleccionarCuadrillaParaAsignar(cuadrillaId) {
             const rutaId = this.rutaParaAsignar?.id;
-            if (this.cuadrillaTieneOtraHojaAsignada(cuadrillaId, rutaId)) {
-                const msg = this.mensajeCuadrillaOcupada(cuadrillaId, rutaId);
-                if (msg) {
-                    this.mostrarMensaje(msg, 'warning');
-                }
+            const cuadrilla = this.cuadrillasDisponibles.find(
+                (c) => String(c.id) === String(cuadrillaId)
+            );
+            const msg = this.mensajeCuadrillaNoAsignable(cuadrilla, rutaId);
+            if (msg) {
+                this.mostrarMensaje(msg, 'warning');
                 return;
             }
             this.cuadrillaSeleccionadaParaAsignar = cuadrillaId;
@@ -3399,7 +3637,7 @@ const app = Vue.createApp({
                 return ruta.cuadrilla_nombre || 'Sin asignar';
             }
             const nombres = ops.map((op) => {
-                const rol = Number(op.es_jefe) === 1 ? ' (Jefe)' : '';
+                const rol = Number(op.es_jefe) === 1 ? ' (Gestión)' : '';
                 return `${op.nombre}${rol}`;
             });
             return `${ruta.cuadrilla_nombre || 'Cuadrilla'}: ${nombres.join(', ')}`;
@@ -3643,21 +3881,12 @@ const app = Vue.createApp({
          */
         async verificarReclamoEnOtraRuta(reclamoId) {
             try {
-                // Verificar en TODAS las rutas (asignadas y no asignadas)
-                // Las rutas no asignadas son las que aún no se asignaron a una cuadrilla, pero los reclamos están reservados
-                const todasLasRutas = this.rutas;
-                
-                for (const ruta of todasLasRutas) {
-                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
-                    const reclamosRuta = response.data;
-                    
-                    const estaEnEstaRuta = reclamosRuta.find(r => r.id === reclamoId);
-                    if (estaEnEstaRuta) {
-                        return true;
-                    }
+                if (!this.idsReclamosEnRutasActivas || this.idsReclamosEnRutasActivas.length === 0) {
+                    const response = await axios.get(BASE_URL + 'api/rutas/domicilios-disponibles');
+                    this.idsReclamosEnRutasActivas = (response.data?.idsReclamosEnRutasActivas || [])
+                        .map((id) => Number(id));
                 }
-                
-                return false;
+                return this.idsReclamosEnRutasActivas.includes(Number(reclamoId));
             } catch (error) {
                 console.error('Error al verificar reclamo en rutas:', error);
                 return false;
@@ -3976,10 +4205,19 @@ const app = Vue.createApp({
         },
 
         /**
-         * Actualiza el número de reclamos disponibles
+         * Actualiza el número de domicilios disponibles (mismo criterio que el backend)
          */
-        actualizarDisponibles() {
-            this.reclamosDisponibles = this.contarUnidadesDomicilioDisponibles();
+        async actualizarDisponibles() {
+            try {
+                const response = await axios.get(BASE_URL + 'api/rutas/domicilios-disponibles');
+                this.idsReclamosEnRutasActivas = (response.data?.idsReclamosEnRutasActivas || [])
+                    .map((id) => Number(id));
+                this.reclamosDisponibles = response.data?.domiciliosDisponibles
+                    ?? this.contarUnidadesDomicilioDisponibles();
+            } catch (error) {
+                console.error('Error al actualizar disponibles:', error);
+                this.reclamosDisponibles = this.contarUnidadesDomicilioDisponibles();
+            }
         },
 
         /**
@@ -4697,9 +4935,12 @@ const app = Vue.createApp({
                 let datosRuta;
                 
                 const cuadrillaId = parseInt(this.cuadrillaSeleccionadaCrearRuta, 10);
-                const msgOcupadaCrear = this.mensajeCuadrillaOcupada(cuadrillaId);
-                if (msgOcupadaCrear) {
-                    this.mostrarMensaje(msgOcupadaCrear, 'warning');
+                const cuadrillaCrear = this.cuadrillasDisponibles.find(
+                    (c) => String(c.id) === String(cuadrillaId)
+                );
+                const msgNoAsignableCrear = this.mensajeCuadrillaNoAsignable(cuadrillaCrear);
+                if (msgNoAsignableCrear) {
+                    this.mostrarMensaje(msgNoAsignableCrear, 'warning');
                     return;
                 }
 
@@ -4727,15 +4968,7 @@ const app = Vue.createApp({
 
                 this.mostrarMensaje(this.modoEdicion ? 'Creando hoja de ruta editada...' : 'Creando hoja de ruta automática...', 'info');
 
-                const response = await axios.post(BASE_URL + 'api/rutas/generar', datosRuta);
-                const rutaCreada = response.data?.ruta;
-
-                if (rutaCreada?.id && cuadrillaId) {
-                    await axios.post(BASE_URL + 'api/rutas/asignar', {
-                        ruta_id: rutaCreada.id,
-                        cuadrilla_id: cuadrillaId
-                    });
-                }
+                await axios.post(BASE_URL + 'api/rutas/generar', datosRuta);
 
                 this.mostrarMensaje('Hoja de ruta creada y asignada exitosamente', 'success');
                 
@@ -4750,8 +4983,9 @@ const app = Vue.createApp({
                 // Resetear modal
                 this.resetearModal();
                 
-                // Actualizar tabla
+                // Actualizar tabla y contador de disponibles
                 await this.obtenerRutas();
+                await this.actualizarDisponibles();
 
             } catch (error) {
                 console.error('Error al crear ruta:', error);
@@ -5255,9 +5489,11 @@ const app = Vue.createApp({
         },
 
         contarUnidadesDomicilioDisponibles() {
+            const enRuta = new Set((this.idsReclamosEnRutasActivas || []).map(Number));
             const claves = new Set();
             for (const r of this.reclamos) {
                 if (r.municipalidad_estado === 'Completado') continue;
+                if (enRuta.has(Number(r.id))) continue;
                 claves.add(this.claveDomicilioReclamo(r));
             }
             return claves.size;
@@ -6169,9 +6405,14 @@ const app = Vue.createApp({
             const ruta = this.rutas.find(r => r.id == id);
             if (!ruta) return;
 
+            if (!this.puedeEliminarHojaRuta(ruta)) {
+                this.mostrarMensaje(this.motivoNoPuedeEliminarHojaRuta(ruta) || 'No se puede eliminar esta hoja.', 'warning');
+                return;
+            }
+
             const nombreRuta = ruta.nombre || 'Sin nombre';
             const confirmacion = await this.mostrarConfirmacion(
-                `¿Está seguro que desea eliminar la hoja de ruta "${nombreRuta}"?`,
+                `¿Está seguro que desea eliminar la hoja de ruta "${nombreRuta}"? Los reclamos asignados volverán a estado Recibido.`,
                 'Eliminar Hoja de Ruta'
             );
 
@@ -6183,7 +6424,12 @@ const app = Vue.createApp({
                 await this.obtenerRutas();
             } catch (error) {
                 console.error('Error al eliminar ruta:', error);
-                this.mostrarMensaje('Error al eliminar la hoja de ruta', 'error');
+                this.mostrarMensaje(
+                    error.response?.data?.messages?.error
+                        || error.response?.data?.message
+                        || 'Error al eliminar la hoja de ruta',
+                    'error'
+                );
             }
         },
 
@@ -6197,8 +6443,13 @@ const app = Vue.createApp({
                 return;
             }
 
+            if (!this.puedeEliminarHojaRuta(ruta)) {
+                this.mostrarMensaje(this.motivoNoPuedeEliminarHojaRuta(ruta) || 'No se puede eliminar esta hoja.', 'warning');
+                return;
+            }
+
             const nombreRuta = ruta.nombre || 'Sin nombre';
-            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Esta acción eliminará también todas las asignaciones de reclamos y no se puede deshacer.`;
+            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Los reclamos en estado Asignado volverán a Recibido. Esta acción no se puede deshacer.`;
             const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Hoja de Ruta');
             
             if (!confirmacion) {
@@ -6206,7 +6457,6 @@ const app = Vue.createApp({
             }
 
             try {
-                console.log('Eliminando ruta ID:', rutaId);
                 await axios.delete(BASE_URL + 'api/rutas/' + rutaId);
                 
                 // Cerrar el modal de visualización
@@ -6228,7 +6478,7 @@ const app = Vue.createApp({
                 this.mostrarMensaje('Hoja de ruta eliminada correctamente', 'success');
             } catch (error) {
                 console.error('Error al eliminar ruta:', error);
-                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.message || error.message), 'error');
+                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.messages?.error || error.response?.data?.message || error.message), 'error');
             }
         },
 
@@ -6275,8 +6525,13 @@ const app = Vue.createApp({
                 return;
             }
 
+            if (!this.puedeEliminarHojaRuta(ruta)) {
+                this.mostrarMensaje(this.motivoNoPuedeEliminarHojaRuta(ruta) || 'No se puede eliminar esta hoja.', 'warning');
+                return;
+            }
+
             const nombreRuta = ruta.nombre || 'Sin nombre';
-            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Esta acción eliminará también todas las asignaciones de reclamos y no se puede deshacer.`;
+            const mensajeConfirmacion = `¿Está seguro de que desea eliminar la hoja de ruta "${nombreRuta}"? Los reclamos en estado Asignado volverán a Recibido. Esta acción no se puede deshacer.`;
             const confirmacion = await this.mostrarConfirmacion(mensajeConfirmacion, 'Eliminar Hoja de Ruta');
             
             if (!confirmacion) {
@@ -6284,7 +6539,6 @@ const app = Vue.createApp({
             }
 
             try {
-                console.log('Eliminando ruta ID:', rutaId);
                 await axios.delete(BASE_URL + 'api/rutas/' + rutaId);
                 
                 // Cerrar el modal de administración
@@ -6303,7 +6557,7 @@ const app = Vue.createApp({
                 this.mostrarMensaje('Hoja de ruta eliminada correctamente', 'success');
             } catch (error) {
                 console.error('Error al eliminar ruta:', error);
-                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.message || error.message), 'error');
+                this.mostrarMensaje('Error al eliminar la hoja de ruta: ' + (error.response?.data?.messages?.error || error.response?.data?.message || error.message), 'error');
             }
         },
 
@@ -6336,9 +6590,9 @@ const app = Vue.createApp({
                               tipo === 'info' ? 'alert-info' : 'alert-danger';
             
             const alertHtml = `
-                <div class="alert ${alertClass} alert-dismissible fade show position-fixed mensaje-notificacion" 
-                     style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
-                    ${mensaje}
+                <div class="alert ${alertClass} alert-dismissible fade show mensaje-notificacion" role="alert">
+                    <div class="mensaje-notificacion__body">${mensaje}</div>
+                    <button type="button" class="btn-close mensaje-notificacion__close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             `;
             
@@ -6416,9 +6670,10 @@ const app = Vue.createApp({
          */
         async abrirModalVisualizarRutas() {
             try {
-                this.rutasActivas = this.rutas;
+                this.rutasActivas = this.rutasActivasParaModalTodas();
                 this.rutaSeleccionadaVisualizarTodasId = null;
                 this.mapboxObraRutasActivasRefs = [];
+                this._ultimoFingerprintMapaTodasRutas = null;
 
                 const modal = new bootstrap.Modal(document.getElementById('modalVisualizarRutas'));
                 modal.show();
@@ -6431,6 +6686,150 @@ const app = Vue.createApp({
             } catch (error) {
                 console.error('Error al abrir visualización de rutas:', error);
                 this.mostrarMensaje('Error al cargar las rutas', 'error');
+            }
+        },
+
+        rutasActivasParaModalTodas() {
+            return (this.rutas || []).filter((ruta) => {
+                const estado = (ruta.estado_ejecucion || '').toString().trim().toLowerCase();
+                return estado !== 'finalizada';
+            });
+        },
+
+        modalTodasHojasAbierto() {
+            const el = document.getElementById('modalVisualizarRutas');
+            if (!el || !el.classList.contains('show')) {
+                return false;
+            }
+            return !!(this.mapaRutasActivas || this.mapaRutasActivasMapbox);
+        },
+
+        _fingerprintMapaTodasRutas(rutas, reclamosPorRuta) {
+            const partesRuta = (rutas || []).map((r) =>
+                [
+                    r.id,
+                    r.estado_ejecucion || '',
+                    r.inicio_ejecucion_at || '',
+                    r.color || '',
+                    r.cantidadReclamos ?? '',
+                    r.cuadrilla_id || '',
+                    r.nombre || ''
+                ].join('|')
+            );
+            const partesRec = (rutas || []).map((r) => {
+                const recs = reclamosPorRuta?.[r.id] || [];
+                return recs.map((x) => {
+                    const sr = x.sesion_reparacion || {};
+                    return [
+                        x.id,
+                        x.municipalidad_estado || '',
+                        x.prioridad || '',
+                        sr.activo ? 1 : 0,
+                        sr.acumulado_ms || 0,
+                        sr.inicio_segmento_at || ''
+                    ].join(':');
+                }).join(',');
+            });
+            return `${partesRuta.join(';')}||${partesRec.join(';')}`;
+        },
+
+        async _obtenerReclamosPorRutasActivas(rutas) {
+            const out = {};
+            const lista = rutas || [];
+            await Promise.all(lista.map(async (ruta) => {
+                try {
+                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
+                    out[ruta.id] = response.data || [];
+                } catch (error) {
+                    console.warn('Error al obtener reclamos de ruta ' + ruta.id + ':', error);
+                    out[ruta.id] = [];
+                }
+            }));
+            return out;
+        },
+
+        capturarVistaMapaTodasRutas() {
+            if (this.proveedorMapaRutasActivas === 'mapbox' && this.mapaRutasActivasMapbox) {
+                const c = this.mapaRutasActivasMapbox.getCenter();
+                return {
+                    proveedor: 'mapbox',
+                    lng: c.lng,
+                    lat: c.lat,
+                    zoom: this.mapaRutasActivasMapbox.getZoom()
+                };
+            }
+            if (this.mapaRutasActivas) {
+                const c = this.mapaRutasActivas.getCenter();
+                return {
+                    proveedor: 'google',
+                    lat: c.lat(),
+                    lng: c.lng(),
+                    zoom: this.mapaRutasActivas.getZoom()
+                };
+            }
+            return null;
+        },
+
+        restaurarVistaMapaTodasRutas(vista) {
+            if (!vista) {
+                return;
+            }
+            if (vista.proveedor === 'mapbox' && this.mapaRutasActivasMapbox) {
+                this.mapaRutasActivasMapbox.jumpTo({
+                    center: [vista.lng, vista.lat],
+                    zoom: vista.zoom
+                });
+                return;
+            }
+            if (this.mapaRutasActivas) {
+                this.mapaRutasActivas.setCenter({ lat: vista.lat, lng: vista.lng });
+                this.mapaRutasActivas.setZoom(vista.zoom);
+            }
+        },
+
+        async refrescarVistaTodasHojasTrasSync() {
+            if (!this.modalTodasHojasAbierto() || this._refrescandoMapaTodasRutas) {
+                return;
+            }
+            this._refrescandoMapaTodasRutas = true;
+            try {
+                this.rutasActivas = this.rutasActivasParaModalTodas();
+
+                if (this.rutaSeleccionadaVisualizarTodasId) {
+                    const sigue = this.rutasActivas.some(
+                        (r) => String(r.id) === String(this.rutaSeleccionadaVisualizarTodasId)
+                    );
+                    if (!sigue) {
+                        this.rutaSeleccionadaVisualizarTodasId = null;
+                        this.detenerBrilloRecorridoRutasActivas();
+                    }
+                }
+
+                const reclamosPorRuta = await this._obtenerReclamosPorRutasActivas(this.rutasActivas);
+                const fingerprint = this._fingerprintMapaTodasRutas(this.rutasActivas, reclamosPorRuta);
+                if (fingerprint === this._ultimoFingerprintMapaTodasRutas) {
+                    return;
+                }
+
+                const vista = this.capturarVistaMapaTodasRutas();
+                this._ultimoFingerprintMapaTodasRutas = fingerprint;
+
+                if (this.proveedorMapaRutasActivas === 'mapbox') {
+                    await this.mostrarTodasLasRutasActivasMapbox({
+                        preservarVista: true,
+                        reclamosPorRuta
+                    });
+                } else {
+                    await this.mostrarTodasLasRutasActivas({
+                        preservarVista: true,
+                        reclamosPorRuta
+                    });
+                }
+                this.restaurarVistaMapaTodasRutas(vista);
+            } catch (error) {
+                console.warn('Refresco mapa todas las hojas:', error);
+            } finally {
+                this._refrescandoMapaTodasRutas = false;
             }
         },
 
@@ -6491,16 +6890,17 @@ const app = Vue.createApp({
         /**
          * Muestra todas las rutas (asignadas y no asignadas) en el mapa
          */
-        async mostrarTodasLasRutasActivas() {
+        async mostrarTodasLasRutasActivas(opciones = {}) {
+            const { preservarVista = false, reclamosPorRuta = null } = opciones;
             this.detenerTickerVisualizacionObra();
             this.mapboxObraRutasActivasRefs = [];
             this.limpiarVisualizacionRutasActivas();
 
+            const cacheReclamos = reclamosPorRuta || await this._obtenerReclamosPorRutasActivas(this.rutasActivas);
+
             for (const ruta of this.rutasActivas) {
                 try {
-                    // Obtener reclamos de esta ruta
-                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
-                    const reclamosRuta = response.data;
+                    const reclamosRuta = cacheReclamos[ruta.id] || [];
                     
                     const colorRuta = ruta.color || '#FF0000';
                     const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamosRuta);
@@ -6631,13 +7031,19 @@ const app = Vue.createApp({
 
             this._sincronizarCompanionsObraGoogleRutasActivas();
 
-            const principales = this.marcadoresRutasActivas.filter((m) => m._marcadorRecorridoPrincipal);
-            if (principales.length > 0 && this.mapaRutasActivas) {
-                const bounds = new google.maps.LatLngBounds();
-                principales.forEach((m) => bounds.extend(m.getPosition()));
-                this.mapaRutasActivas.fitBounds(bounds);
+            if (!preservarVista) {
+                const principales = this.marcadoresRutasActivas.filter((m) => m._marcadorRecorridoPrincipal);
+                if (principales.length > 0 && this.mapaRutasActivas) {
+                    const bounds = new google.maps.LatLngBounds();
+                    principales.forEach((m) => bounds.extend(m.getPosition()));
+                    this.mapaRutasActivas.fitBounds(bounds);
+                }
             }
 
+            this._ultimoFingerprintMapaTodasRutas = this._fingerprintMapaTodasRutas(
+                this.rutasActivas,
+                cacheReclamos
+            );
             this.iniciarTickerVisualizacionObraSiCorresponde();
         },
 
@@ -7090,6 +7496,7 @@ const app = Vue.createApp({
             this.limpiarVisualizacionRutasActivas();
             this.rutasActivas = [];
             this.rutaSeleccionadaVisualizarTodasId = null;
+            this._ultimoFingerprintMapaTodasRutas = null;
             this.mapaRutasActivas = null;
             if (this.mapaRutasActivasMapbox) {
                 this.mapaRutasActivasMapbox.remove();
@@ -7469,32 +7876,47 @@ const app = Vue.createApp({
         /**
          * Muestra todas las rutas (asignadas y no asignadas) en Mapbox
          */
-        async mostrarTodasLasRutasActivasMapbox() {
+        async mostrarTodasLasRutasActivasMapbox(opciones = {}) {
             if (!this.mapaRutasActivasMapbox) return;
 
+            const { reclamosPorRuta = null } = opciones;
             this.detenerTickerVisualizacionObra();
             this.mapboxObraRutasActivasRefs = [];
             this.detenerBrilloRecorridoRutasActivas();
-            this.capasRecorridoMapboxRutasActivas = [];
 
-            // Limpiar capas anteriores
-            this.rutasActivas.forEach((ruta, idx) => {
-                if (this.mapaRutasActivasMapbox.getLayer(`route-${idx}`)) 
-                    this.mapaRutasActivasMapbox.removeLayer(`route-${idx}`);
-                if (this.mapaRutasActivasMapbox.getSource(`route-${idx}`)) 
-                    this.mapaRutasActivasMapbox.removeSource(`route-${idx}`);
+            // Limpiar capas anteriores (por id de ruta o índice previo)
+            const capasPrevias = [...(this.capasRecorridoMapboxRutasActivas || [])];
+            capasPrevias.forEach((capa) => {
+                const layerId = capa.layerId || capa.sourceId;
+                const sourceId = capa.sourceId || capa.layerId;
+                if (layerId && this.mapaRutasActivasMapbox.getLayer(layerId)) {
+                    this.mapaRutasActivasMapbox.removeLayer(layerId);
+                }
+                if (sourceId && this.mapaRutasActivasMapbox.getSource(sourceId)) {
+                    this.mapaRutasActivasMapbox.removeSource(sourceId);
+                }
             });
+            this.rutasActivas.forEach((ruta, idx) => {
+                if (this.mapaRutasActivasMapbox.getLayer(`route-${idx}`)) {
+                    this.mapaRutasActivasMapbox.removeLayer(`route-${idx}`);
+                }
+                if (this.mapaRutasActivasMapbox.getSource(`route-${idx}`)) {
+                    this.mapaRutasActivasMapbox.removeSource(`route-${idx}`);
+                }
+            });
+            this.capasRecorridoMapboxRutasActivas = [];
             
             const marcadoresAnteriores = document.querySelectorAll('#mapaVisualizarRutasMapbox .mapboxgl-marker');
             marcadoresAnteriores.forEach(m => m.remove());
+
+            const cacheReclamos = reclamosPorRuta || await this._obtenerReclamosPorRutasActivas(this.rutasActivas);
 
             // Procesar cada ruta
             for (let rutaIdx = 0; rutaIdx < this.rutasActivas.length; rutaIdx++) {
                 const ruta = this.rutasActivas[rutaIdx];
                 
                 try {
-                    const response = await axios.get(BASE_URL + 'api/rutas/' + ruta.id + '/reclamos');
-                    const reclamosRuta = response.data;
+                    const reclamosRuta = cacheReclamos[ruta.id] || [];
                     const colorRuta = ruta.color || '#FF0000';
                     const paradasRuta = this.agruparParadasRutaVistaPrevia(reclamosRuta);
                     let contadorGruposRutasActivasMb = 0;
@@ -7589,6 +8011,10 @@ const app = Vue.createApp({
             }
 
             await this.finalizarMarcadoresMapboxRuta(this.mapaRutasActivasMapbox);
+            this._ultimoFingerprintMapaTodasRutas = this._fingerprintMapaTodasRutas(
+                this.rutasActivas,
+                cacheReclamos
+            );
             this.iniciarTickerVisualizacionObraSiCorresponde();
         },
 
@@ -7769,12 +8195,12 @@ const app = Vue.createApp({
 
                 if (!confirmacion) return;
 
-                const msgOcupada = this.mensajeCuadrillaOcupada(
-                    this.cuadrillaSeleccionadaParaAsignar,
+                const msgNoAsignable = this.mensajeCuadrillaNoAsignable(
+                    cuadrilla,
                     this.rutaParaAsignar.id
                 );
-                if (msgOcupada) {
-                    this.mostrarMensaje(msgOcupada, 'warning');
+                if (msgNoAsignable) {
+                    this.mostrarMensaje(msgNoAsignable, 'warning');
                     return;
                 }
 
@@ -8205,9 +8631,12 @@ const app = Vue.createApp({
                         });
                     }
                 } else {
-                    const msgOcupada = this.mensajeCuadrillaOcupada(cuadrillaId, rutaId);
-                    if (msgOcupada) {
-                        this.mostrarMensaje(msgOcupada, 'warning');
+                    const cuadrillaTabla = this.cuadrillasDisponibles.find(
+                        (c) => String(c.id) === String(cuadrillaId)
+                    );
+                    const msgNoAsignable = this.mensajeCuadrillaNoAsignable(cuadrillaTabla, rutaId);
+                    if (msgNoAsignable) {
+                        this.mostrarMensaje(msgNoAsignable, 'warning');
                         return;
                     }
 
@@ -8342,7 +8771,7 @@ const app = Vue.createApp({
             }
 
             try {
-                await axios.delete(BASE_URL + 'api/rutas/' + rutaId + '/desasignar');
+                await axios.post(BASE_URL + `api/rutas/desasignar/${rutaId}`);
                 
                 // Recargar las rutas
                 await this.obtenerRutas();

@@ -28,35 +28,25 @@ class ReclamosSincronizacion extends ResourceController
             date_default_timezone_set('America/Argentina/Buenos_Aires');
             $fechaHoy = date('Y-m-d');
             
-            // Obtener el último reclamo guardado (por ID de municipalidad para evitar duplicados)
+            // Último ID del 103 (ignora creados localmente) para no bloquear el sync
             $reclamoModel = new ReclamoModel();
-            $ultimoReclamo = $reclamoModel
-                ->orderBy('CAST(municipalidad_id AS UNSIGNED)', 'DESC')
+            $ultimoMunicipalidadId = $reclamoModel->ultimoMunicipalidadId103();
+            $fechaUltimoReclamo = date('Y-m-d', strtotime('-7 days'));
+
+            $ultimoReclamo103 = $reclamoModel
+                ->where('origen', ReclamoModel::ORIGEN_103)
+                ->orderBy('municipalidad_fechaInicio', 'DESC')
                 ->first();
-            
-            $ultimoMunicipalidadId = 0;
-            $fechaUltimoReclamo = date('Y-m-d', strtotime('-7 days')); // Por defecto 7 días
-            
-            // Si hay reclamos, usar la fecha del último (para la API) y guardar su ID
-            if ($ultimoReclamo && !empty($ultimoReclamo['municipalidad_id'])) {
-                $ultimoMunicipalidadId = (int)$ultimoReclamo['municipalidad_id'];
-                // Usar la fecha del último reclamo menos 1 día para asegurar que no perdemos ninguno
-                $fechaUltimoReclamo = date('Y-m-d', strtotime($ultimoReclamo['municipalidad_fechaInicio'] . ' -1 day'));
+            if ($ultimoReclamo103 && !empty($ultimoReclamo103['municipalidad_fechaInicio'])) {
+                $fechaUltimoReclamo = date('Y-m-d', strtotime($ultimoReclamo103['municipalidad_fechaInicio'] . ' -1 day'));
             }
             
-            log_message('info', 'Sincronizando reclamos desde: ' . $fechaUltimoReclamo . ' hasta: ' . $fechaHoy . ' | Último ID guardado: ' . $ultimoMunicipalidadId);
+            log_message('info', 'Sincronizando reclamos desde: ' . $fechaUltimoReclamo . ' hasta: ' . $fechaHoy . ' | Último ID 103: ' . $ultimoMunicipalidadId);
             
-            // Obtener credenciales Basic Auth
-            $tokenModel = new Token103Model();
-            $credenciales = $tokenModel->orderBy('id', 'DESC')->first();
-
-            if (!$credenciales || empty($credenciales['username']) || empty($credenciales['password'])) {
-                return $this->failNotFound('No hay credenciales configuradas. Configure username y password primero.');
+            $apiToken = $this->obtenerApiToken103();
+            if ($apiToken === null) {
+                return $this->failNotFound('No hay token configurado para el sistema 103. Configure el token primero.');
             }
-
-            // Generar token Basic Auth
-            $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
-            $tokenBase64 = base64_encode($credencialesString);
 
             // Construir URL con parámetros desde el último reclamo hasta hoy
             $url = $this->apiExternaUrl . '?created_after=' . $fechaUltimoReclamo . '&created_before=' . $fechaHoy;
@@ -69,11 +59,7 @@ class ReclamosSincronizacion extends ResourceController
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Basic ' . $tokenBase64,
-                'Accept: application/json',
-                'Content-Type: application/json'
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headersAutorizacion103($apiToken));
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -101,7 +87,7 @@ class ReclamosSincronizacion extends ResourceController
             }
 
             // La respuesta tiene paginación, obtener todos los resultados
-            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $tokenBase64);
+            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $apiToken);
             $todosLosReclamos = $resultadoPaginacion['reclamos'];
             $respuesta103Cruda = $resultadoPaginacion['paginas_crudas'];
             
@@ -163,37 +149,26 @@ class ReclamosSincronizacion extends ResourceController
     private function sincronizarPorRangoFechas($fechaDesde, $fechaHasta)
     {
         try {
-            // Obtener el último reclamo guardado para evitar duplicados
+            // Rangos medianos pueden paginar varias veces contra el 103
+            @set_time_limit(120);
+            ini_set('max_execution_time', '120');
+
+            // Último ID del 103 (ignora creados localmente)
             $reclamoModel = new ReclamoModel();
-            $ultimoReclamo = $reclamoModel
-                ->orderBy('CAST(municipalidad_id AS UNSIGNED)', 'DESC')
-                ->first();
+            $ultimoMunicipalidadId = $reclamoModel->ultimoMunicipalidadId103();
             
-            $ultimoMunicipalidadId = 0;
-            if ($ultimoReclamo && !empty($ultimoReclamo['municipalidad_id'])) {
-                $ultimoMunicipalidadId = (int)$ultimoReclamo['municipalidad_id'];
+            log_message('info', 'Sincronización por fechas | Último ID 103: ' . $ultimoMunicipalidadId);
+
+            $apiToken = $this->obtenerApiToken103();
+            if ($apiToken === null) {
+                return $this->failNotFound('No hay token configurado para el sistema 103. Configure el token primero.');
             }
-            
-            log_message('info', 'Sincronización por fechas | Último ID guardado: ' . $ultimoMunicipalidadId);
-
-            // Obtener credenciales Basic Auth
-            $tokenModel = new Token103Model();
-            $credenciales = $tokenModel->orderBy('id', 'DESC')->first();
-
-            if (!$credenciales || empty($credenciales['username']) || empty($credenciales['password'])) {
-                return $this->failNotFound('No hay credenciales configuradas. Configure username y password primero.');
-            }
-
-            // Generar token Basic Auth
-            $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
-            $tokenBase64 = base64_encode($credencialesString);
 
             // Construir URL con parámetros
             $url = $this->apiExternaUrl . '?created_after=' . $fechaDesde . '&created_before=' . $fechaHasta;
             
             // Log para debug
             log_message('info', 'Intentando conectar a: ' . $url);
-            log_message('info', 'Token Base64: ' . substr($tokenBase64, 0, 20) . '...');
 
             // Hacer petición a la API externa usando cURL
             $ch = curl_init();
@@ -201,14 +176,10 @@ class ReclamosSincronizacion extends ResourceController
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // Seguir redirecciones automáticamente
             curl_setopt($ch, CURLOPT_MAXREDIRS, 10); // Máximo 10 redirecciones
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Basic ' . $tokenBase64,
-                'Accept: application/json',
-                'Content-Type: application/json'
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headersAutorizacion103($apiToken));
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Para desarrollo, en producción cambiar a true
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false); // Para desarrollo, en producción cambiar a 2
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -239,7 +210,7 @@ class ReclamosSincronizacion extends ResourceController
             }
 
             // La respuesta tiene paginación, obtener todos los resultados
-            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $tokenBase64);
+            $resultadoPaginacion = $this->obtenerTodasLasPaginas103($responseData, $apiToken);
             $todosLosReclamos = $resultadoPaginacion['reclamos'];
             $respuesta103Cruda = $resultadoPaginacion['paginas_crudas'];
             
@@ -252,9 +223,17 @@ class ReclamosSincronizacion extends ResourceController
             log_message('info', 'Reclamos omitidos (ya existentes): ' . $resultadoFiltrado['reclamos_omitidos']);
             log_message('info', 'Reclamos omitidos (estado inválido): ' . $resultadoFiltrado['reclamos_invalidos']);
 
+            // Evitar respuestas enormes: solo devolver debug crudo de la 1ª página
+            $debugCrudo = [];
+            if (! empty($respuesta103Cruda[0])) {
+                $debugCrudo[] = $respuesta103Cruda[0];
+            }
+
             // Devolver reclamos al frontend para que los procese progresivamente
             return $this->respond([
                 'success' => true,
+                'fecha_desde' => $fechaDesde,
+                'fecha_hasta' => $fechaHasta,
                 'total_recibidos' => count($todosLosReclamos),
                 'total_alumbrado' => $resultadoFiltrado['total_alumbrado'],
                 'reclamos_nuevos' => count($resultadoFiltrado['reclamos']),
@@ -262,7 +241,7 @@ class ReclamosSincronizacion extends ResourceController
                 'reclamos_invalidos' => $resultadoFiltrado['reclamos_invalidos'],
                 'ultimo_id_guardado' => $ultimoMunicipalidadId,
                 'reclamos' => $resultadoFiltrado['reclamos'], // Frontend los procesará uno por uno
-                'debug_respuesta_103' => $respuesta103Cruda,
+                'debug_respuesta_103' => $debugCrudo,
             ]);
 
         } catch (\Exception $e) {
@@ -281,17 +260,10 @@ class ReclamosSincronizacion extends ResourceController
                 return $this->failValidationErrors('Número de reclamo es obligatorio');
             }
 
-            // Obtener credenciales Basic Auth
-            $tokenModel = new Token103Model();
-            $credenciales = $tokenModel->orderBy('id', 'DESC')->first();
-
-            if (!$credenciales || empty($credenciales['username']) || empty($credenciales['password'])) {
-                return $this->failNotFound('No hay credenciales configuradas. Configure username y password primero.');
+            $apiToken = $this->obtenerApiToken103();
+            if ($apiToken === null) {
+                return $this->failNotFound('No hay token configurado para el sistema 103. Configure el token primero.');
             }
-
-            // Generar token Basic Auth
-            $credencialesString = $credenciales['username'] . ':' . $credenciales['password'];
-            $tokenBase64 = base64_encode($credencialesString);
 
             // Construir URL
             $url = rtrim($this->apiExternaUrl, '/') . '/' . $numeroReclamo;
@@ -302,11 +274,7 @@ class ReclamosSincronizacion extends ResourceController
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true); // Seguir redirecciones automáticamente
             curl_setopt($ch, CURLOPT_MAXREDIRS, 10); // Máximo 10 redirecciones
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Basic ' . $tokenBase64,
-                'Accept: application/json',
-                'Content-Type: application/json'
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headersAutorizacion103($apiToken));
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // Para desarrollo, en producción cambiar a true
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false); // Para desarrollo, en producción cambiar a 2
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
@@ -350,29 +318,56 @@ class ReclamosSincronizacion extends ResourceController
             try {
                 // Verificar si el reclamo ya existe
                 $existente = $reclamoModel->where('municipalidad_id', $reclamoMapeado['municipalidad_id'])->first();
+
+                if ($existente && (int) ($existente['excluido_local'] ?? 0) === 1) {
+                    return $this->respond([
+                        'success' => true,
+                        'accion' => 'omitido',
+                        'motivo' => 'excluido_local',
+                        'mensaje' => 'El reclamo está excluido localmente y no se sincroniza.',
+                        'reclamo' => $existente,
+                        'ficha_protegida' => (int) ($existente['ficha_editada'] ?? 0) === 1,
+                        'debug_respuesta_103' => $reclamo,
+                    ]);
+                }
+
+                if ($existente && ($existente['origen'] ?? '') === ReclamoModel::ORIGEN_LOCAL) {
+                    return $this->respond([
+                        'success' => true,
+                        'accion' => 'omitido',
+                        'motivo' => 'origen_local',
+                        'mensaje' => 'Ese número corresponde a un reclamo creado localmente; no se sincroniza desde el 103.',
+                        'reclamo' => $existente,
+                        'ficha_protegida' => true,
+                        'debug_respuesta_103' => $reclamo,
+                    ]);
+                }
                 
                 if ($existente) {
-                    // Actualizar
-                    $reclamoModel->update($existente['id'], $reclamoMapeado);
+                    // Si el supervisor corrigió la ficha, no pisar esos campos con el 103
+                    $reclamoParaGuardar = $this->fusionarSyncConFichaLocal($existente, $reclamoMapeado);
+                    $reclamoModel->update($existente['id'], $reclamoParaGuardar);
                     $accion = 'actualizado';
+                    $reclamoRespuesta = array_merge($existente, $reclamoParaGuardar);
                 } else {
                     // Crear
                     $reclamoModel->insert($reclamoMapeado);
                     $accion = 'creado';
+                    $reclamoRespuesta = $reclamoMapeado;
                 }
 
                 // Geocodificar la dirección inmediatamente (solo 1 reclamo, es rápido)
-                if (!empty($reclamoMapeado['municipalidad_domicilio']) && !empty($reclamoMapeado['municipalidad_numeroDomicilio'])) {
-                    $this->procesarDireccionReclamo(
-                        $reclamoMapeado['municipalidad_domicilio'],
-                        $reclamoMapeado['municipalidad_numeroDomicilio']
-                    );
+                $domicilioGeo = $reclamoRespuesta['municipalidad_domicilio'] ?? null;
+                $numeroGeo = $reclamoRespuesta['municipalidad_numeroDomicilio'] ?? null;
+                if (!empty($domicilioGeo) && !empty($numeroGeo)) {
+                    $this->procesarDireccionReclamo($domicilioGeo, $numeroGeo);
                 }
 
                 return $this->respond([
                     'success' => true,
                     'accion' => $accion,
-                    'reclamo' => $reclamoMapeado,
+                    'reclamo' => $reclamoRespuesta,
+                    'ficha_protegida' => $existente ? ((int) ($existente['ficha_editada'] ?? 0) === 1) : false,
                     'debug_respuesta_103' => $reclamo,
                 ]);
 
@@ -414,16 +409,49 @@ class ReclamosSincronizacion extends ResourceController
                 $data['prioridad'] = 'Baja';
             }
 
+            // Completado desde el 103 = cierre formal (defensa si el payload no trae cerrado)
+            if (($data['municipalidad_estado'] ?? '') === 'Completado') {
+                $data['cerrado'] = 1;
+                if (empty($data['fecha_cierre'])) {
+                    $data['fecha_cierre'] = $data['municipalidad_fechaModificacion']
+                        ?? $data['municipalidad_fechaInicio']
+                        ?? null;
+                }
+            }
+
             $reclamoModel = new ReclamoModel();
 
             $existente = $reclamoModel->where('municipalidad_id', $data['municipalidad_id'])->first();
 
+            if ($existente && (int) ($existente['excluido_local'] ?? 0) === 1) {
+                log_message('info', 'Reclamo omitido por exclusión local: ' . ($data['municipalidad_id'] ?? 'sin id'));
+                return $this->respond([
+                    'success' => true,
+                    'accion' => 'omitido',
+                    'motivo' => 'excluido_local',
+                    'municipalidad_id' => $data['municipalidad_id'] ?? null,
+                ]);
+            }
+
+            if ($existente && ($existente['origen'] ?? '') === ReclamoModel::ORIGEN_LOCAL) {
+                log_message('info', 'Reclamo omitido: ID coincide con un reclamo local: ' . ($data['municipalidad_id'] ?? 'sin id'));
+                return $this->respond([
+                    'success' => true,
+                    'accion' => 'omitido',
+                    'motivo' => 'origen_local',
+                    'municipalidad_id' => $data['municipalidad_id'] ?? null,
+                ]);
+            }
+
             if ($existente) {
-                $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad(array_merge($existente, $data));
+                $data = $this->fusionarSyncConFichaLocal($existente, $data);
                 $reclamoModel->update($existente['id'], $data);
                 $accion = 'actualizado';
             } else {
                 $data['prioridad'] = ReclamoPrioridadService::evaluarPrioridad($data);
+                if (empty($data['origen'])) {
+                    $data['origen'] = ReclamoModel::ORIGEN_103;
+                }
                 $reclamoModel->insert($data);
                 $accion = 'creado';
             }
@@ -451,7 +479,7 @@ class ReclamosSincronizacion extends ResourceController
     /**
      * Recorre la paginación del 103 y devuelve reclamos + JSON crudo por página (solo debug).
      */
-    private function obtenerTodasLasPaginas103(array $primeraPagina, string $tokenBase64): array
+    private function obtenerTodasLasPaginas103(array $primeraPagina, string $apiToken): array
     {
         $todosLosReclamos = [];
         $paginasCrudas = [];
@@ -472,14 +500,10 @@ class ReclamosSincronizacion extends ResourceController
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Authorization: Basic ' . $tokenBase64,
-                'Accept: application/json',
-                'Content-Type: application/json',
-            ]);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $this->headersAutorizacion103($apiToken));
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
             $nextResponse = curl_exec($ch);
             curl_close($ch);
@@ -491,12 +515,29 @@ class ReclamosSincronizacion extends ResourceController
                 if (isset($paginaActual['results']) && is_array($paginaActual['results'])) {
                     $todosLosReclamos = array_merge($todosLosReclamos, $paginaActual['results']);
                 }
+            } else {
+                break;
             }
         }
 
         return [
             'reclamos' => $todosLosReclamos,
             'paginas_crudas' => $paginasCrudas,
+        ];
+    }
+
+    private function obtenerApiToken103(): ?string
+    {
+        $tokenModel = new Token103Model();
+        return $tokenModel->obtenerApiToken();
+    }
+
+    private function headersAutorizacion103(string $apiToken): array
+    {
+        return [
+            'Authorization: Token ' . $apiToken,
+            'Accept: application/json',
+            'Content-Type: application/json',
         ];
     }
 
@@ -538,6 +579,48 @@ class ReclamosSincronizacion extends ResourceController
     }
 
     /**
+     * Si la ficha fue corregida localmente, conserva esos campos y aplica del 103
+     * solo estado/cierre/fechas (y prioridad recalculada).
+     */
+    private function fusionarSyncConFichaLocal(array $existente, array $mapeado103): array
+    {
+        if ((int) ($existente['ficha_editada'] ?? 0) !== 1) {
+            $mapeado103['prioridad'] = ReclamoPrioridadService::evaluarPrioridad(
+                array_merge($existente, $mapeado103)
+            );
+            return $mapeado103;
+        }
+
+        $camposFichaProtegidos = [
+            'municipalidad_motivo',
+            'municipalidad_recepcion',
+            'municipalidad_telefono',
+            'municipalidad_domicilio',
+            'municipalidad_numeroDomicilio',
+            'municipalidad_entreCalleUno',
+            'municipalidad_entreCalleDos',
+            'municipalidad_ciudadano',
+            'municipalidad_descripcion',
+        ];
+
+        $resultado = $mapeado103;
+        foreach ($camposFichaProtegidos as $campo) {
+            if (array_key_exists($campo, $existente)) {
+                $resultado[$campo] = $existente[$campo];
+            }
+        }
+
+        // Mantener la marca para no perder la protección en próximos syncs
+        $resultado['ficha_editada'] = 1;
+
+        $resultado['prioridad'] = ReclamoPrioridadService::evaluarPrioridad(
+            array_merge($existente, $resultado)
+        );
+
+        return $resultado;
+    }
+
+    /**
      * Determina si un reclamo no debe sincronizarse por su estado.
      */
     private function esReclamoEstadoInvalido($estado): bool
@@ -555,13 +638,16 @@ class ReclamosSincronizacion extends ResourceController
         
         // Si el estado es "Asignado", cambiarlo automáticamente a "Recibido"
         $estado = ($estadoOriginal === 'Asignado') ? 'Recibido' : $estadoOriginal;
-        
-        return [
+
+        $fechaInicio = $this->convertirFechaApi($reclamoApi['fecha_inicio'] ?? null);
+        $fechaModificacion = $this->convertirFechaApi($reclamoApi['fecha_modificacion'] ?? null);
+
+        $mapeado = [
             'municipalidad_id' => (string)$reclamoApi['id'],
             'municipalidad_tipo' => $reclamoApi['motivo']['tipo'] ?? 'ALUMBRADO PÚBLICO',
             'municipalidad_motivo' => $reclamoApi['motivo']['nombre'] ?? 'No especificado',
-            'municipalidad_fechaInicio' => $this->convertirFechaApi($reclamoApi['fecha_inicio'] ?? null),
-            'municipalidad_fechaModificacion' => $this->convertirFechaApi($reclamoApi['fecha_modificacion'] ?? null),
+            'municipalidad_fechaInicio' => $fechaInicio,
+            'municipalidad_fechaModificacion' => $fechaModificacion,
             'municipalidad_recepcion' => null, // No viene en la API
             'municipalidad_estado' => $estado,
             'municipalidad_telefono' => isset($reclamoApi['telefono']) ? (string)$reclamoApi['telefono'] : null,
@@ -571,8 +657,17 @@ class ReclamosSincronizacion extends ResourceController
             'municipalidad_entreCalleDos' => $reclamoApi['hasta_calle']['nombre'] ?? '',
             'municipalidad_ciudadano' => null, // No viene en la API
             'municipalidad_descripcion' => isset($reclamoApi['descripcion']) ? (string)$reclamoApi['descripcion'] : null,
-            'prioridad' => 'Baja' // Asignar prioridad baja por defecto para reclamos sincronizados
+            'prioridad' => 'Baja', // Asignar prioridad baja por defecto para reclamos sincronizados
+            'origen' => ReclamoModel::ORIGEN_103,
         ];
+
+        // En el 103, Completado implica cierre formal → cerrado=1 en nuestra BD
+        if ($estado === 'Completado') {
+            $mapeado['cerrado'] = 1;
+            $mapeado['fecha_cierre'] = $fechaModificacion ?? $fechaInicio;
+        }
+
+        return $mapeado;
     }
 
     /**

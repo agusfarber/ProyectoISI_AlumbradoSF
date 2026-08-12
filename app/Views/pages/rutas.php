@@ -18,7 +18,10 @@
 
 <div id="app" class="rutas-page">
 
-    <div class="rutas-page-title">Rutas</div>
+    <div class="app-page-title">
+        <span class="app-page-title__icon"><i class="bi bi-map"></i></span>
+        <h1 class="app-page-title__text">Rutas</h1>
+    </div>
 
     <div class="rutas-toolbar">
         <div class="rutas-toolbar__left">
@@ -160,7 +163,7 @@
                               <div class="ruta-detalle-meta-fila">
                                   <span class="ruta-detalle-pill w-100">
                                       <i class="bi bi-clipboard-data"></i>
-                                      <strong>{{ rutaVisualizando.cantidadReclamos || 0 }}</strong> reclamos
+                                      <strong>{{ rutaVisualizando.cantidadReclamos || 0 }}</strong> domicilios
                                   </span>
                               </div>
                               <div class="ruta-detalle-meta-fila">
@@ -208,7 +211,13 @@
                                       <i class="bi bi-people-fill"></i>
                                       {{ rutaVisualizando.asignada == 1 ? 'Cambiar cuadrilla' : 'Asignar cuadrilla' }}
                                   </button>
-                                  <button type="button" class="rutas-btn rutas-btn--sm rutas-btn--danger w-100" @click="eliminarRutaDesdeVisualizacion(rutaVisualizando.id)">
+                                  <button
+                                      type="button"
+                                      class="rutas-btn rutas-btn--sm rutas-btn--danger w-100"
+                                      :disabled="!puedeEliminarHojaRuta(rutaVisualizando)"
+                                      :title="puedeEliminarHojaRuta(rutaVisualizando) ? 'Eliminar hoja de ruta' : motivoNoPuedeEliminarHojaRuta(rutaVisualizando)"
+                                      @click="eliminarRutaDesdeVisualizacion(rutaVisualizando.id)"
+                                  >
                                       <i class="bi bi-trash"></i> Eliminar hoja
                                   </button>
                               </div>
@@ -256,7 +265,7 @@
                                                       {{ inicialesOperario(op.nombre) }}
                                                   </span>
                                                   <span class="crear-ruta-cuadrilla-card__member-name">{{ op.nombre }}</span>
-                                                  <span v-if="Number(op.es_jefe) === 1" class="crear-ruta-cuadrilla-card__member-role">Jefe</span>
+                                                  <span v-if="Number(op.es_jefe) === 1" class="crear-ruta-cuadrilla-card__member-role">Gestión</span>
                                               </div>
                                           </div>
                                           <p v-else class="crear-ruta-cuadrilla-card__empty-team">
@@ -310,7 +319,10 @@
                                            :key="'sup-detalle-parada-' + parada.clave + '-' + idx"
                                            class="ruta-secuencia-item">
                                           <div class="card reclamo-card reclamo-card-secuencia"
-                                               :class="getCardClassCrearRuta(reclamoActivoEnParadaListaVisualizacion(parada))">
+                                               :class="[
+                                                   getCardClassCrearRuta(reclamoActivoEnParadaListaVisualizacion(parada)),
+                                                   { 'reclamo-card-secuencia--en-obra': reclamoEnObraActivaSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) }
+                                               ]">
                                               <div class="card-body ruta-secuencia-cardbody">
                                                   <div class="ruta-secuencia-fila">
                                                       <span class="ruta-secuencia-icon-wrap">
@@ -344,6 +356,13 @@
                                                                   {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_domicilio }}
                                                                   {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_numeroDomicilio }}
                                                               </span>
+                                                              <span
+                                                                  v-if="reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion"
+                                                                  class="ruta-secuencia-descripcion"
+                                                                  :title="reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion"
+                                                              >
+                                                                  {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion }}
+                                                              </span>
                                                               <div v-if="parada.reclamos.length > 1"
                                                                    class="ruta-secuencia-grupo-nav"
                                                                    @click.stop>
@@ -366,43 +385,46 @@
                                                           </span>
                                                       </div>
                                                       <div class="ruta-secuencia-toolbar" @click.stop>
-                                                          <span
-                                                              class="badge ruta-secuencia-estado-badge"
-                                                              :style="{
-                                                                  backgroundColor: getColorEstado(reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_estado),
-                                                                  color: colorTextoSobreEstadoReclamo(reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_estado)
-                                                              }"
-                                                          >
-                                                              {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_estado || '—' }}
-                                                          </span>
-                                                          <span
+                                                          <div
                                                               v-if="mostrarCronometroReparacionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
-                                                              class="ruta-secuencia-crono-reparacion badge font-monospace cronometro-badge-con-ico"
-                                                              :class="claseCronometroListaObraSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
-                                                              title="Tiempo en reparación"
-                                                          ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoCronometroReparacionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) }}</span></span>
-                                                          <button
-                                                              type="button"
-                                                              class="rutas-btn rutas-btn--sm rutas-btn--outline ruta-secuencia-btn-material"
-                                                              title="Materiales utilizados"
-                                                              @click="abrirModalMaterialesSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
+                                                              class="ruta-secuencia-toolbar__inicio"
                                                           >
-                                                              <i class="bi bi-box-seam"></i>
-                                                          </button>
-                                                          <button
-                                                              type="button"
-                                                              class="rutas-btn rutas-btn--sm rutas-btn--outline ruta-secuencia-btn-obs-ejecucion btn-con-badge-obs"
-                                                              :title="cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) > 0
-                                                                  ? 'Registro en obra (' + cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) + ')'
-                                                                  : 'Registro en obra'"
-                                                              @click="abrirModalObservacionesSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
-                                                          >
-                                                              <i class="bi bi-journal-text"></i>
                                                               <span
-                                                                  class="btn-obs-ejecucion-count"
-                                                                  :class="{ 'btn-obs-ejecucion-count--oculto': cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) < 1 }"
-                                                              >{{ textoObservacionesEjecucionBadge(cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))) || '0' }}</span>
-                                                          </button>
+                                                                  class="ruta-secuencia-crono-reparacion badge font-monospace cronometro-badge-con-ico"
+                                                                  :class="claseCronometroListaObraSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
+                                                                  title="Tiempo en reparación"
+                                                              ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoCronometroReparacionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) }}</span></span>
+                                                          </div>
+                                                          <div class="ruta-secuencia-toolbar__paneles">
+                                                              <button
+                                                                  type="button"
+                                                                  class="btn btn-sm btn-outline-secondary ruta-secuencia-btn-material btn-con-badge-obs"
+                                                                  :title="cantidadMaterialesReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) > 0
+                                                                      ? 'Materiales utilizados (' + cantidadMaterialesReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) + ')'
+                                                                      : 'Materiales utilizados'"
+                                                                  @click="abrirModalMaterialesSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
+                                                              >
+                                                                  <i class="bi bi-box-seam"></i>
+                                                                  <span
+                                                                      class="btn-obs-ejecucion-count"
+                                                                      :class="{ 'btn-obs-ejecucion-count--oculto': cantidadMaterialesReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) < 1 }"
+                                                                  >{{ textoObservacionesEjecucionBadge(cantidadMaterialesReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))) || '0' }}</span>
+                                                              </button>
+                                                              <button
+                                                                  type="button"
+                                                                  class="btn btn-sm btn-outline-secondary ruta-secuencia-btn-obs-ejecucion btn-con-badge-obs"
+                                                                  :title="cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) > 0
+                                                                      ? 'Registro en obra (' + cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) + ')'
+                                                                      : 'Registro en obra'"
+                                                                  @click="abrirModalObservacionesSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
+                                                              >
+                                                                  <i class="bi bi-journal-text"></i>
+                                                                  <span
+                                                                      class="btn-obs-ejecucion-count"
+                                                                      :class="{ 'btn-obs-ejecucion-count--oculto': cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) < 1 }"
+                                                                  >{{ textoObservacionesEjecucionBadge(cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))) || '0' }}</span>
+                                                              </button>
+                                                          </div>
                                                       </div>
                                                   </div>
                                               </div>
@@ -441,7 +463,7 @@
    </div>
 
    <div v-show="solapaRutas === 'historial' && puedeVerHistorialEjecuciones" class="rutas-tab-panel">
-      <p class="rutas-historial-hint">Ejecuciones finalizadas. Consultá el registro de eventos o abrí el mapa para ver el recorrido, tiempos en obra y observaciones de cada reclamo.</p>
+      <p class="rutas-historial-hint">Ejecuciones finalizadas. Consultá el registro de eventos o abrí el mapa para ver el recorrido, tiempos en obra, materiales y observaciones de cada reclamo.</p>
       <div v-if="historialEjecucionesCargando" class="rutas-loading">
           <div class="spinner-border" role="status"><span class="visually-hidden">Cargando…</span></div>
       </div>
@@ -712,6 +734,13 @@
                                                                   {{ reclamoActivoEnParadaListaHistorial(parada).municipalidad_domicilio }}
                                                                   {{ reclamoActivoEnParadaListaHistorial(parada).municipalidad_numeroDomicilio }}
                                                               </span>
+                                                              <span
+                                                                  v-if="reclamoActivoEnParadaListaHistorial(parada).municipalidad_descripcion"
+                                                                  class="ruta-secuencia-descripcion"
+                                                                  :title="reclamoActivoEnParadaListaHistorial(parada).municipalidad_descripcion"
+                                                              >
+                                                                  {{ reclamoActivoEnParadaListaHistorial(parada).municipalidad_descripcion }}
+                                                              </span>
                                                               <div v-if="parada.reclamos.length > 1"
                                                                    class="ruta-secuencia-grupo-nav"
                                                                    @click.stop>
@@ -734,12 +763,32 @@
                                                           </span>
                                                       </div>
                                                       <div class="ruta-secuencia-toolbar" @click.stop>
-                                                          <span
+                                                          <div
                                                               v-if="textoTiempoReparacionHistorialEjecucion(reclamoActivoEnParadaListaHistorial(parada))"
-                                                              class="ruta-secuencia-crono-reparacion badge font-monospace cronometro-badge-con-ico"
-                                                              :class="claseCronometroListaObraHistorial(reclamoActivoEnParadaListaHistorial(parada))"
-                                                              title="Tiempo en obra (incluye hojas anteriores si correspondía)"
-                                                          ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoTiempoReparacionHistorialEjecucion(reclamoActivoEnParadaListaHistorial(parada)) }}</span></span>
+                                                              class="ruta-secuencia-toolbar__inicio"
+                                                          >
+                                                              <span
+                                                                  class="ruta-secuencia-crono-reparacion badge font-monospace cronometro-badge-con-ico"
+                                                                  :class="claseCronometroListaObraHistorial(reclamoActivoEnParadaListaHistorial(parada))"
+                                                                  title="Tiempo en obra (incluye hojas anteriores si correspondía)"
+                                                              ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoTiempoReparacionHistorialEjecucion(reclamoActivoEnParadaListaHistorial(parada)) }}</span></span>
+                                                          </div>
+                                                          <div class="ruta-secuencia-toolbar__paneles">
+                                                              <button
+                                                                  type="button"
+                                                                  class="btn btn-sm btn-outline-secondary ruta-secuencia-btn-material btn-con-badge-obs"
+                                                                  :title="cantidadMaterialesReclamoHistorial(reclamoActivoEnParadaListaHistorial(parada)) > 0
+                                                                      ? 'Materiales utilizados (' + cantidadMaterialesReclamoHistorial(reclamoActivoEnParadaListaHistorial(parada)) + ')'
+                                                                      : 'Materiales utilizados'"
+                                                                  @click="abrirModalMaterialesSupervisor(reclamoActivoEnParadaListaHistorial(parada))"
+                                                              >
+                                                                  <i class="bi bi-box-seam"></i>
+                                                                  <span
+                                                                      class="btn-obs-ejecucion-count"
+                                                                      :class="{ 'btn-obs-ejecucion-count--oculto': cantidadMaterialesReclamoHistorial(reclamoActivoEnParadaListaHistorial(parada)) < 1 }"
+                                                                  >{{ textoObservacionesEjecucionBadge(cantidadMaterialesReclamoHistorial(reclamoActivoEnParadaListaHistorial(parada))) || '0' }}</span>
+                                                              </button>
+                                                          </div>
                                                       </div>
                                                   </div>
                                                   <div v-if="lineaTiempoActividadReclamoHistorialEjecucion(reclamoActivoEnParadaListaHistorial(parada)).length"
@@ -877,8 +926,28 @@
                       <div class="crear-ruta-form__field">
                           <label for="colorRuta">Color de la ruta</label>
                           <div class="crear-ruta-color">
-                              <label class="crear-ruta-color__preview" for="colorRuta" title="Elegir color de la ruta">
-                                  <svg class="crear-ruta-color__trazo" viewBox="0 0 120 48" aria-hidden="true">
+                              <div class="crear-ruta-color__swatches">
+                                  <button
+                                      v-for="col in coloresDisponiblesRuta"
+                                      :key="'ruta-color-' + col"
+                                      type="button"
+                                      class="crear-ruta-color__swatch"
+                                      :class="{ 'is-selected': (nuevaRuta.color || '').toLowerCase() === col.toLowerCase() }"
+                                      :style="{ background: col }"
+                                      :title="col"
+                                      @click="nuevaRuta.color = col">
+                                  </button>
+                                  <label class="crear-ruta-color__custom" for="colorRuta" title="Color personalizado">
+                                      <i class="bi bi-eyedropper"></i>
+                                      <input type="color"
+                                             id="colorRuta"
+                                             class="crear-ruta-color__input"
+                                             v-model="nuevaRuta.color"
+                                             aria-label="Color personalizado de la ruta">
+                                  </label>
+                              </div>
+                              <div class="crear-ruta-color__preview" aria-hidden="true">
+                                  <svg class="crear-ruta-color__trazo" viewBox="0 0 120 48">
                                       <path class="crear-ruta-color__trazo-fondo"
                                             d="M10 36 L42 36 L42 14 L72 14 L72 30 L110 30"
                                             fill="none"
@@ -896,17 +965,12 @@
                                             stroke-linejoin="round"
                                             stroke-opacity="0.9" />
                                   </svg>
-                                  <input type="color"
-                                         id="colorRuta"
-                                         class="crear-ruta-color__input"
-                                         v-model="nuevaRuta.color"
-                                         aria-label="Color de la ruta">
-                              </label>
+                              </div>
                           </div>
                       </div>
 
                       <div class="crear-ruta-form__field">
-                          <label for="cantidadReclamos">Cantidad de reclamos</label>
+                          <label for="cantidadReclamos">Cantidad de domicilios</label>
                           <input type="number"
                                  id="cantidadReclamos"
                                  class="form-control crear-ruta-form__input-cantidad"
@@ -915,6 +979,7 @@
                                  :max="reclamosDisponibles"
                                  placeholder="Ej: 5"
                                  required>
+                          <small class="text-muted">Disponibles: {{ reclamosDisponibles }}</small>
                       </div>
                   </div>
 
@@ -936,15 +1001,15 @@
                                           :class="{
                                               'crear-ruta-cuadrilla-card--selected': String(cuadrillaSeleccionadaCrearRuta) === String(cuadrilla.id),
                                               'crear-ruta-cuadrilla-card--detalle-abierto': cuadrillaDetalleExpandida(cuadrilla.id),
-                                              'crear-ruta-cuadrilla-card--ocupada': cuadrillaTieneOtraHojaAsignada(cuadrilla.id)
+                                              'crear-ruta-cuadrilla-card--ocupada': !cuadrillaEsAsignable(cuadrilla)
                                           }"
                                       >
                                           <div class="crear-ruta-cuadrilla-card__surface">
                                               <button
                                                   type="button"
                                                   class="crear-ruta-cuadrilla-card__select"
-                                                  :disabled="cuadrillaTieneOtraHojaAsignada(cuadrilla.id)"
-                                                  :title="mensajeCuadrillaOcupada(cuadrilla.id) || 'Asignar hoja a esta cuadrilla'"
+                                                  :disabled="!cuadrillaEsAsignable(cuadrilla)"
+                                                  :title="mensajeCuadrillaNoAsignable(cuadrilla) || 'Asignar hoja a esta cuadrilla'"
                                                   @click="seleccionarCuadrillaCrearRuta(cuadrilla.id)"
                                               >
                                                   <div class="crear-ruta-cuadrilla-card__head">
@@ -961,6 +1026,12 @@
                                                   <div v-if="cuadrillaTieneOtraHojaAsignada(cuadrilla.id)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
                                                       <i class="bi bi-lock-fill"></i> Ocupada
                                                   </div>
+                                                  <div v-else-if="!cuadrillaTieneOperarios(cuadrilla)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
+                                                      <i class="bi bi-person-dash"></i> Sin operarios
+                                                  </div>
+                                                  <div v-else-if="!cuadrillaTieneGestion(cuadrilla)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
+                                                      <i class="bi bi-shield-exclamation"></i> Sin gestión
+                                                  </div>
 
                                                   <div v-if="cuadrilla.operarios && cuadrilla.operarios.length" class="crear-ruta-cuadrilla-card__team">
                                                       <div class="crear-ruta-cuadrilla-card__avatars">
@@ -971,14 +1042,14 @@
                                                                   :class="{ 'crc-avatar--jefe': Number(op.es_jefe) === 1 }"
                                                                   :src="urlFotoOperario(op.foto_perfil)"
                                                                   :alt="op.nombre"
-                                                                  :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Jefe)' : '')"
+                                                                  :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Gestión)' : '')"
                                                               >
                                                               <span
                                                                   v-else
                                                                   class="crc-avatar"
                                                                   :class="{ 'crc-avatar--jefe': Number(op.es_jefe) === 1 }"
                                                                   :style="{ backgroundColor: colorAvatarOperario(op.nombre) }"
-                                                                  :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Jefe)' : '')"
+                                                                  :title="op.nombre + (Number(op.es_jefe) === 1 ? ' (Gestión)' : '')"
                                                               >
                                                                   {{ inicialesOperario(op.nombre) }}
                                                               </span>
@@ -1059,7 +1130,7 @@
                                                           {{ inicialesOperario(op.nombre) }}
                                                       </span>
                                                       <span class="crear-ruta-cuadrilla-card__member-name">{{ op.nombre }}</span>
-                                                      <span v-if="Number(op.es_jefe) === 1" class="crear-ruta-cuadrilla-card__member-role">Jefe</span>
+                                                      <span v-if="Number(op.es_jefe) === 1" class="crear-ruta-cuadrilla-card__member-role">Gestión</span>
                                                   </div>
                                               </div>
                                               <p v-else class="crear-ruta-cuadrilla-card__empty-team">
@@ -1269,6 +1340,8 @@
                   <div class="rutas-modal__header-actions">
                       <button type="button"
                               class="rutas-btn rutas-btn--sm rutas-btn--danger"
+                              :disabled="!puedeEliminarHojaRuta(rutaVisualizando)"
+                              :title="puedeEliminarHojaRuta(rutaVisualizando) ? 'Eliminar hoja de ruta' : motivoNoPuedeEliminarHojaRuta(rutaVisualizando)"
                               @click="eliminarRutaDesdeVisualizacion(rutaVisualizando.id)">
                           <i class="bi bi-trash"></i> Eliminar hoja
                       </button>
@@ -1409,9 +1482,10 @@
                           class="asignar-ruta-cuadrilla-item"
                           :class="{
                               'asignar-ruta-cuadrilla-item--selected': String(cuadrillaSeleccionadaParaAsignar) === String(cuadrilla.id),
-                              'asignar-ruta-cuadrilla-item--ocupada': cuadrillaTieneOtraHojaAsignada(cuadrilla.id, rutaParaAsignar.id)
+                              'asignar-ruta-cuadrilla-item--ocupada': !cuadrillaEsAsignable(cuadrilla, rutaParaAsignar.id)
                           }"
-                          :disabled="cuadrillaTieneOtraHojaAsignada(cuadrilla.id, rutaParaAsignar.id)"
+                          :disabled="!cuadrillaEsAsignable(cuadrilla, rutaParaAsignar.id)"
+                          :title="mensajeCuadrillaNoAsignable(cuadrilla, rutaParaAsignar.id) || ''"
                           @click="seleccionarCuadrillaParaAsignar(cuadrilla.id)"
                       >
                           <span class="asignar-ruta-cuadrilla-item__check" aria-hidden="true">
@@ -1423,12 +1497,19 @@
                                     class="asignar-ruta-cuadrilla-item__ocupada">
                                   Ocupada
                               </span>
+                              <span v-else-if="!cuadrillaTieneOperarios(cuadrilla)"
+                                    class="asignar-ruta-cuadrilla-item__ocupada">
+                                  Sin operarios
+                              </span>
+                              <span v-else-if="!cuadrillaTieneGestion(cuadrilla)"
+                                    class="asignar-ruta-cuadrilla-item__ocupada">
+                                  Sin gestión
+                              </span>
                               <span v-else-if="cuadrilla.operarios && cuadrilla.operarios.length"
                                     class="asignar-ruta-cuadrilla-item__operarios">
                                   {{ cuadrilla.operarios.length }}
                                   {{ cuadrilla.operarios.length === 1 ? 'operario' : 'operarios' }}
                               </span>
-                              <span v-else class="asignar-ruta-cuadrilla-item__operarios">Sin operarios</span>
                           </span>
                           <span v-if="cuadrilla.operarios && cuadrilla.operarios.length"
                                 class="asignar-ruta-cuadrilla-item__avatars">
@@ -1621,11 +1702,14 @@
                           <button
                               type="button"
                               class="rutas-admin-action rutas-admin-action--danger"
+                              :disabled="!puedeEliminarHojaRuta(rutaSeleccionadaAdmin)"
+                              :title="puedeEliminarHojaRuta(rutaSeleccionadaAdmin) ? '' : motivoNoPuedeEliminarHojaRuta(rutaSeleccionadaAdmin)"
                               @click="eliminarRutaDesdeAdmin(rutaSeleccionadaAdmin.id)">
                               <span class="rutas-admin-action__icon"><i class="bi bi-trash-fill"></i></span>
                               <span class="rutas-admin-action__text">
                                   <strong>Eliminar hoja de ruta</strong>
-                                  <small>Esta acción no se puede deshacer</small>
+                                  <small v-if="puedeEliminarHojaRuta(rutaSeleccionadaAdmin)">Los reclamos Asignados volverán a Recibido</small>
+                                  <small v-else>{{ motivoNoPuedeEliminarHojaRuta(rutaSeleccionadaAdmin) }}</small>
                               </span>
                               <i class="bi bi-chevron-right rutas-admin-action__chevron"></i>
                           </button>
@@ -1669,27 +1753,74 @@
                   <div v-else-if="!historialMaterialesSupervisor.length" class="rutas-modal-empty">
                       No hay materiales registrados para este reclamo.
                   </div>
-                  <div v-else class="rutas-modal-table-wrap">
-                      <table class="table table-sm align-middle mb-0 rutas-modal-table">
-                          <thead>
-                              <tr>
-                                  <th>Material</th>
-                                  <th>Cantidad</th>
-                                  <th>Fecha</th>
-                                  <th>Usuario</th>
-                                  <th>Observación</th>
-                              </tr>
-                          </thead>
-                          <tbody>
-                              <tr v-for="item in historialMaterialesSupervisor" :key="item.id">
-                                  <td>{{ item.material_nombre || '—' }}</td>
-                                  <td>{{ item.cantidad != null ? item.cantidad : '—' }}</td>
-                                  <td>{{ formatearFecha(item.fecha) }}</td>
-                                  <td>{{ item.usuario_nombre || '—' }}</td>
-                                  <td>{{ item.observacion || '—' }}</td>
-                              </tr>
-                          </tbody>
-                      </table>
+                  <div v-else class="mat-sup-historial">
+                      <div class="mat-sup-historial__head">
+                          <span>{{ historialEjecucionMapa?.ejecucion?.id ? 'Registrados en esta ejecución' : 'Registrados en este reclamo' }}</span>
+                      </div>
+                      <div class="mat-sup-historial__list bitacora-obra-feed">
+                          <article
+                              v-for="item in historialMaterialesSupervisor"
+                              :key="item.id"
+                              class="bitacora-obra-msg mat-hist-msg"
+                          >
+                              <div class="bitacora-obra-msg__layout">
+                                  <div class="bitacora-obra-msg__avatar-col" aria-hidden="true">
+                                      <img
+                                          v-if="item.usuario_foto_perfil"
+                                          class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--img"
+                                          :src="urlFotoOperario(item.usuario_foto_perfil)"
+                                          :alt="item.usuario_nombre || 'Usuario'"
+                                          loading="lazy"
+                                      >
+                                      <span
+                                          v-else
+                                          class="bitacora-obra-msg__avatar bitacora-obra-msg__avatar--iniciales"
+                                          :style="{ backgroundColor: colorAvatarOperario(item.usuario_nombre) }"
+                                      >{{ inicialesOperario(item.usuario_nombre) }}</span>
+                                  </div>
+                                  <div class="bitacora-obra-msg__stack">
+                                      <div class="bitacora-obra-msg__encabezado">
+                                          <span class="bitacora-obra-msg__usuario">{{ item.usuario_nombre || '—' }}</span>
+                                          <span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>
+                                          <span class="bitacora-obra-msg__tipo">
+                                              <i class="bi bi-box-seam" aria-hidden="true"></i> Material
+                                          </span>
+                                          <template v-if="item.ruta_nombre">
+                                              <span class="bitacora-obra-msg__sep" aria-hidden="true">·</span>
+                                              <span class="bitacora-obra-msg__ruta" :style="{ color: item.ruta_color || '#6c757d' }">
+                                                  <svg class="bitacora-obra-msg__ruta-ico cronometro-badge-ico cronometro-badge-ico-ruta" viewBox="0 0 20 12" aria-hidden="true" focusable="false"><path d="M1 9.5 H6 V2.5 H14 V9.5 H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                  <span>{{ item.ruta_nombre }}</span>
+                                              </span>
+                                          </template>
+                                      </div>
+                                      <div class="bitacora-obra-msg__bubble">
+                                          <div class="bitacora-obra-msg__contenido">
+                                              <div class="mat-hist-msg__main mat-hist-msg__main--static">
+                                                  <span class="mat-hist-msg__foto">
+                                                      <img
+                                                          v-if="item.material_foto"
+                                                          :src="urlFotoMaterialCatalogo(item.material_foto)"
+                                                          :alt="item.material_nombre || 'Material'"
+                                                          loading="lazy"
+                                                      >
+                                                      <i v-else class="bi bi-box-seam"></i>
+                                                  </span>
+                                                  <div class="mat-hist-msg__body">
+                                                      <strong>{{ item.material_nombre || 'Material' }}</strong>
+                                                      <small>
+                                                          <span v-if="item.cantidad">x{{ item.cantidad }}</span>
+                                                          <span v-else>Sin cantidad</span>
+                                                      </small>
+                                                  </div>
+                                              </div>
+                                              <p v-if="item.observacion" class="mb-0 mt-2 text-break small">{{ item.observacion }}</p>
+                                          </div>
+                                          <time class="bitacora-obra-msg__hora">{{ formatearFecha(item.fecha) }}</time>
+                                      </div>
+                                  </div>
+                              </div>
+                          </article>
+                      </div>
                   </div>
               </div>
               <div class="rutas-modal__footer rutas-modal__footer--end">
@@ -1701,8 +1832,8 @@
 
   <!-- Modal registro en obra (supervisor, solo lectura) -->
   <div class="modal fade" id="modalObservacionesSupervisor" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
-          <div class="modal-content rutas-modal">
+      <div class="modal-dialog modal-lg modal-dialog-centered bitacora-obra-modal-dialog">
+          <div class="modal-content rutas-modal bitacora-obra-modal">
               <div class="rutas-modal__header">
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-journal-text"></i></span>
@@ -1712,7 +1843,8 @@
                       <i class="bi bi-x-lg"></i>
                   </button>
               </div>
-              <div class="modal-body rutas-modal__body--scroll">
+              <div class="modal-body bitacora-obra-modal__body">
+                  <div class="bitacora-obra-modal__feed" id="bitacoraObraFeedSupervisor">
                   <div v-if="cargandoObservacionesSupervisor" class="rutas-modal-loading">
                       <div class="spinner-border spinner-border-sm" role="status"></div>
                       <span class="ms-2">Cargando…</span>
@@ -1720,7 +1852,7 @@
                   <div v-else-if="!historialBitacoraSupervisorOrdenado.length" class="rutas-modal-empty">
                       Aún no hay registros para este reclamo.
                   </div>
-                  <ul v-else class="list-group list-group-flush bitacora-obra-feed">
+                  <ul v-else class="list-group list-group-flush bitacora-obra-feed mb-0">
                       <li v-for="o in historialBitacoraSupervisorOrdenado" :key="o.id" class="list-group-item px-0 py-2" :class="esEntradaCambioEstadoBitacoraObra(o) ? 'bitacora-obra-evento-estado' : 'bitacora-obra-msg'">
                           <template v-if="esEntradaCambioEstadoBitacoraObra(o)">
                               <div class="bitacora-obra-evento">
@@ -1809,6 +1941,7 @@
                           </template>
                       </li>
                   </ul>
+                  </div>
               </div>
               <div class="rutas-modal__footer rutas-modal__footer--end">
                   <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>

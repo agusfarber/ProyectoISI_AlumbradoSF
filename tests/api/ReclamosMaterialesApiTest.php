@@ -48,7 +48,6 @@ class ReclamosMaterialesApiTest extends CIUnitTestCase
         $materialData = [
             'nombre' => 'Lámpara LED 50W',
             'idTipo' => 1, // Lámpara LED (del seeder)
-            'cantidad' => 100
         ];
 
         $db->table('material')->insert($materialData);
@@ -317,7 +316,6 @@ class ReclamosMaterialesApiTest extends CIUnitTestCase
         $materialData = [
             'nombre' => 'Lámpara LED 100W',
             'idTipo' => 1, // Lámpara LED (del seeder)
-            'cantidad' => 50
         ];
 
         $db->table('material')->insert($materialData);
@@ -500,7 +498,6 @@ class ReclamosMaterialesApiTest extends CIUnitTestCase
         $datosMaterialNuevo = [
             'nombre' => 'Lámpara LED 75W Nueva',
             'idTipo' => 1, // Lámpara LED (del seeder)
-            'cantidad' => 0 // Cuando se crea desde la interfaz, cantidad inicial es 0
         ];
 
         $resultCrearMaterial = $this->withBodyFormat('json')
@@ -521,7 +518,6 @@ class ReclamosMaterialesApiTest extends CIUnitTestCase
         // Validación 4: Los datos del material creado coinciden
         $this->assertEquals($datosMaterialNuevo['nombre'], $responseCrearMaterial['nombre'], 'El nombre debe coincidir');
         $this->assertEquals($datosMaterialNuevo['idTipo'], $responseCrearMaterial['idTipo'], 'El idTipo debe coincidir');
-        $this->assertEquals($datosMaterialNuevo['cantidad'], $responseCrearMaterial['cantidad'], 'La cantidad debe coincidir');
 
         // Validación 5: Verificar que el material existe en la BD
         $materialEnBD = $db->table('material')
@@ -651,22 +647,18 @@ class ReclamosMaterialesApiTest extends CIUnitTestCase
             [
                 'nombre' => 'Lámpara LED 50W',
                 'idTipo' => 1, // Lámpara LED
-                'cantidad' => 100
             ],
             [
                 'nombre' => 'Cable Eléctrico 2x1.5mm',
                 'idTipo' => 3, // Cable Eléctrico
-                'cantidad' => 200
             ],
             [
                 'nombre' => 'Poste de Concreto 8m',
                 'idTipo' => 4, // Poste
-                'cantidad' => 25
             ],
             [
                 'nombre' => 'Lámpara de Sodio 150W',
                 'idTipo' => 2, // Lámpara de Sodio
-                'cantidad' => 50
             ]
         ];
 
