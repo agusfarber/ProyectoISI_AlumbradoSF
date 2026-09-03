@@ -1,0 +1,1517 @@
+{
+  "manual_url": "static/docs/Manual_de_Usuario.pdf",
+  "cierres": [
+    "¿Quedó más claro? Podés elegir otra consulta cuando quieras.",
+    "Con esto ya tenés el panorama. ¿Otra duda?",
+    "Quedó explicado. Podés volver a los temas o buscar otra pregunta.",
+    "Si te sirvió, el foquito ya está encendido. 💡 ¿Seguimos con otra?",
+    "Eso cubre esta parte. Elegí otro tema si lo necesitás.",
+    "Listo. ✅ Cuando quieras, volvé a los temas o cerrá el asistente.",
+    "Ahí está la idea. Podés buscar otra pregunta arriba.",
+    "Si ya te quedó claro el camino, seguí trabajando; Lúmen queda acá por si hace falta.",
+    "Una consulta menos. Si surge otra, escribí o elegí un tema."
+  ],
+  "temas": {
+    "1": [
+      {
+        "id": "ingreso",
+        "nombre": "Ingreso y perfil",
+        "icono": "bi-person-badge"
+      },
+      {
+        "id": "rol",
+        "nombre": "Qué puedo hacer",
+        "icono": "bi-compass"
+      },
+      {
+        "id": "usuarios",
+        "nombre": "Usuarios",
+        "icono": "bi-people"
+      },
+      {
+        "id": "frecuentes",
+        "nombre": "Dudas frecuentes",
+        "icono": "bi-question-circle"
+      }
+    ],
+    "2": [
+      {
+        "id": "ingreso",
+        "nombre": "Ingreso y perfil",
+        "icono": "bi-person-badge"
+      },
+      {
+        "id": "rol",
+        "nombre": "Qué puedo hacer",
+        "icono": "bi-compass"
+      },
+      {
+        "id": "cuadrillas",
+        "nombre": "Cuadrillas",
+        "icono": "bi-people"
+      },
+      {
+        "id": "reclamos",
+        "nombre": "Reclamos",
+        "icono": "bi-clipboard"
+      },
+      {
+        "id": "materiales",
+        "nombre": "Materiales",
+        "icono": "bi-box-seam"
+      },
+      {
+        "id": "mapa",
+        "nombre": "Mapa",
+        "icono": "bi-map"
+      },
+      {
+        "id": "rutas",
+        "nombre": "Rutas",
+        "icono": "bi-signpost-split"
+      },
+      {
+        "id": "cierre",
+        "nombre": "Cierre",
+        "icono": "bi-check2-square"
+      },
+      {
+        "id": "analisis",
+        "nombre": "Análisis",
+        "icono": "bi-bar-chart"
+      },
+      {
+        "id": "notas",
+        "nombre": "Notas",
+        "icono": "bi-sticky"
+      },
+      {
+        "id": "frecuentes",
+        "nombre": "Dudas frecuentes",
+        "icono": "bi-question-circle"
+      }
+    ],
+    "3": [
+      {
+        "id": "ingreso",
+        "nombre": "Ingreso y perfil",
+        "icono": "bi-person-badge"
+      },
+      {
+        "id": "tareas",
+        "nombre": "Hojas de ruta / Tareas",
+        "icono": "bi-list-check"
+      },
+      {
+        "id": "gestion",
+        "nombre": "Permiso de Gestión",
+        "icono": "bi-shield-check"
+      },
+      {
+        "id": "ejecucion",
+        "nombre": "Ejecución en campo",
+        "icono": "bi-play-circle"
+      },
+      {
+        "id": "obra",
+        "nombre": "Materiales y bitácora",
+        "icono": "bi-journal-text"
+      },
+      {
+        "id": "estados",
+        "nombre": "Estados",
+        "icono": "bi-flag"
+      },
+      {
+        "id": "frecuentes",
+        "nombre": "Dudas frecuentes",
+        "icono": "bi-question-circle"
+      }
+    ]
+  },
+  "preguntas": [
+    {
+      "id": "a-login",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿Con qué dato inicio sesión?",
+      "respuesta": "Con su correo electrónico y su contraseña. Supervisores y operarios, en cambio, ingresan con legajo.",
+      "keywords": "email correo usuario administrador login ingresar contraseña",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-pantalla",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿A qué pantalla llego al entrar?",
+      "respuesta": "A Usuarios, que es su pantalla principal. 👥",
+      "keywords": "inicio home pantalla inicial usuarios entrar",
+      "recurso_url": "static/uploads/lumen/a-pantalla-usuarios.png",
+      "recurso_alt": "Cabecera Usuarios del rol Administrador"
+    },
+    {
+      "id": "a-salir",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿Cómo cierro la sesión?",
+      "respuesta": "Abra el menú de su cuenta y elija Cerrar sesión. 👋",
+      "keywords": "logout salir cerrar sesion cuenta",
+      "recurso_url": "static/uploads/lumen/a-cerrar-sesion.mov",
+      "recurso_alt": "Menú de cuenta del administrador, con la opción Cerrar sesión"
+    },
+    {
+      "id": "a-foto-propia",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿Dónde cambio mi foto de perfil?",
+      "respuesta": "En Mi Perfil, desde el menú de su cuenta. La foto es opcional. 📷",
+      "keywords": "foto perfil imagen avatar cambiar",
+      "recurso_url": "static/uploads/lumen/a-foto-propia.png",
+      "recurso_alt": "Botón de cámara en Mi Perfil para cambiar la foto"
+    },
+    {
+      "id": "a-datos-perfil",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿Qué datos veo en Mi Perfil?",
+      "respuesta": "Su nombre, su tipo de usuario y su email. También puede cambiar la foto de perfil.",
+      "keywords": "perfil datos nombre email rol foto",
+      "recurso_url": "static/uploads/lumen/a-datos-perfil.png",
+      "recurso_alt": "Pantalla Mi Perfil del administrador, con nombre, email, rol y botón para cambiar la foto"
+    },
+    {
+      "id": "a-lumen",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "¿Qué es Lúmen?",
+      "respuesta": "Soy yo 💡, el asistente de la plataforma. Elija un tema o busque una pregunta y le explico cómo usar esa parte, según su rol. No hago cambios en el sistema.",
+      "keywords": "lumen chatbot asistente foquito ayuda",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-password",
+      "rol": "1",
+      "tema": "ingreso",
+      "pregunta": "Olvidé mi contraseña. ¿Qué hago?",
+      "respuesta": "Desde la plataforma no hay un recuperador automático. Debe gestionarla quien administra las cuentas.",
+      "keywords": "olvide contraseña password recuperar clave no puedo entrar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-hace",
+      "rol": "1",
+      "tema": "rol",
+      "pregunta": "¿Qué hace un administrador en esta plataforma?",
+      "respuesta": "Administra las cuentas de acceso: quién entra y con qué rol. No gestiona reclamos, hojas de ruta, materiales de obra ni cierres. Esa operación diaria corresponde al Supervisor.",
+      "keywords": "rol administrador que puedo hacer cuentas usuarios",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-menu",
+      "rol": "1",
+      "tema": "rol",
+      "pregunta": "¿Por qué no veo Cuadrillas, Reclamos o Rutas?",
+      "respuesta": "Porque esas pantallas no forman parte de su rol. Cada usuario ve solo lo que le corresponde. Es esperado.",
+      "keywords": "no veo menu cuadrillas reclamos rutas pantallas faltan",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-pantallas",
+      "rol": "1",
+      "tema": "rol",
+      "pregunta": "¿Qué pantallas tengo?",
+      "respuesta": "Usuarios y Mi Perfil.",
+      "keywords": "pantallas menu secciones disponibles",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-crear",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Cómo creo un usuario nuevo?",
+      "respuesta": "En Usuarios, pulse Nuevo usuario. Complete nombre, rol, email (si es administrador) o legajo (si es supervisor u operario) y contraseña. Luego pulse Guardar.",
+      "keywords": "crear alta nuevo usuario registrar dar de alta",
+      "recurso_url": "static/uploads/lumen/a-crear-usuario.mov",
+      "recurso_alt": "Crear un usuario nuevo desde la pantalla Usuarios"
+    },
+    {
+      "id": "a-pass-minima",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Qué requisitos tiene la contraseña?",
+      "respuesta": "Debe tener al menos 4 caracteres.",
+      "keywords": "contraseña requisitos minimo caracteres clave",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-crear-admin",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Puedo crear otro administrador?",
+      "respuesta": "Sí. Al crear el usuario elija el rol Administrador y complete el email. Ese será su dato de ingreso.",
+      "keywords": "crear administrador otro admin email",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-entregar",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Qué le entrego a la persona nueva?",
+      "respuesta": "Su dato de acceso (email si es administrador, o legajo si es supervisor u operario) y la contraseña inicial.",
+      "keywords": "entregar usuario nuevo credenciales legajo email contraseña",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-credencial",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Qué dato de acceso lleva cada rol?",
+      "respuesta": "Administrador: email. Supervisor y operario: legajo.",
+      "keywords": "legajo email correo acceso credencial rol",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-editar",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Cómo edito un usuario?",
+      "respuesta": "Ubíquelo en el listado, abra la edición, cambie lo necesario y guarde. Si no desea cambiar la contraseña, déjela en blanco.",
+      "keywords": "editar modificar usuario contraseña legajo",
+      "recurso_url": "static/uploads/lumen/a-editar-usuario.mov",
+      "recurso_alt": "Editar un usuario desde el listado de Usuarios"
+    },
+    {
+      "id": "a-cambiar-rol",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Puedo cambiar el rol de alguien ya creado?",
+      "respuesta": "Sí, desde la edición del usuario. Recuerde que el administrador ingresa con email y el supervisor u operario con legajo.",
+      "keywords": "cambiar rol editar administrador supervisor operario",
+      "recurso_url": "static/uploads/lumen/a-cambiar-rol.mov",
+      "recurso_alt": "Cambiar el rol de un usuario ya creado"
+    },
+    {
+      "id": "a-cambiar-pass",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Cómo le cambio la contraseña a un usuario?",
+      "respuesta": "Ábralo en edición, escriba la nueva contraseña y guarde. Si deja el campo en blanco, la contraseña no se modifica.",
+      "keywords": "cambiar contraseña clave usuario editar",
+      "recurso_url": "static/uploads/lumen/a-cambiar-pass.mov",
+      "recurso_alt": "Cambiar la contraseña de un usuario"
+    },
+    {
+      "id": "a-eliminar",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Cómo elimino un usuario?",
+      "respuesta": "Desde el listado, con la acción de eliminar. Hágalo con cuidado: esa persona dejará de poder ingresar.",
+      "keywords": "eliminar borrar usuario quitar cuenta",
+      "recurso_url": "static/uploads/lumen/a-eliminar-usuario.mov",
+      "recurso_alt": "Eliminar un usuario desde el listado"
+    },
+    {
+      "id": "a-filtrar",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Puedo filtrar el listado?",
+      "respuesta": "Sí. Puede filtrar por tipo de usuario (por ejemplo, ver solo operarios).",
+      "keywords": "filtrar listado rol operarios supervisores",
+      "recurso_url": "static/uploads/lumen/a-filtrar-usuarios.mov",
+      "recurso_alt": "Filtrar el listado de usuarios por tipo"
+    },
+    {
+      "id": "a-buscar",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Puedo buscar un usuario por nombre?",
+      "respuesta": "Sí. Use el buscador del listado para encontrarlo más rápido.",
+      "keywords": "buscar usuario nombre listado search",
+      "recurso_url": "static/uploads/lumen/a-buscar-usuario.mov",
+      "recurso_alt": "Buscar un usuario por nombre en el listado"
+    },
+    {
+      "id": "a-foto-otro",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿Cómo le cargo o cambio la foto a un usuario?",
+      "respuesta": "Use el botón de cambiar foto del usuario, elija la imagen y confirme con Guardar foto.",
+      "keywords": "foto perfil otro usuario cambiar imagen",
+      "recurso_url": "static/uploads/lumen/a-foto-otro.png",
+      "recurso_alt": "Botón de cámara en Acciones del listado de Usuarios"
+    },
+    {
+      "id": "a-foto-opcional",
+      "rol": "1",
+      "tema": "usuarios",
+      "pregunta": "¿La foto de perfil es obligatoria?",
+      "respuesta": "No. Es opcional. Sirve para identificarse mejor en listados.",
+      "keywords": "foto obligatoria opcional perfil",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-otra-pantalla",
+      "rol": "1",
+      "tema": "frecuentes",
+      "pregunta": "¿Por qué no veo una pantalla que otra persona sí ve?",
+      "respuesta": "Su rol solo cubre Usuarios y Perfil. El Supervisor y el Operario tienen otras pantallas según su trabajo.",
+      "keywords": "no veo pantalla menu distinto rol permisos",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-lumen-acciones",
+      "rol": "1",
+      "tema": "frecuentes",
+      "pregunta": "¿Lúmen puede crear o borrar usuarios por mí?",
+      "respuesta": "No. Solo explica cómo usar la plataforma. Crear, editar o eliminar cuentas se hace en Usuarios.",
+      "keywords": "lumen no hace acciones crear borrar usuarios",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "a-ayuda",
+      "rol": "1",
+      "tema": "frecuentes",
+      "pregunta": "¿Dónde pido ayuda si no está mi pregunta?",
+      "respuesta": "Si su consulta no está en Lúmen, puede buscarla en el Manual de usuario de la plataforma. 📖",
+      "keywords": "ayuda no esta pregunta soporte manual documento",
+      "recurso_url": "",
+      "recurso_alt": "",
+      "enlace_texto": "Abrir el Manual de usuario"
+    },
+    {
+      "id": "s-login",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "¿Con qué dato inicio sesión?",
+      "respuesta": "Con su número de legajo y su contraseña.",
+      "keywords": "legajo login ingresar usuario contraseña",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-pantalla",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "¿A qué pantalla llego al entrar?",
+      "respuesta": "A Cuadrillas. 👷",
+      "keywords": "inicio home pantalla inicial cuadrillas",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-salir",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "¿Cómo cierro la sesión?",
+      "respuesta": "Desde el menú de su cuenta, Cerrar sesión. 👋",
+      "keywords": "logout salir cerrar sesion",
+      "recurso_url": "static/uploads/lumen/s-cerrar-sesion.mov",
+      "recurso_alt": "Menú de cuenta del supervisor, con la opción Cerrar sesión"
+    },
+    {
+      "id": "s-perfil",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "¿Dónde está Mi Perfil?",
+      "respuesta": "En el menú de su cuenta. Allí ve su nombre, rol, legajo y puede cambiar la foto.",
+      "keywords": "perfil foto cuenta menu",
+      "recurso_url": "static/uploads/lumen/s-mi-perfil.mov",
+      "recurso_alt": "Acceso a Mi Perfil desde el menú de cuenta del supervisor"
+    },
+    {
+      "id": "s-password",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "Olvidé mi contraseña. ¿Qué hago?",
+      "respuesta": "Desde la plataforma no hay un recuperador automático. Pídale al administrador de cuentas que se la actualice.",
+      "keywords": "olvide contraseña password recuperar clave admin",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-lumen",
+      "rol": "2",
+      "tema": "ingreso",
+      "pregunta": "¿Qué es Lúmen?",
+      "respuesta": "Soy yo 💡, el asistente de la plataforma. Elija un tema o busque una pregunta y le explico cómo usar esa parte, según su rol. No hago cambios en el sistema.",
+      "keywords": "lumen chatbot asistente foquito ayuda",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-rol",
+      "rol": "2",
+      "tema": "rol",
+      "pregunta": "¿Cuál es mi rol?",
+      "respuesta": "Organizar el trabajo diario: cuadrillas, reclamos, hojas de ruta, consulta de lo registrado en campo, cierre formal, análisis, notas y mapa.",
+      "keywords": "rol supervisor que puedo hacer",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-menu",
+      "rol": "2",
+      "tema": "rol",
+      "pregunta": "¿Qué opciones tiene el menú?",
+      "respuesta": "Cuadrillas, Reclamos, Cierre, Materiales, Mapa, Rutas, Análisis y Notas, además de Perfil y Cerrar sesión.",
+      "keywords": "menu lateral opciones pantallas",
+      "recurso_url": "static/uploads/lumen/s-menu.jpg",
+      "recurso_alt": "Menú lateral del supervisor con todas las opciones"
+    },
+    {
+      "id": "s-operario-pantallas",
+      "rol": "2",
+      "tema": "rol",
+      "pregunta": "¿El operario ve las mismas pantallas que yo?",
+      "respuesta": "No. El operario trabaja en Tareas (sus hojas de ruta).",
+      "keywords": "operario pantallas distintas tareas",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-jornada",
+      "rol": "2",
+      "tema": "rol",
+      "pregunta": "¿Por dónde conviene empezar el día?",
+      "respuesta": "Revisar Cuadrillas (quién tiene Gestión), traer o cargar reclamos, armar hojas en Rutas y, cuando haya completados, pasar por Cierre. Análisis y Notas son de apoyo.",
+      "keywords": "jornada empezar dia orden trabajo cuadrillas rutas cierre",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-cuadrillas",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Para qué sirve Cuadrillas?",
+      "respuesta": "Para armar y mantener los equipos de trabajo: crear, buscar, editar, agregar o quitar operarios y marcar quién tiene Gestión.",
+      "keywords": "cuadrillas equipos operarios crear",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-crear-cuadrilla",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Cómo creo una cuadrilla?",
+      "respuesta": "En Cuadrillas, cree una nueva, asigne un nombre, agregue operarios y marque quién tiene Gestión. Luego guarde.",
+      "keywords": "crear cuadrilla nueva equipo alta",
+      "recurso_url": "static/uploads/lumen/s-crear-cuadrilla.mov",
+      "recurso_alt": "Crear una cuadrilla nueva desde la pantalla Cuadrillas"
+    },
+    {
+      "id": "s-buscar-cuadrilla",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Puedo buscar una cuadrilla?",
+      "respuesta": "Sí. Use el buscador de la pantalla Cuadrillas para encontrarla.",
+      "keywords": "buscar cuadrilla listado search",
+      "recurso_url": "static/uploads/lumen/s-buscar-cuadrilla.mov",
+      "recurso_alt": "Buscar una cuadrilla desde el listado"
+    },
+    {
+      "id": "s-editar-cuadrilla",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Cómo edito una cuadrilla?",
+      "respuesta": "Ábrala y cambie el nombre u otros datos, agregue o quite operarios y actualice quién tiene Gestión. Guarde los cambios.",
+      "keywords": "editar cuadrilla nombre integrantes gestion",
+      "recurso_url": "static/uploads/lumen/s-editar-cuadrilla.mov",
+      "recurso_alt": "Editar una cuadrilla desde el listado"
+    },
+    {
+      "id": "s-agregar-quitar",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Cómo agrego o quito operarios?",
+      "respuesta": "Desde la cuadrilla: agregue integrantes al equipo o quítelos si ya no corresponden. Después revise quién queda con Gestión.",
+      "keywords": "agregar quitar operarios integrantes equipo",
+      "recurso_url": "static/uploads/lumen/s-agregar-quitar-operarios.mov",
+      "recurso_alt": "Agregar o quitar operarios de una cuadrilla"
+    },
+    {
+      "id": "s-gestion",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Qué es el permiso de Gestión?",
+      "respuesta": "Una marca que usted asigna a uno o más operarios de la cuadrilla. Quien tiene Gestión puede, en Tareas, iniciar y finalizar la hoja, y controlar cada reclamo (iniciar, pausar, continuar, completar, materiales y bitácora).",
+      "keywords": "gestion permiso jefe operario iniciar ejecucion",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-sin-gestion",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Qué pasa si un operario no tiene Gestión?",
+      "respuesta": "Puede consultar la hoja y ver información, pero no controla la ejecución (no verá botones como Iniciar ejecución).",
+      "keywords": "sin gestion no puede iniciar botones",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-varios-gestion",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Puede haber más de un operario con Gestión?",
+      "respuesta": "Sí. Puede marcar Gestión a uno o más operarios de la misma cuadrilla.",
+      "keywords": "varios gestion mas de uno permiso",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-antes-hoja",
+      "rol": "2",
+      "tema": "cuadrillas",
+      "pregunta": "¿Qué reviso en la cuadrilla antes de armar una hoja?",
+      "respuesta": "Que tenga los operarios correctos y al menos una persona con Gestión.",
+      "keywords": "antes hoja ruta cuadrilla gestion integrantes",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-estados-filtro",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué estados puedo filtrar?",
+      "respuesta": "Recibido, Asignado, Pendiente, En ejecución y Completado. También puede filtrar por prioridad (Baja o Alta) y por fechas.",
+      "keywords": "filtro estado recibido asignado pendiente completado prioridad",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-detalle-reclamo",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Cómo veo el detalle de un reclamo?",
+      "respuesta": "Ábralo desde el listado. Verá motivo, dirección, descripción, estado, prioridad y fechas, entre otros datos.",
+      "keywords": "detalle reclamo ficha motivo direccion",
+      "recurso_url": "static/uploads/lumen/s-detalle-reclamo.mov",
+      "recurso_alt": "Ver el detalle de un reclamo desde el listado"
+    },
+    {
+      "id": "s-prioridad",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué es la prioridad?",
+      "respuesta": "El nivel de urgencia del reclamo: Baja o Alta. Puede filtrar por ella en Reclamos y en el Mapa.",
+      "keywords": "prioridad baja alta urgencia filtro",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-nuevo-reclamo",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Cómo creo un reclamo que no viene del 103?",
+      "respuesta": "En Reclamos, Nuevo reclamo, complete la ficha y guarde.",
+      "keywords": "crear reclamo local nuevo alta formulario",
+      "recurso_url": "static/uploads/lumen/s-nuevo-reclamo.mov",
+      "recurso_alt": "Crear un reclamo local que no viene del 103"
+    },
+    {
+      "id": "s-editar-ficha",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Cómo edito la ficha de un reclamo?",
+      "respuesta": "Use Editar ficha para corregir datos como domicilio o descripción. El estado del trabajo en calle no se cambia desde acá.",
+      "keywords": "editar ficha reclamo domicilio descripcion",
+      "recurso_url": "static/uploads/lumen/s-editar-ficha.mov",
+      "recurso_alt": "Editar la ficha de un reclamo"
+    },
+    {
+      "id": "s-sync",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué es sincronizar?",
+      "respuesta": "Traer reclamos desde el Sistema 103 hacia esta plataforma. Opciones habituales: Pendientes, Por fechas y Por número.",
+      "keywords": "sincronizar 103 traer importar pendientes fechas numero",
+      "recurso_url": "static/uploads/lumen/s-sync.png",
+      "recurso_alt": "Botón Sincronizar en la pantalla Reclamos con sus opciones"
+    },
+    {
+      "id": "s-sync-opciones",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué opciones tiene Sincronizar?",
+      "respuesta": "Pendientes (los que aún no se trajeron), Por fechas (un rango) y Por número (un reclamo puntual).",
+      "keywords": "sincronizar pendientes fechas numero 103 opciones",
+      "recurso_url": "static/uploads/lumen/s-sync-opciones.png",
+      "recurso_alt": "Menú Sincronizar con Pendientes, Por fechas y Por número"
+    },
+    {
+      "id": "s-token",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué es el token?",
+      "respuesta": "Una clave de acceso necesaria para conectar con el Sistema 103. Se configura desde Reclamos, en Token / Configurar token.",
+      "keywords": "token clave 103 autenticacion configurar api",
+      "recurso_url": "static/uploads/lumen/s-token.png",
+      "recurso_alt": "Indicador Token listo en la pantalla Reclamos"
+    },
+    {
+      "id": "s-sync-falla",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "La sincronización falla. ¿Qué reviso?",
+      "respuesta": "Que el token esté cargado y vigente. Reintente con la opción adecuada. Si sigue fallando, solicite un token actualizado.",
+      "keywords": "sincronizacion falla error no sincroniza token 103",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-estado-reclamos",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Puedo cambiar el estado de un reclamo desde acá?",
+      "respuesta": "El trabajo en campo (iniciar, pausar, completar) lo hace el operario en Tareas. El cierre formal se hace en la pantalla Cierre. Desde Reclamos puede editar la ficha (por ejemplo domicilio o descripción).",
+      "keywords": "cambiar estado editar ficha reclamo cierre",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-eliminar-reclamo",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Puedo eliminar un reclamo?",
+      "respuesta": "Sí, cuando no deba seguir visible en el sistema local. Úselo solo cuando corresponda.",
+      "keywords": "eliminar reclamo borrar excluir",
+      "recurso_url": "static/uploads/lumen/s-eliminar-reclamo.mov",
+      "recurso_alt": "Eliminar un reclamo desde el listado"
+    },
+    {
+      "id": "s-recibido",
+      "rol": "2",
+      "tema": "reclamos",
+      "pregunta": "¿Qué significa Recibido?",
+      "respuesta": "El reclamo está en la plataforma y todavía no fue asignado a una hoja de ruta.",
+      "keywords": "recibido estado sin asignar hoja",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-mat-catalogo",
+      "rol": "2",
+      "tema": "materiales",
+      "pregunta": "¿Esta pantalla es el stock de cada reclamo?",
+      "respuesta": "No. Acá se administra el catálogo (tipos de materiales disponibles). Lo que se usó en un reclamo lo registra el operario en Tareas y usted lo consulta en el detalle de la hoja, en Rutas.",
+      "keywords": "materiales catalogo stock obra consumo",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-categorias",
+      "rol": "2",
+      "tema": "materiales",
+      "pregunta": "¿Qué puedo hacer con las categorías?",
+      "respuesta": "Crear, editar (nombre, ícono, color) o eliminar las que ya no se usan.",
+      "keywords": "categorias tipos materiales icono color",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-agregar-material",
+      "rol": "2",
+      "tema": "materiales",
+      "pregunta": "¿Cómo agrego un material al catálogo?",
+      "respuesta": "En Materiales, cree uno nuevo, asígnelo a una categoría y guarde. También puede editarlo, eliminarlo o asociarle una foto.",
+      "keywords": "agregar material catalogo nuevo alta foto",
+      "recurso_url": "static/uploads/lumen/s-agregar-material.mov",
+      "recurso_alt": "Agregar un material al catálogo"
+    },
+    {
+      "id": "s-importar",
+      "rol": "2",
+      "tema": "materiales",
+      "pregunta": "¿Puedo importar materiales?",
+      "respuesta": "Sí, desde un archivo. Verifique que la categoría indicada en el archivo ya exista en el sistema.",
+      "keywords": "importar excel csv archivo materiales",
+      "recurso_url": "static/uploads/lumen/s-importar.png",
+      "recurso_alt": "Botón Importar en la pantalla Materiales"
+    },
+    {
+      "id": "s-ver-consumo",
+      "rol": "2",
+      "tema": "materiales",
+      "pregunta": "¿Dónde veo los materiales usados en un reclamo?",
+      "respuesta": "En el detalle de la hoja, en Rutas: Materiales utilizados. Es solo consulta; el operario los carga en Tareas.",
+      "keywords": "materiales usados consumo reclamo rutas consulta",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-mapa",
+      "rol": "2",
+      "tema": "mapa",
+      "pregunta": "¿Para qué sirve el Mapa?",
+      "respuesta": "Para ver los reclamos ubicados en el territorio, filtrar por prioridad y estado, abrir el detalle de un punto, exportar y, si hace falta, corregir la ubicación. 🗺️",
+      "keywords": "mapa calor reclamos territorio exportar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-mapa-filtros",
+      "rol": "2",
+      "tema": "mapa",
+      "pregunta": "¿Puedo filtrar por estado y prioridad a la vez?",
+      "respuesta": "Sí. Los filtros se combinan y el mapa se actualiza en el momento.",
+      "keywords": "filtro mapa estado prioridad combinable",
+      "recurso_url": "static/uploads/lumen/s-mapa-filtros.mov",
+      "recurso_alt": "Filtrar el mapa por estado y prioridad a la vez"
+    },
+    {
+      "id": "s-mapa-detalle",
+      "rol": "2",
+      "tema": "mapa",
+      "pregunta": "¿Cómo veo el detalle de un reclamo en el mapa?",
+      "respuesta": "Haga clic en el punto. Se abre una ventana con la información; puede cerrarla sin perder la vista.",
+      "keywords": "clic punto mapa detalle popup reclamo",
+      "recurso_url": "static/uploads/lumen/s-mapa-detalle.mov",
+      "recurso_alt": "Ver el detalle de un reclamo haciendo clic en el mapa"
+    },
+    {
+      "id": "s-corregir-mapa",
+      "rol": "2",
+      "tema": "mapa",
+      "pregunta": "¿Puedo corregir la ubicación de un reclamo?",
+      "respuesta": "Sí, desde el Mapa, si las coordenadas no coinciden con la realidad.",
+      "keywords": "corregir ubicacion coordenadas mapa reclamo",
+      "recurso_url": "static/uploads/lumen/s-corregir-mapa.mov",
+      "recurso_alt": "Corregir la ubicación de un reclamo en el mapa"
+    },
+    {
+      "id": "s-exportar-mapa",
+      "rol": "2",
+      "tema": "mapa",
+      "pregunta": "¿Puedo exportar desde el Mapa?",
+      "respuesta": "Sí. En esa pantalla puede exportar información, además de filtrar y abrir el detalle de cada punto.",
+      "keywords": "exportar mapa imagen informacion",
+      "recurso_url": "static/uploads/lumen/s-exportar-mapa.mov",
+      "recurso_alt": "Exportar información desde la pantalla Mapa"
+    },
+    {
+      "id": "s-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Qué es una hoja de ruta?",
+      "respuesta": "Una lista ordenada de domicilios (paradas) con uno o más reclamos para que atienda una cuadrilla.",
+      "keywords": "hoja ruta parada recorrido cuadrilla",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-hojas-activas",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Qué son las hojas activas?",
+      "respuesta": "Las hojas vigentes, las que todavía se gestionan. Las ya finalizadas se consultan en Historial de rutas.",
+      "keywords": "hojas activas vigentes historial",
+      "recurso_url": "static/uploads/lumen/s-hojas-activas.png",
+      "recurso_alt": "Pestaña Hojas activas en la pantalla Rutas"
+    },
+    {
+      "id": "s-quien-ejecuta",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Quién ejecuta la hoja en campo?",
+      "respuesta": "El operario con Gestión, en Tareas. Usted organiza, asigna y consulta; no inicia ni completa reclamos desde Rutas.",
+      "keywords": "quien ejecuta operario campo tareas supervisor",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-crear-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Cómo creo una hoja?",
+      "respuesta": "En Rutas, Nueva hoja de ruta. El sistema propone un recorrido. Revíselo en mapa o lista, elija la cuadrilla, edite si hace falta y confirme.",
+      "keywords": "crear hoja ruta nueva generar automatica",
+      "recurso_url": "static/uploads/lumen/s-crear-hoja.mov",
+      "recurso_alt": "Crear una hoja de ruta desde la pantalla Rutas"
+    },
+    {
+      "id": "s-editar-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Puedo cambiar el orden o quitar reclamos antes de asignar?",
+      "respuesta": "Sí. Puede ajustar el recorrido (quitar, reordenar o revisar reclamos) y luego confirmar.",
+      "keywords": "editar orden quitar reclamos hoja antes asignar",
+      "recurso_url": "static/uploads/lumen/s-editar-hoja.mov",
+      "recurso_alt": "Cambiar el orden o quitar reclamos de una hoja antes de asignar"
+    },
+    {
+      "id": "s-asignar-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Cómo asigno la hoja a una cuadrilla?",
+      "respuesta": "Al crear o desde el detalle: Asignar / Cambiar cuadrilla. El operario la verá en Tareas.",
+      "keywords": "asignar cuadrilla hoja cambiar equipo",
+      "recurso_url": "static/uploads/lumen/s-asignar-hoja.mov",
+      "recurso_alt": "Asignar una hoja de ruta a una cuadrilla"
+    },
+    {
+      "id": "s-cambiar-cuadrilla-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Puedo cambiar la cuadrilla de una hoja ya creada?",
+      "respuesta": "Sí. Desde el detalle use Asignar / Cambiar cuadrilla.",
+      "keywords": "cambiar cuadrilla hoja asignar detalle",
+      "recurso_url": "static/uploads/lumen/s-cambiar-cuadrilla-hoja.mov",
+      "recurso_alt": "Cambiar la cuadrilla de una hoja ya creada"
+    },
+    {
+      "id": "s-detalle-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Qué veo en el detalle de una hoja activa?",
+      "respuesta": "Mapa o lista, cuadrilla, estado, tiempos, y consulta (solo lectura) de Materiales utilizados y Registro en obra.",
+      "keywords": "detalle hoja activa materiales bitacora cronometro",
+      "recurso_url": "static/uploads/lumen/s-detalle-hoja.mov",
+      "recurso_alt": "Detalle de una hoja activa en Rutas"
+    },
+    {
+      "id": "s-visualizar",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Qué es Visualizar rutas?",
+      "respuesta": "Una vista para ver todas las hojas juntas en el mapa, con listado y seguimiento.",
+      "keywords": "visualizar rutas todas mapa seguimiento tiempo real",
+      "recurso_url": "static/uploads/lumen/s-visualizar.png",
+      "recurso_alt": "Botón Visualizar rutas en la pantalla Rutas"
+    },
+    {
+      "id": "s-historial",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Qué hay en Historial de rutas?",
+      "respuesta": "Ejecuciones ya finalizadas: eventos, mapa, tiempos, materiales y observaciones.",
+      "keywords": "historial rutas ejecuciones finalizadas",
+      "recurso_url": "static/uploads/lumen/s-historial.png",
+      "recurso_alt": "Pestaña Historial de rutas con ejecuciones finalizadas"
+    },
+    {
+      "id": "s-mapas-historial",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Puedo cambiar el mapa en el historial?",
+      "respuesta": "Sí. En el modo mapa del historial puede alternar entre Google Maps y Mapbox.",
+      "keywords": "historial google maps mapbox cambiar mapa",
+      "recurso_url": "static/uploads/lumen/s-mapas-historial.mov",
+      "recurso_alt": "Cambiar entre Google Maps y Mapbox en el historial de rutas"
+    },
+    {
+      "id": "s-eliminar-hoja",
+      "rol": "2",
+      "tema": "rutas",
+      "pregunta": "¿Puedo eliminar una hoja?",
+      "respuesta": "Sí, cuando la situación lo permita, desde el detalle. Si hay trabajo en curso, el sistema puede impedirlo.",
+      "keywords": "eliminar hoja ruta borrar en curso",
+      "recurso_url": "static/uploads/lumen/s-eliminar-hoja.mov",
+      "recurso_alt": "Eliminar una hoja de ruta desde el detalle"
+    },
+    {
+      "id": "s-completar-cerrar",
+      "rol": "2",
+      "tema": "cierre",
+      "pregunta": "¿Completar y cerrar son lo mismo?",
+      "respuesta": "No. Completar lo hace el operario en campo (el trabajo físico terminó). Cerrar lo hace usted en Cierre: el reclamo queda cerrado formalmente y ese cierre se envía al Sistema 103. ✅",
+      "keywords": "completar cerrar diferencia 103 formal",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-cierre-103",
+      "rol": "2",
+      "tema": "cierre",
+      "pregunta": "¿El cierre se envía al Sistema 103?",
+      "respuesta": "Sí. Al cerrar formalmente, ese cierre se registra y se envía al Sistema 103.",
+      "keywords": "cierre 103 enviar formal sistema",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-cerrar",
+      "rol": "2",
+      "tema": "cierre",
+      "pregunta": "¿Cómo cierro reclamos?",
+      "respuesta": "En Cierre, pestaña Completados, seleccione uno o varios y pulse Cerrar seleccionados. Confirme.",
+      "keywords": "cerrar reclamos completados seleccionados",
+      "recurso_url": "static/uploads/lumen/s-cerrar.png",
+      "recurso_alt": "Botón Cerrar seleccionados en la pestaña Completados"
+    },
+    {
+      "id": "s-cerrados",
+      "rol": "2",
+      "tema": "cierre",
+      "pregunta": "¿Dónde veo los ya cerrados?",
+      "respuesta": "En la pestaña Cerrados, con su historial y detalle.",
+      "keywords": "cerrados historial pestaña",
+      "recurso_url": "static/uploads/lumen/s-cerrados.png",
+      "recurso_alt": "Pestaña Cerrados en la pantalla Cierre"
+    },
+    {
+      "id": "s-analisis",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Para qué sirve Análisis?",
+      "respuesta": "Para ver cómo viene el trabajo con números y gráficos (totales por estado, tiempos, materiales, etc.). 📊",
+      "keywords": "analisis kpi graficos indicadores",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-kpis",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Qué indicadores veo arriba?",
+      "respuesta": "Totales del período, por ejemplo Recibidos, Asignados, Pendientes, En ejecución, Completados y Cerrados.",
+      "keywords": "kpi indicadores totales recibidos cerrados",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-periodo",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Cómo elijo el período?",
+      "respuesta": "Con las opciones de período (hoy, últimos 7 días, mes o año actual, o un rango de fechas). Los gráficos se actualizan según esa elección.",
+      "keywords": "periodo fechas filtros graficos semana mes año",
+      "recurso_url": "static/uploads/lumen/s-periodo.mov",
+      "recurso_alt": "Elegir el período en Análisis"
+    },
+    {
+      "id": "s-info-grafico",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Cómo sé qué muestra cada gráfico?",
+      "respuesta": "Use el símbolo de información (ⓘ) junto a ese gráfico. Ahí aparece la explicación puntual.",
+      "keywords": "i info grafico que muestra explicacion",
+      "recurso_url": "static/uploads/lumen/s-info-grafico.png",
+      "recurso_alt": "Símbolo de información en un gráfico de Análisis con su explicación"
+    },
+    {
+      "id": "s-tipos-graficos",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Qué tipo de gráficos hay?",
+      "respuesta": "Según el caso: distribución por estado o motivo, ingresos frente a cierres, tiempos, materiales y otras vistas de seguimiento. La i de cada gráfico aclara el contenido.",
+      "keywords": "graficos estado motivo tiempos materiales calor",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-exportar-grafico",
+      "rol": "2",
+      "tema": "analisis",
+      "pregunta": "¿Puedo guardar un gráfico?",
+      "respuesta": "Sí. En el detalle del gráfico, Exportar como Imagen.",
+      "keywords": "exportar imagen grafico png guardar",
+      "recurso_url": "static/uploads/lumen/s-exportar-grafico.png",
+      "recurso_alt": "Botón Exportar como Imagen en el detalle de un gráfico"
+    },
+    {
+      "id": "s-notas-privadas",
+      "rol": "2",
+      "tema": "notas",
+      "pregunta": "¿Las notas las ven otros supervisores?",
+      "respuesta": "No. Son personales: cada supervisor ve solo las suyas.",
+      "keywords": "notas privadas personales otros",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-notas-hacer",
+      "rol": "2",
+      "tema": "notas",
+      "pregunta": "¿Qué puedo hacer con una nota?",
+      "respuesta": "Crearla, fijarla, marcarla como hecha, filtrar activas/hechas, editarla o eliminarla.",
+      "keywords": "nota crear fijar hecha editar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-crear-nota",
+      "rol": "2",
+      "tema": "notas",
+      "pregunta": "¿Cómo creo una nota?",
+      "respuesta": "En Notas, cree una con título y contenido. Luego puede fijarla, marcarla como hecha, editarla o eliminarla. 📝",
+      "keywords": "crear nota titulo contenido fijar",
+      "recurso_url": "static/uploads/lumen/s-crear-nota.mov",
+      "recurso_alt": "Crear una nota desde la pantalla Notas"
+    },
+    {
+      "id": "s-notas-reclamo",
+      "rol": "2",
+      "tema": "notas",
+      "pregunta": "¿Las notas están ligadas a un reclamo?",
+      "respuesta": "No. Son apuntes personales, independientes del trabajo de reclamos y rutas.",
+      "keywords": "notas reclamo independientes personales recordatorio",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-otra-pantalla",
+      "rol": "2",
+      "tema": "frecuentes",
+      "pregunta": "¿Por qué no veo una pantalla que otra persona sí ve?",
+      "respuesta": "Cada rol tiene un menú distinto. El operario no ve su menú completo; el administrador no opera reclamos ni rutas.",
+      "keywords": "no veo pantalla menu rol distinto",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "s-ayuda",
+      "rol": "2",
+      "tema": "frecuentes",
+      "pregunta": "¿Dónde pido ayuda si no está mi pregunta?",
+      "respuesta": "Si su consulta no está en Lúmen, puede buscarla en el Manual de usuario de la plataforma. 📖",
+      "keywords": "ayuda pregunta no esta soporte manual documento",
+      "recurso_url": "",
+      "recurso_alt": "",
+      "enlace_texto": "Abrir el Manual de usuario"
+    },
+    {
+      "id": "o-login",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿Con qué dato inicio sesión?",
+      "respuesta": "Con su número de legajo y su contraseña.",
+      "keywords": "legajo login ingresar contraseña",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-pantalla",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿A qué pantalla llego al entrar?",
+      "respuesta": "A Tareas, con las hojas de ruta de su cuadrilla.",
+      "keywords": "inicio home tareas hojas",
+      "recurso_url": "static/uploads/lumen/o-pantalla-tareas.png",
+      "recurso_alt": "Cabecera Tareas del rol Operador"
+    },
+    {
+      "id": "o-no-menu",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿Por qué no veo Reclamos, Rutas o Análisis?",
+      "respuesta": "Esas pantallas son del Supervisor. Usted trabaja en Tareas. Es esperado.",
+      "keywords": "no veo reclamos rutas analisis menu",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-foto",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿Dónde cambio mi foto?",
+      "respuesta": "En Mi Perfil, desde el menú de su cuenta. 📷",
+      "keywords": "foto perfil cambiar imagen",
+      "recurso_url": "static/uploads/lumen/o-foto.png",
+      "recurso_alt": "Botón de cámara en Mi Perfil del operario"
+    },
+    {
+      "id": "o-salir",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿Cómo cierro la sesión?",
+      "respuesta": "Abra el menú de su cuenta y elija Cerrar sesión. 👋",
+      "keywords": "logout salir cerrar sesion cuenta",
+      "recurso_url": "static/uploads/lumen/o-cerrar-sesion.mov",
+      "recurso_alt": "Menú de cuenta del operario, con la opción Cerrar sesión"
+    },
+    {
+      "id": "o-password",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "Olvidé mi contraseña. ¿Qué hago?",
+      "respuesta": "Desde la plataforma no hay un recuperador automático. Debe gestionarla quien administra las cuentas.",
+      "keywords": "olvide contraseña password recuperar clave",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-lumen",
+      "rol": "3",
+      "tema": "ingreso",
+      "pregunta": "¿Qué es Lúmen?",
+      "respuesta": "Soy yo 💡, el asistente de la plataforma. Elija un tema o busque una pregunta y le explico cómo usar esa parte, según su rol. No hago cambios en el sistema.",
+      "keywords": "lumen chatbot asistente foquito ayuda",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-tareas",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿Qué veo en Tareas?",
+      "respuesta": "Las hojas asignadas a su cuadrilla. Elija una, ábrala y trabaje en lista o mapa. ☑️",
+      "keywords": "tareas hojas asignadas panel trabajo",
+      "recurso_url": "static/uploads/lumen/o-tareas.jpg",
+      "recurso_alt": "Pantalla Tareas del operario con hojas de ruta asignadas"
+    },
+    {
+      "id": "o-sin-hoja",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿Qué hago si no aparece ninguna hoja?",
+      "respuesta": "Las hojas las asigna el Supervisor en Rutas. Si no ve ninguna, avísele para que revise la asignación a su cuadrilla.",
+      "keywords": "no hay hoja tareas vacio asignar supervisor",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-lista-mapa",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿Cuál es la diferencia entre lista y mapa?",
+      "respuesta": "Es la misma hoja. Lista muestra las paradas en orden. Mapa muestra la ubicación. Las acciones principales están en las dos, según su permiso.",
+      "keywords": "lista mapa vista paradas ubicacion",
+      "recurso_url": "static/uploads/lumen/o-lista-mapa.mov",
+      "recurso_alt": "Diferencia entre la vista lista y la vista mapa en Tareas"
+    },
+    {
+      "id": "o-orden",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿La lista y el mapa tienen las mismas acciones?",
+      "respuesta": "Sí. Es la misma hoja: cambia la forma de verla. Las acciones principales están en las dos, según su permiso de Gestión.",
+      "keywords": "lista mapa mismas acciones gestion",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-parada",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿Qué es una parada?",
+      "respuesta": "Un domicilio del recorrido. En un mismo domicilio puede haber más de un reclamo.",
+      "keywords": "parada domicilio varios reclamos",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-no-iniciar",
+      "rol": "3",
+      "tema": "tareas",
+      "pregunta": "¿Por qué no veo Iniciar ejecución?",
+      "respuesta": "Probablemente no tiene permiso de Gestión. Pídale al Supervisor que lo revise en Cuadrillas.",
+      "keywords": "no veo iniciar ejecucion boton gestion permiso",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-gestion",
+      "rol": "3",
+      "tema": "gestion",
+      "pregunta": "¿Qué es Gestión?",
+      "respuesta": "Un permiso que el Supervisor marca en la cuadrilla. Con Gestión usted controla la hoja y cada reclamo. Sin Gestión puede consultar, pero no aparecen los botones de control. 🛡️",
+      "keywords": "gestion permiso jefe controlar hoja",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-sin-gestion",
+      "rol": "3",
+      "tema": "gestion",
+      "pregunta": "Si no tengo Gestión, ¿puedo trabajar igual?",
+      "respuesta": "Puede ver la hoja y los registros. No puede iniciar la hoja ni cambiar el estado de los reclamos. Quien tiene Gestión en el equipo es quien opera.",
+      "keywords": "sin gestion consultar no botones",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-avisar",
+      "rol": "3",
+      "tema": "gestion",
+      "pregunta": "¿A quién aviso si no tengo Gestión?",
+      "respuesta": "Al Supervisor, para que lo revise en Cuadrillas.",
+      "keywords": "avisar supervisor gestion permiso cuadrillas",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-empezar-jornada",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Cómo empiezo la jornada?",
+      "respuesta": "Abra la hoja, pulse Iniciar ejecución y confirme. Recién ahí puede atender los reclamos del recorrido. ▶️",
+      "keywords": "iniciar ejecucion jornada empezar hoja",
+      "recurso_url": "static/uploads/lumen/o-empezar-jornada.mov",
+      "recurso_alt": "Iniciar la jornada desde una hoja de ruta en Tareas"
+    },
+    {
+      "id": "o-orden-jornada",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Cuál es el orden típico de una jornada?",
+      "respuesta": "Abrir la hoja, iniciar ejecución y, en cada domicilio: iniciar el reclamo, trabajar, registrar materiales o notas si hace falta, y completar o pausar. Al terminar, finalizar la ejecución.",
+      "keywords": "jornada orden pasos iniciar completar finalizar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-iniciar-reclamo",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Cómo empiezo un reclamo?",
+      "respuesta": "Con Iniciar reclamo. Pasa a En ejecución y comienza a contar el tiempo.",
+      "keywords": "iniciar reclamo play comenzar trabajo",
+      "recurso_url": "static/uploads/lumen/o-iniciar-reclamo.mov",
+      "recurso_alt": "Iniciar un reclamo desde la hoja en ejecución"
+    },
+    {
+      "id": "o-continuar",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Qué es Continuar ejecución?",
+      "respuesta": "Retomar un reclamo que había quedado en Pendiente, con el tiempo ya acumulado.",
+      "keywords": "continuar retomar pendiente pausado",
+      "recurso_url": "static/uploads/lumen/o-continuar.mov",
+      "recurso_alt": "Continuar la ejecución de un reclamo pendiente"
+    },
+    {
+      "id": "o-completar",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Qué hace Completar?",
+      "respuesta": "Indica que el trabajo en ese reclamo terminó. Queda en Completado. El Supervisor, más adelante, hará el cierre formal. ✅",
+      "keywords": "completar listo terminado check verde",
+      "recurso_url": "static/uploads/lumen/o-completar.mov",
+      "recurso_alt": "Completar un reclamo desde la hoja en ejecución"
+    },
+    {
+      "id": "o-pausar",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Qué hace Pausar?",
+      "respuesta": "Deja el reclamo en Pendiente para continuar otro día.",
+      "keywords": "pausar pendiente otro dia frenar",
+      "recurso_url": "static/uploads/lumen/o-pausar.mov",
+      "recurso_alt": "Usar Pausar en un reclamo en ejecución"
+    },
+    {
+      "id": "o-anadir",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Cómo agrego un reclamo que apareció en el recorrido?",
+      "respuesta": "Con Añadir Reclamos, elija los reclamos que desee añadir a la ruta y confirme.",
+      "keywords": "añadir agregar reclamos recibido hoja",
+      "recurso_url": "static/uploads/lumen/o-anadir-reclamo.mov",
+      "recurso_alt": "Añadir un reclamo que apareció en el recorrido"
+    },
+    {
+      "id": "o-finalizar",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Cómo finalizo la hoja?",
+      "respuesta": "Deje cada reclamo como Completado o Pendiente (nada a medias) y pulse Finalizar ejecución.",
+      "keywords": "finalizar hoja terminar ejecucion stop",
+      "recurso_url": "static/uploads/lumen/o-finalizar.mov",
+      "recurso_alt": "Finalizar la ejecución de una hoja de ruta"
+    },
+    {
+      "id": "o-no-finaliza",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "No me deja finalizar. ¿Por qué?",
+      "respuesta": "Todavía hay algún reclamo con trabajo en curso. Márquelo como Completado o Pendiente y vuelva a intentar.",
+      "keywords": "no me deja finalizar terminar hoja en curso a medias",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-asignados-fin",
+      "rol": "3",
+      "tema": "ejecucion",
+      "pregunta": "¿Qué pasa con los reclamos que seguían Asignados al finalizar?",
+      "respuesta": "Vuelven a Recibido para que puedan asignarse en otra hoja, según el funcionamiento de la plataforma.",
+      "keywords": "asignados recibidos al finalizar hoja",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-materiales",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿Cómo registro materiales?",
+      "respuesta": "En el reclamo, botón de Materiales, elija lo utilizado y guarde. El catálogo lo carga el Supervisor.",
+      "keywords": "materiales registrar usados caja",
+      "recurso_url": "static/uploads/lumen/o-materiales.png",
+      "recurso_alt": "Botón de Materiales (caja) en la tarjeta del reclamo"
+    },
+    {
+      "id": "o-mat-obligatorio",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿Es obligatorio cargar materiales para completar?",
+      "respuesta": "El sistema puede recordárselo. Puede registrarlos en ese momento o continuar sin registrarlos, según la situación.",
+      "keywords": "materiales obligatorio completar recordatorio",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-bitacora",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿Qué es Registro en obra?",
+      "respuesta": "La bitácora: notas y/o fotos de lo ocurrido en el lugar. El Supervisor puede leerlo desde Rutas.",
+      "keywords": "bitacora registro obra notas observaciones",
+      "recurso_url": "static/uploads/lumen/o-bitacora.png",
+      "recurso_alt": "Botón de Registro en obra en la tarjeta del reclamo"
+    },
+    {
+      "id": "o-fotos",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿Cómo subo fotos?",
+      "respuesta": "En Registro en obra, adjunte las imágenes y guarde. Deben ser un tipo de archivo válido.",
+      "keywords": "fotos imagenes bitacora subir evidencia",
+      "recurso_url": "static/uploads/lumen/o-fotos.png",
+      "recurso_alt": "Botón Foto en Registro en obra para adjuntar imágenes"
+    },
+    {
+      "id": "o-supervisor-ve",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿El Supervisor ve mis notas y fotos?",
+      "respuesta": "Sí. Puede leer el Registro en obra y los materiales desde el detalle de la hoja, en Rutas.",
+      "keywords": "supervisor ve bitacora fotos materiales rutas",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-quien-catalogo",
+      "rol": "3",
+      "tema": "obra",
+      "pregunta": "¿Quién carga el catálogo de materiales?",
+      "respuesta": "El Supervisor, en la pantalla Materiales. Usted solo registra lo usado en cada reclamo.",
+      "keywords": "catalogo materiales supervisor quien carga",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-asignado",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa Asignado?",
+      "respuesta": "El reclamo ya está en su hoja, pero todavía no empezó ese trabajo. Color celeste.",
+      "keywords": "asignado celeste estado",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-recibido",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa Recibido?",
+      "respuesta": "El reclamo todavía no está en una hoja. Si necesita sumarlo al recorrido, use Añadir Reclamos (con Gestión) eligiendo reclamos en Recibido.",
+      "keywords": "recibido estado añadir reclamos hoja",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-en-ejecucion",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa En ejecución?",
+      "respuesta": "Lo está trabajando ahora. Color amarillo.",
+      "keywords": "en ejecucion amarillo trabajando ahora",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-pendiente",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa Pendiente?",
+      "respuesta": "Quedó pausado para otro día. Color rojo.",
+      "keywords": "pendiente rojo pausado",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-completado",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa Completado?",
+      "respuesta": "El trabajo en el lugar terminó. Color verde. Aún falta el cierre del Supervisor.",
+      "keywords": "completado verde terminado",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-quien-cierra",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Quién cierra el reclamo?",
+      "respuesta": "Usted lo completa. El Supervisor lo cierra en la pantalla Cierre.",
+      "keywords": "quien cierra completar supervisor",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-cerrado",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué significa Cerrado?",
+      "respuesta": "El Supervisor ya dio el cierre formal. Usted no cierra: usted completa el trabajo en el lugar.",
+      "keywords": "cerrado cierre formal supervisor completar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-prioridad",
+      "rol": "3",
+      "tema": "estados",
+      "pregunta": "¿Qué es la prioridad?",
+      "respuesta": "El nivel de urgencia del reclamo: Baja o Alta. Lo define la ficha del reclamo.",
+      "keywords": "prioridad baja alta urgencia reclamo",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-otra-pantalla",
+      "rol": "3",
+      "tema": "frecuentes",
+      "pregunta": "¿Por qué no veo una pantalla que otra persona sí ve?",
+      "respuesta": "Usted no administra cuadrillas, cierre ni análisis. Esas pantallas son del Supervisor.",
+      "keywords": "no veo pantalla menu rol",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-lumen-acciones",
+      "rol": "3",
+      "tema": "frecuentes",
+      "pregunta": "¿Lúmen puede iniciar o completar un reclamo por mí?",
+      "respuesta": "No. Solo explica cómo usar Tareas. Las acciones las hace usted en la hoja, si tiene Gestión.",
+      "keywords": "lumen no hace acciones iniciar completar",
+      "recurso_url": "",
+      "recurso_alt": ""
+    },
+    {
+      "id": "o-ayuda",
+      "rol": "3",
+      "tema": "frecuentes",
+      "pregunta": "¿Dónde pido ayuda si no está mi pregunta?",
+      "respuesta": "Si su consulta no está en Lúmen, puede buscarla en el Manual de usuario de la plataforma. 📖",
+      "keywords": "ayuda pregunta no esta supervisor soporte manual documento",
+      "recurso_url": "",
+      "recurso_alt": "",
+      "enlace_texto": "Abrir el Manual de usuario"
+    }
+  ]
+}

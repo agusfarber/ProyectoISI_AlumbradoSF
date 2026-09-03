@@ -26,13 +26,13 @@
     <div class="rutas-toolbar">
         <div class="rutas-toolbar__left">
             <ul v-if="puedeVerHistorialEjecuciones" class="nav rutas-tabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button type="button" class="nav-link" :class="{ active: solapaRutas === 'activas' }" @click="solapaRutas = 'activas'">Hojas activas</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button type="button" class="nav-link" :class="{ active: solapaRutas === 'historial' }" @click="solapaRutas = 'historial'">Historial de rutas</button>
-                </li>
-            </ul>
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: solapaRutas === 'activas' }" @click="solapaRutas = 'activas'">Hojas activas</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link" :class="{ active: solapaRutas === 'historial' }" @click="solapaRutas = 'historial'">Historial de rutas</button>
+        </li>
+    </ul>
         </div>
         <div class="rutas-toolbar__right" v-show="solapaRutas === 'activas'">
             <button class="rutas-btn" @click="abrirModalCrearRuta">
@@ -40,9 +40,9 @@
             </button>
             <button class="rutas-btn rutas-btn--success" @click="abrirModalVisualizarRutas">
                 <i class="bi bi-map"></i> Visualizar rutas
-            </button>
-        </div>
-    </div>
+           </button>
+      </div>
+   </div>
 
    <div v-show="solapaRutas === 'activas'" class="rutas-tab-panel">
 
@@ -115,14 +115,14 @@
                                   :style="{ backgroundColor: colorAvatarOperario(op.nombre) }"
                               >{{ inicialesOperario(op.nombre) }}</span>
                           </template>
-                      </div>
+                  </div>
                   </div>
                   <div class="supervisor-ruta-card__estado-inline">
-                      <span class="badge" :class="claseBadgeEstadoEjecucionRuta(ruta)">
-                          {{ textoEstadoEjecucionRuta(ruta) }}
-                      </span>
-                      <span
-                          v-if="esEstadoEjecucionRuta(ruta)"
+                          <span class="badge" :class="claseBadgeEstadoEjecucionRuta(ruta)">
+                              {{ textoEstadoEjecucionRuta(ruta) }}
+                          </span>
+                          <span
+                              v-if="esEstadoEjecucionRuta(ruta)"
                           :class="claseCronometroEjecucionRutaSupervisor(ruta)"
                       ><svg class="cronometro-badge-ico cronometro-badge-ico-ruta" viewBox="0 0 20 12" aria-hidden="true" focusable="false"><path d="M1 9.5 H6 V2.5 H14 V9.5 H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="cronometro-badge-txt">{{ tiempoTranscurridoEjecucionSupervisor(ruta) }}</span></span>
                   </div>
@@ -164,14 +164,14 @@
                                   <span class="ruta-detalle-pill w-100">
                                       <i class="bi bi-clipboard-data"></i>
                                       <strong>{{ rutaVisualizando.cantidadReclamos || 0 }}</strong> domicilios
-                                  </span>
-                              </div>
+                      </span>
+                  </div>
                               <div class="ruta-detalle-meta-fila">
                                   <span class="ruta-detalle-pill w-100">
                                       <i class="bi bi-clock-fill"></i>
                                       Estimado: <strong>{{ rutaVisualizando.tiempoEstimado || '—' }}</strong>
-                                  </span>
-                              </div>
+                      </span>
+                  </div>
                               <div class="ruta-detalle-meta-fila">
                                   <button v-if="rutaVisualizando.cuadrilla_id"
                                           type="button"
@@ -202,13 +202,13 @@
                                   </span>
                               </div>
                               <div class="supervisor-ruta-detalle-panel-izq__acciones d-flex flex-column gap-2">
-                                  <button
+                  <button
                                       v-if="puedeAsignarOCambiarCuadrillaRuta(rutaVisualizando)"
-                                      type="button"
+                      type="button"
                                       class="rutas-btn rutas-btn--sm rutas-btn--outline w-100"
                                       @click="abrirModalAsignarRuta(rutaVisualizando.id)"
-                                  >
-                                      <i class="bi bi-people-fill"></i>
+                  >
+                      <i class="bi bi-people-fill"></i>
                                       {{ rutaVisualizando.asignada == 1 ? 'Cambiar cuadrilla' : 'Asignar cuadrilla' }}
                                   </button>
                                   <button
@@ -219,8 +219,8 @@
                                       @click="eliminarRutaDesdeVisualizacion(rutaVisualizando.id)"
                                   >
                                       <i class="bi bi-trash"></i> Eliminar hoja
-                                  </button>
-                              </div>
+                  </button>
+  </div>
 
                               <div v-if="mostrarDetalleCuadrillaSupervisor && cuadrillaAsignadaDetalleSupervisor"
                                    class="crear-ruta-cuadrilla-overlay supervisor-cuadrilla-overlay">
@@ -240,7 +240,7 @@
                                               @click="cerrarDetalleCuadrillaSupervisor"
                                           >
                                               <i class="bi bi-x-lg"></i>
-                                          </button>
+              </button>
                                       </div>
                                       <div class="crear-ruta-cuadrilla-overlay__body">
                                           <p v-if="cuadrillaAsignadaDetalleSupervisor.descripcion" class="crear-ruta-cuadrilla-card__desc">{{ cuadrillaAsignadaDetalleSupervisor.descripcion }}</p>
@@ -257,7 +257,7 @@
                                                       :src="urlFotoOperario(op.foto_perfil)"
                                                       :alt="op.nombre"
                                                   >
-                                                  <span
+                  <span
                                                       v-else
                                                       class="crc-avatar crc-avatar--row"
                                                       :style="{ backgroundColor: colorAvatarOperario(op.nombre) }"
@@ -266,7 +266,7 @@
                                                   </span>
                                                   <span class="crear-ruta-cuadrilla-card__member-name">{{ op.nombre }}</span>
                                                   <span v-if="Number(op.es_jefe) === 1" class="crear-ruta-cuadrilla-card__member-role">Gestión</span>
-                                              </div>
+          </div>
                                           </div>
                                           <p v-else class="crear-ruta-cuadrilla-card__empty-team">
                                               <i class="bi bi-person-dash"></i> Sin operarios asignados
@@ -355,14 +355,14 @@
                                                                   <i class="bi bi-geo-alt ruta-secuencia-calle-ico" aria-hidden="true"></i>
                                                                   {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_domicilio }}
                                                                   {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_numeroDomicilio }}
-                                                              </span>
-                                                              <span
+              </span>
+              <span
                                                                   v-if="reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion"
                                                                   class="ruta-secuencia-descripcion"
                                                                   :title="reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion"
                                                               >
                                                                   {{ reclamoActivoEnParadaListaVisualizacion(parada).municipalidad_descripcion }}
-                                                              </span>
+              </span>
                                                               <div v-if="parada.reclamos.length > 1"
                                                                    class="ruta-secuencia-grupo-nav"
                                                                    @click.stop>
@@ -371,7 +371,7 @@
                                                                           @click="navegarReclamoEnParadaListaVisualizacion(parada, -1)"
                                                                           aria-label="Reclamo anterior">
                                                                       <i class="bi bi-chevron-left"></i>
-                                                                  </button>
+              </button>
                                                                   <span class="ruta-secuencia-grupo-contador">
                                                                       {{ indiceReclamoEnParadaListaVisualizacion(parada) + 1 }} de {{ parada.reclamos.length }}
                                                                   </span>
@@ -380,10 +380,10 @@
                                                                           @click="navegarReclamoEnParadaListaVisualizacion(parada, 1)"
                                                                           aria-label="Siguiente reclamo">
                                                                       <i class="bi bi-chevron-right"></i>
-                                                                  </button>
-                                                              </div>
+              </button>
+          </div>
                                                           </span>
-                                                      </div>
+      </div>
                                                       <div class="ruta-secuencia-toolbar" @click.stop>
                                                           <div
                                                               v-if="mostrarCronometroReparacionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
@@ -394,7 +394,7 @@
                                                                   :class="claseCronometroListaObraSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))"
                                                                   title="Tiempo en reparación"
                                                               ><i class="bi bi-truck cronometro-badge-ico" aria-hidden="true"></i><span class="cronometro-badge-txt">{{ textoCronometroReparacionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) }}</span></span>
-                                                          </div>
+                                  </div>
                                                           <div class="ruta-secuencia-toolbar__paneles">
                                                               <button
                                                                   type="button"
@@ -424,16 +424,16 @@
                                                                       :class="{ 'btn-obs-ejecucion-count--oculto': cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada)) < 1 }"
                                                                   >{{ textoObservacionesEjecucionBadge(cantidadObservacionesEjecucionReclamoSupervisor(reclamoActivoEnParadaListaVisualizacion(parada))) || '0' }}</span>
                                                               </button>
-                                                          </div>
-                                                      </div>
-                                                  </div>
-                                              </div>
-                                          </div>
+                              </div>
+                              </div>
+                          </div>
+                          </div>
+                      </div>
                                           <div v-if="idx < paradasListaVisualizacion.length - 1" class="ruta-secuencia-flecha">
                                               <i class="bi bi-arrow-down"></i>
-                                          </div>
-                                      </div>
-                                  </div>
+                  </div>
+              </div>
+                      </div>
                               </div>
                           </div>
                       </div>
@@ -493,7 +493,7 @@
                           <div class="d-flex flex-wrap gap-1">
                               <button type="button" class="rutas-btn rutas-btn--sm rutas-btn--outline" @click="abrirDetalleHistorialEjecucion(h.id)">
                                   <i class="bi bi-list-ul"></i> Registro
-                              </button>
+                          </button>
                               <button type="button" class="rutas-btn rutas-btn--sm rutas-btn--outline" @click="abrirHistorialEjecucionMapa(h.id)">
                                   <i class="bi bi-map"></i> Mapa
                               </button>
@@ -513,7 +513,7 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-clock-history"></i></span>
                       <h5 id="modalHistorialEjecucionLabel">Historial de la ejecución</h5>
-                  </div>
+              </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
@@ -901,25 +901,25 @@
                       <span class="rutas-modal__icon"><i class="bi bi-plus-lg"></i></span>
                       <h5>
                           Crear hoja de ruta automática
-                          <button v-if="vistaPrevia.activa"
-                                  type="button"
+                      <button v-if="vistaPrevia.activa" 
+                              type="button" 
                                   class="rutas-btn rutas-btn--sm rutas-btn--outline ms-2"
-                                  data-bs-toggle="popover"
-                                  data-bs-placement="bottom"
-                                  data-bs-html="true"
-                                  :data-bs-content="`
-                                      <div class='text-start'>
+                              data-bs-toggle="popover"
+                              data-bs-placement="bottom"
+                              data-bs-html="true"
+                              :data-bs-content="`
+                                  <div class='text-start'>
                                           <p class='mb-0'><small><strong>Reclamos:</strong> ${vistaPrevia.rutaOptimizada.length}</small></p>
-                                      </div>
-                                  `">
-                              <i class="bi bi-info-circle"></i>
-                          </button>
-                      </h5>
-                  </div>
+                                  </div>
+                              `">
+                          <i class="bi bi-info-circle"></i>
+                      </button>
+                  </h5>
+              </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" @click="resetearModal" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
-              </div>
+                              </div>
               <div class="modal-body">
                   <!-- PASO 1: Color y cantidad de reclamos -->
                   <div v-if="!vistaPrevia.activa" class="crear-ruta-form">
@@ -945,7 +945,7 @@
                                              v-model="nuevaRuta.color"
                                              aria-label="Color personalizado de la ruta">
                                   </label>
-                              </div>
+                                  </div>
                               <div class="crear-ruta-color__preview" aria-hidden="true">
                                   <svg class="crear-ruta-color__trazo" viewBox="0 0 120 48">
                                       <path class="crear-ruta-color__trazo-fondo"
@@ -967,21 +967,21 @@
                                   </svg>
                               </div>
                           </div>
-                      </div>
+                              </div>
 
                       <div class="crear-ruta-form__field">
                           <label for="cantidadReclamos">Cantidad de domicilios</label>
                           <input type="number"
                                  id="cantidadReclamos"
                                  class="form-control crear-ruta-form__input-cantidad"
-                                 v-model.number="nuevaRuta.cantidadReclamos"
-                                 :min="1"
-                                 :max="reclamosDisponibles"
+                                         v-model.number="nuevaRuta.cantidadReclamos" 
+                                         :min="1" 
+                                         :max="reclamosDisponibles" 
                                  placeholder="Ej: 5"
-                                 required>
+                                         required>
                           <small class="text-muted">Disponibles: {{ reclamosDisponibles }}</small>
                       </div>
-                  </div>
+                              </div>
 
                   <!-- PASO 2: Vista Previa con Mapa / Lista -->
                   <div v-if="vistaPrevia.activa">
@@ -1021,17 +1021,17 @@
                                                           <i class="bi bi-check-circle-fill"></i>
                                                       </span>
                                                       <h4 class="crear-ruta-cuadrilla-card__name">{{ cuadrilla.nombre }}</h4>
-                                                  </div>
+                              </div>
 
                                                   <div v-if="cuadrillaTieneOtraHojaAsignada(cuadrilla.id)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
                                                       <i class="bi bi-lock-fill"></i> Ocupada
-                                                  </div>
+                          </div>
                                                   <div v-else-if="!cuadrillaTieneOperarios(cuadrilla)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
                                                       <i class="bi bi-person-dash"></i> Sin operarios
-                                                  </div>
+                      </div>
                                                   <div v-else-if="!cuadrillaTieneGestion(cuadrilla)" class="crear-ruta-cuadrilla-card__badge crear-ruta-cuadrilla-card__badge--ocupada">
                                                       <i class="bi bi-shield-exclamation"></i> Sin gestión
-                                                  </div>
+                  </div>
 
                                                   <div v-if="cuadrilla.operarios && cuadrilla.operarios.length" class="crear-ruta-cuadrilla-card__team">
                                                       <div class="crear-ruta-cuadrilla-card__avatars">
@@ -1057,7 +1057,7 @@
                                                           <span v-if="cuadrilla.operarios.length > 4" class="crc-avatar crc-avatar--more">
                                                               +{{ cuadrilla.operarios.length - 4 }}
                                                           </span>
-                                                      </div>
+                      </div>
                                                       <span class="crear-ruta-cuadrilla-card__count">
                                                           {{ cuadrilla.operarios.length }}
                                                           {{ cuadrilla.operarios.length === 1 ? 'operario' : 'operarios' }}
@@ -1077,13 +1077,13 @@
                                               >
                                                   <i class="bi" :class="cuadrillaDetalleExpandida(cuadrilla.id) ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
                                               </button>
-                                          </div>
+                                  </div>
                                       </article>
                                       <div v-if="!cuadrillasDisponibles.length" class="crear-ruta-cuadrillas-vacio">
                                           <i class="bi bi-people"></i>
                                           <p>No hay cuadrillas disponibles.</p>
-                                      </div>
-                                  </div>
+                                                  </div>
+                                              </div>
 
                                   <div v-if="cuadrillaDetalleAbierta" class="crear-ruta-cuadrilla-overlay">
                                       <button
@@ -1102,8 +1102,8 @@
                                                   @click="cerrarDetalleCuadrillaCrearRuta"
                                               >
                                                   <i class="bi bi-x-lg"></i>
-                                              </button>
-                                          </div>
+                                                  </button>
+                                              </div>
                                           <div class="crear-ruta-cuadrilla-overlay__body">
                                               <p v-if="cuadrillaTieneOtraHojaAsignada(cuadrillaDetalleAbierta.id)" class="crear-ruta-cuadrilla-card__alert">
                                                   <i class="bi bi-exclamation-circle-fill"></i>
@@ -1137,8 +1137,8 @@
                                                   <i class="bi bi-person-dash"></i> Sin operarios asignados
                                               </p>
                                           </div>
+                                          </div>
                                       </div>
-                                  </div>
                                   </div>
                               </div>
                           </div>
@@ -1155,8 +1155,8 @@
                                                   @click="alternarProveedorVistaPrevia">
                                               <i class="bi bi-arrow-repeat"></i>
                                               {{ proveedorMapaVistaPrevia === 'google' ? 'Mapbox' : 'Google Maps' }}
-                                          </button>
-                                      </div>
+                                      </button>
+                                  </div>
                                       <div class="crear-ruta-vista-controles crear-ruta-vista-controles--derecha">
                                           <button type="button"
                                                   class="rutas-btn rutas-btn--sm rutas-btn--outline"
@@ -1164,7 +1164,7 @@
                                                   title="Mostrar u ocultar orden de la ruta">
                                               <i class="bi bi-list-ul"></i> Ver lista
                                           </button>
-                                      </div>
+                                  </div>
 
                                       <div v-show="mostrarListaRutaVistaPrevia" class="crear-ruta-lista-overlay">
                                           <div class="crear-ruta-lista-overlay__header">
@@ -1176,7 +1176,7 @@
                                                       aria-label="Cerrar">
                                                   <i class="bi bi-x-lg"></i>
                                               </button>
-                                          </div>
+                              </div>
                                           <div class="crear-ruta-lista-overlay__body">
                                               <p v-if="!vistaPrevia.rutaOptimizada.length" class="crear-ruta-lista-overlay__empty">
                                                   No hay reclamos en la ruta.
@@ -1222,7 +1222,7 @@
                                                                   aria-label="Siguiente reclamo">
                                                               <i class="bi bi-chevron-right"></i>
                                                           </button>
-                                                      </div>
+                          </div>
                                                       <strong>#{{ reclamoActivoEnParadaLista(parada).municipalidad_id }}</strong>
                                                       <small>{{ reclamoActivoEnParadaLista(parada).municipalidad_domicilio || 'Sin domicilio' }} {{ reclamoActivoEnParadaLista(parada).municipalidad_numeroDomicilio || '' }}</small>
                                                   </span>
@@ -1247,9 +1247,9 @@
                                                               title="Eliminar parada de la ruta">
                                                           <i class="bi bi-trash"></i>
                                                       </button>
-                                                  </div>
-                                              </div>
-                                          </div>
+                      </div>
+                  </div>
+              </div>
                                       </div>
                                   </div>
                               </div>
@@ -1319,7 +1319,7 @@
                           {{ rutaVisualizando.nombre || 'Hoja de ruta' }}
                           <span v-if="rutaVisualizando.asignada == 1" class="badge bg-success">Asignada</span>
                           <span v-else class="badge bg-secondary">No asignada</span>
-                          <button type="button"
+                          <button type="button" 
                                   class="rutas-btn rutas-btn--sm rutas-btn--outline"
                                   data-bs-toggle="popover"
                                   data-bs-placement="bottom"
@@ -1338,7 +1338,7 @@
                       </h5>
                   </div>
                   <div class="rutas-modal__header-actions">
-                      <button type="button"
+                      <button type="button" 
                               class="rutas-btn rutas-btn--sm rutas-btn--danger"
                               :disabled="!puedeEliminarHojaRuta(rutaVisualizando)"
                               :title="puedeEliminarHojaRuta(rutaVisualizando) ? 'Eliminar hoja de ruta' : motivoNoPuedeEliminarHojaRuta(rutaVisualizando)"
@@ -1363,7 +1363,7 @@
                                   <i class="bi bi-arrow-repeat"></i>
                                   {{ proveedorMapaVisualizacion === 'google' ? 'Mapbox' : 'Google Maps' }}
                               </button>
-                          </div>
+                              </div>
                           <div class="crear-ruta-vista-controles crear-ruta-vista-controles--derecha">
                               <button type="button"
                                       class="rutas-btn rutas-btn--sm rutas-btn--outline"
@@ -1371,7 +1371,7 @@
                                       title="Mostrar u ocultar orden de la ruta">
                                   <i class="bi bi-list-ul"></i> Ver lista
                               </button>
-                          </div>
+                      </div>
 
                           <div v-show="mostrarListaRutaVisualizacion" class="crear-ruta-lista-overlay">
                               <div class="crear-ruta-lista-overlay__header">
@@ -1453,11 +1453,11 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-people-fill"></i></span>
                       <h5>{{ rutaParaAsignar.asignada == 1 ? 'Cambiar cuadrilla' : 'Asignar cuadrilla' }}</h5>
-                  </div>
+              </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" @click="cerrarModalAsignar" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
-              </div>
+                  </div>
               <div class="modal-body asignar-ruta-modal__body">
                   <div class="asignar-ruta-resumen"
                        :style="{ '--asignar-ruta-color': rutaParaAsignar.color || '#808080' }">
@@ -1466,7 +1466,7 @@
                           <span>{{ rutaParaAsignar.cantidadReclamos || 0 }} recl.</span>
                       </span>
                   </div>
-
+                  
                   <p v-if="rutaParaAsignar.asignada == 1" class="asignar-ruta-actual mb-0">
                       Actual: <strong>{{ rutaParaAsignar.cuadrilla_nombre || '—' }}</strong>
                   </p>
@@ -1532,9 +1532,9 @@
                   <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal" @click="cerrarModalAsignar">
                       Cancelar
                   </button>
-                  <button type="button"
+                  <button type="button" 
                           class="rutas-btn rutas-btn--success"
-                          @click="confirmarAsignacion"
+                          @click="confirmarAsignacion" 
                           :disabled="!cuadrillaSeleccionadaParaAsignar">
                       <i class="bi bi-check-lg"></i>
                       {{ rutaParaAsignar.asignada == 1 ? 'Cambiar' : 'Asignar' }}
@@ -1552,22 +1552,22 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-map"></i></span>
                       <h5>Todas las hojas de ruta</h5>
-                  </div>
+              </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" @click="cerrarVisualizacionRutas" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
-              </div>
+                              </div>
               <div class="modal-body rutas-modal__body--flush supervisor-visualizar-todas__cuerpo">
                   <div class="supervisor-visualizar-todas-layout">
                       <aside class="supervisor-visualizar-todas-panel-izq">
                           <p class="supervisor-visualizar-todas-panel-izq__subtitulo mb-2">Hojas de ruta</p>
                           <div v-if="rutasActivas.length === 0" class="text-muted small text-center py-4">
                               No hay hojas de ruta.
-                          </div>
+                                  </div>
                           <ul v-else class="list-unstyled mb-0 supervisor-visualizar-todas-lista">
                               <li
                                   v-for="ruta in rutasActivas"
-                                  :key="ruta.id"
+                                       :key="ruta.id" 
                                   class="supervisor-visualizar-todas-item"
                                   :class="{ 'supervisor-visualizar-todas-item--activa': rutaSeleccionadaVisualizarTodasId === ruta.id }"
                                   @click="seleccionarRutaVisualizarTodas(ruta)"
@@ -1589,7 +1589,7 @@
                                                   <i class="bi bi-clipboard-data" aria-hidden="true"></i>
                                                   <span>{{ ruta.cantidadReclamos || 0 }}</span>
                                               </span>
-                                          </div>
+                                              </div>
                                           <div class="supervisor-visualizar-todas-item__fila-cuadrilla">
                                               <span class="supervisor-visualizar-todas-item__cuadrilla" :title="ruta.cuadrilla_nombre || 'Sin asignar'">
                                                   <i class="bi bi-people-fill supervisor-visualizar-todas-item__cuadrilla-ico" aria-hidden="true"></i>
@@ -1604,9 +1604,9 @@
                                                   v-if="esEstadoEjecucionRuta(ruta)"
                                                   :class="claseCronometroEjecucionRutaSupervisor(ruta)"
                                               ><svg class="cronometro-badge-ico cronometro-badge-ico-ruta" viewBox="0 0 20 12" aria-hidden="true" focusable="false"><path d="M1 9.5 H6 V2.5 H14 V9.5 H19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="cronometro-badge-txt">{{ tiempoTranscurridoEjecucionSupervisor(ruta) }}</span></span>
-                                          </div>
                                       </div>
                                   </div>
+                              </div>
                               </li>
                           </ul>
                       </aside>
@@ -1620,9 +1620,9 @@
                                       {{ proveedorMapaRutasActivas === 'google' ? 'Mapbox' : 'Google Maps' }}
                                   </button>
                               </div>
+                              </div>
                           </div>
                       </div>
-                  </div>
               </div>
           </div>
       </div>
@@ -1636,12 +1636,12 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-gear-fill"></i></span>
                       <h5>Administrar hoja de ruta</h5>
-                  </div>
+                      </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" @click="cerrarModalAdministrarAsignaciones" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
               </div>
-
+              
               <div class="modal-body">
                   <div v-if="rutaSeleccionadaAdmin">
                       <div class="rutas-admin-resumen">
@@ -1654,9 +1654,9 @@
                                   <div class="rutas-admin-meta-chips">
                                       <span class="rutas-admin-meta-chip"><i class="bi bi-file-earmark-text-fill"></i> {{ rutaSeleccionadaAdmin.cantidadReclamos }} reclamos</span>
                                       <span class="rutas-admin-meta-chip"><i class="bi bi-calendar-check-fill"></i> {{ formatearFecha(rutaSeleccionadaAdmin.fecha) }}</span>
-                                  </div>
-                              </div>
-                          </div>
+                                      </div>
+                                      </div>
+                                      </div>
                           <div class="rutas-admin-status" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'rutas-admin-status--ok' : 'rutas-admin-status--pending'">
                               <span class="rutas-admin-status__icon">
                                   <i class="bi" :class="rutaSeleccionadaAdmin.asignada == 1 ? 'bi-check-circle-fill' : 'bi-info-circle-fill'"></i>
@@ -1666,10 +1666,10 @@
                                       Asignada a: <i class="bi bi-people-fill"></i> {{ rutaSeleccionadaAdmin.cuadrilla_nombre }}
                                   </strong>
                                   <strong v-else>Esta hoja de ruta aún no está asignada a ninguna cuadrilla</strong>
+                                  </div>
                               </div>
                           </div>
-                      </div>
-
+                          
                       <p class="rutas-admin-section-title"><i class="bi bi-lightning-charge-fill"></i> Acciones disponibles</p>
 
                       <div class="rutas-admin-acciones">
@@ -1682,7 +1682,7 @@
                               <span class="rutas-admin-action__text">
                                   <strong>{{ rutaSeleccionadaAdmin.asignada == 1 ? 'Reasignar a otra cuadrilla' : 'Asignar a cuadrilla' }}</strong>
                                   <small>{{ rutaSeleccionadaAdmin.asignada == 1 ? 'Cambiar la cuadrilla asignada a esta ruta' : 'Asignar esta ruta a una cuadrilla de trabajo' }}</small>
-                              </span>
+                                          </span>
                               <i class="bi bi-chevron-right rutas-admin-action__chevron"></i>
                           </button>
 
@@ -1713,15 +1713,15 @@
                               </span>
                               <i class="bi bi-chevron-right rutas-admin-action__chevron"></i>
                           </button>
-                      </div>
-                  </div>
+                                  </div>
+                              </div>
 
                   <div v-else class="rutas-admin-empty">
                       <div class="rutas-admin-empty__icon"><i class="bi bi-info-circle"></i></div>
                       <h6>No hay ruta seleccionada</h6>
                       <p>Seleccioná una ruta de la tabla para administrarla</p>
-                  </div>
-              </div>
+                          </div>
+                      </div>
 
               <div class="rutas-modal__footer rutas-modal__footer--end">
                   <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal" @click="cerrarModalAdministrarAsignaciones">
@@ -1730,7 +1730,7 @@
               </div>
           </div>
       </div>
-  </div>
+                      </div>
 
   <!-- Modal materiales (supervisor, solo lectura) -->
   <div class="modal fade" id="modalMaterialesSupervisor" tabindex="-1" aria-hidden="true">
@@ -1740,11 +1740,11 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-box-seam"></i></span>
                       <h5>Materiales — Reclamo #{{ reclamoSupervisorModal.municipalidad_id }}</h5>
-                  </div>
+                                  </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
-              </div>
+                                      </div>
               <div class="modal-body rutas-modal__body--scroll">
                   <div v-if="cargandoMaterialesSupervisor" class="rutas-modal-loading">
                       <div class="spinner-border spinner-border-sm" role="status"></div>
@@ -1810,14 +1810,14 @@
                                                       <small>
                                                           <span v-if="item.cantidad">x{{ item.cantidad }}</span>
                                                           <span v-else>Sin cantidad</span>
-                                                      </small>
-                                                  </div>
-                                              </div>
-                                              <p v-if="item.observacion" class="mb-0 mt-2 text-break small">{{ item.observacion }}</p>
-                                          </div>
-                                          <time class="bitacora-obra-msg__hora">{{ formatearFecha(item.fecha) }}</time>
-                                      </div>
+                                      </small>
                                   </div>
+                              </div>
+                                              <p v-if="item.observacion" class="mb-0 mt-2 text-break small">{{ item.observacion }}</p>
+                                  </div>
+                                          <time class="bitacora-obra-msg__hora">{{ formatearFecha(item.fecha) }}</time>
+                                  </div>
+                              </div>
                               </div>
                           </article>
                       </div>
@@ -1838,17 +1838,17 @@
                   <div class="rutas-modal__title">
                       <span class="rutas-modal__icon"><i class="bi bi-journal-text"></i></span>
                       <h5>Registro en obra — Reclamo #{{ reclamoSupervisorModal.municipalidad_id }}</h5>
-                  </div>
+                                  </div>
                   <button type="button" class="rutas-modal__close" data-bs-dismiss="modal" aria-label="Cerrar">
                       <i class="bi bi-x-lg"></i>
                   </button>
-              </div>
+                                  </div>
               <div class="modal-body bitacora-obra-modal__body">
                   <div class="bitacora-obra-modal__feed" id="bitacoraObraFeedSupervisor">
                   <div v-if="cargandoObservacionesSupervisor" class="rutas-modal-loading">
                       <div class="spinner-border spinner-border-sm" role="status"></div>
                       <span class="ms-2">Cargando…</span>
-                  </div>
+                              </div>
                   <div v-else-if="!historialBitacoraSupervisorOrdenado.length" class="rutas-modal-empty">
                       Aún no hay registros para este reclamo.
                   </div>
@@ -1929,14 +1929,14 @@
                                           <template v-if="esEntradaFotoBitacoraObra(o)">
                                               <button type="button" class="bitacora-obra-foto-link d-inline-block" @click="abrirModalFotoBitacoraObra(urlFotoBitacoraObra(o), o.texto || '')">
                                                   <img :src="urlFotoBitacoraObra(o)" class="bitacora-obra-foto-thumb" alt="Foto en obra" loading="lazy">
-                                              </button>
+                          </button>
                                               <p v-if="o.texto" class="mb-0 mt-2 text-break small">{{ o.texto }}</p>
                                           </template>
                                           <p v-else class="mb-0 text-break">{{ o.texto }}</p>
-                                      </div>
+                      </div>
                                       <time class="bitacora-obra-msg__hora">{{ formatearFecha(o.created_at) }}</time>
-                                  </div>
-                              </div>
+                  </div>
+                      </div>
                           </div>
                           </template>
                       </li>
@@ -1947,9 +1947,9 @@
                   <button type="button" class="rutas-btn rutas-btn--outline" data-bs-dismiss="modal">Cerrar</button>
               </div>
           </div>
-      </div>
-  </div>
-
+                  </div>
+              </div>
+              
   <!-- Modal ver detalle de reclamo (vista previa del mapa) -->
   <div class="modal fade" id="modalVerReclamo" tabindex="-1">
       <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -1969,7 +1969,7 @@
                           <div class="mb-3">
                               <label class="fw-bold">ID Municipalidad:</label>
                               <p>{{ reclamoSeleccionado.municipalidad_id }}</p>
-                          </div>
+          </div>
                           <div class="mb-3">
                               <label class="fw-bold">Tipo:</label>
                               <p>{{ reclamoSeleccionado.municipalidad_tipo }}</p>
@@ -2058,7 +2058,7 @@
               <button type="button" class="btn-close btn-close-white bitacora-foto-obra-modal__close" @click="cerrarModalFotoBitacoraObra" aria-label="Cerrar"></button>
               <img :src="bitacoraFotoAmpliadaUrl" alt="Foto en obra" class="bitacora-foto-obra-modal__img">
               <p v-if="bitacoraFotoAmpliadaCaption" class="bitacora-foto-obra-modal__caption">{{ bitacoraFotoAmpliadaCaption }}</p>
-          </div>
+</div>
       </div>
   </teleport>
 
