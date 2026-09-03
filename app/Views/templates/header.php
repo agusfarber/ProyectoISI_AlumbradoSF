@@ -49,11 +49,16 @@
     $session = \Config\Services::session();
     $userRole = $session->get('role');
     $userId = $session->get('user_id');
+    $userName = $session->get('user_name');
     ?>
+    <?php if (in_array((string) $userRole, ['1', '2', '3'], true)): ?>
+    <link rel="stylesheet" href="<?= base_url('/static/css/lumen.css'); ?>">
+    <?php endif; ?>
     <script>
         // Variables globales de sesión
         window.USER_ROLE = '<?= $userRole ?>';
         window.USER_ID = <?= $userId !== null && $userId !== '' ? (int) $userId : 'null' ?>;
+        window.USER_NAME = <?= json_encode((string) ($userName ?? ''), JSON_UNESCAPED_UNICODE) ?>;
     </script>
 </head>
 

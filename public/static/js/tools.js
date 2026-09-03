@@ -557,7 +557,9 @@ app.component('table-tool', {
   }
 });
 
-const MyApp = app.mount('#app');
+const MyApp = (typeof app !== 'undefined' && !app._container)
+    ? app.mount('#app')
+    : (typeof app !== 'undefined' ? (app._instance && app._instance.proxy) : null);
 
 /**
  * Función para mejorar la experiencia táctil en móviles

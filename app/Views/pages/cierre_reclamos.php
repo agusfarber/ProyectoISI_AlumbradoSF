@@ -137,7 +137,7 @@
                                 <label class="fw-bold">Estado:</label>
                                 <p>
                                     <span v-if="reclamoSeleccionado.cerrado == 1" class="badge reclamo-estado reclamo-estado--cerrado">Cerrado</span>
-                                    <template v-else>{{ reclamoSeleccionado.municipalidad_estado || 'No especificado' }}</template>
+                                    <span v-else>{{ reclamoSeleccionado.municipalidad_estado || 'No especificado' }}</span>
                                 </p>
                             </div>
                             <div class="mb-3">

@@ -87,8 +87,6 @@
                     <option value="Pendiente">Pendiente</option>
                     <option value="En ejecución">En ejecución</option>
                     <option value="Completado">Completado</option>
-                    <option value="En plan">En plan</option>
-                    <option value="Error de datos">Error de datos</option>
                 </select>
             </div>
             <!-- Nuevo filtro para prioridad -->
